@@ -51,6 +51,9 @@ export function applyMatchAction(controller: MatchController, action: KeyAction)
     case 'help':
       controller.askHelp();
       return true;
+    case 'closeHelp':
+      controller.closeHelpChart();
+      return true;
     case 'pause':
       controller.pause();
       return true;

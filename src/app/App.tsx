@@ -18,6 +18,7 @@ import { clearRound, loadRecords, loadRound, loadSettings, saveRecords, saveRoun
 import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
 import type { KeyAction, KeyScreen } from './keyboard';
+import { HelpChart } from './HelpChart';
 import { MatchOverlay } from './MatchOverlay';
 import { RoundEnd, type RoundRecord } from './RoundEnd';
 import { StartScreen } from './StartScreen';
@@ -135,7 +136,8 @@ export function App() {
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
-  const keyScreen: KeyScreen = screen === 'start' ? 'start' : roundOver ? 'roundEnd' : state.paused ? 'paused' : 'match';
+  const keyScreen: KeyScreen =
+    screen === 'start' ? 'start' : roundOver ? 'roundEnd' : state.paused ? 'paused' : state.helpChartOpen ? 'helpChart' : 'match';
 
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.mode);
@@ -156,6 +158,15 @@ export function App() {
         onPause={() => controller.pause()}
         onResume={() => controller.resume()}
       />
+      {state.helpChartOpen && state.target && !state.paused && (
+        <HelpChart
+          min={state.min}
+          max={state.max}
+          target={state.target.number}
+          lastGuess={state.lastGuess}
+          onClose={() => controller.closeHelpChart()}
+        />
+      )}
       {roundOver && (
         <RoundEnd
           goals={state.goals}

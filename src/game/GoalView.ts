@@ -4,13 +4,14 @@
  * - The net is drawn once, behind the board.
  * - The board is a canvas texture of the whole goal rectangle, drawn from `buildBoard` (src/game/board.ts). It is redrawn
  *   only when `boardKey` changes, that is when the target, the hints shown, the help step or the shown square change
- *   (plan decision 9), not every frame. The open hole is left transparent, so the net shows through it, and a ball
+ *   (plan decision 9), not every frame. Help shows on the board too (T040): at steps 1 and 2 a yellow arrow from the
+ *   closest hint number to the hole, at step 3 the answer in the hole. The open hole is left transparent, so the net shows through it, and a ball
  *   placed between the net and the board (`BALL_IN_NET_DEPTH`) shows only through the hole.
  * - The posts and the crossbar are drawn once, in front of the board.
  */
 import Phaser from 'phaser';
 import type { Rect } from '../core/types';
-import { boardKey, buildBoard, type BoardInput, type Square } from './board';
+import { boardKey, buildBoard, type Arrow, type BoardInput, type Square } from './board';
 import { COLOR, css } from './palette';
 
 export const NET_DEPTH = 2;
@@ -82,6 +83,7 @@ export class GoalView {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const s of board.squares) this.drawLabel(ctx, s, board.fontSize, board.numbersFit);
+    if (board.arrow) this.drawArrow(ctx, board.arrow, board.squares[0]?.rect.height ?? 20);
     this.texture.refresh();
     this.draws++;
   }
@@ -156,6 +158,46 @@ export class GoalView {
     const color = { ink: numbersFit ? COLOR.ink : COLOR.chalk, shown: 0xffffff, answer: COLOR.kit }[s.label.style];
     ctx.fillStyle = css(color);
     ctx.fillText(s.label.text, cx, cy + 1);
+  }
+
+  /** The help arrow: a thick yellow line with a dark edge and a head that stops short of the hole's center. */
+  private drawArrow(ctx: CanvasRenderingContext2D, arrow: Arrow, cellHeight: number): void {
+    const { from, to } = arrow;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) return;
+    const ux = dx / length;
+    const uy = dy / length;
+    const width = Math.max(3, Math.min(9, cellHeight / 6));
+    const head = width * 3;
+    // Start beside the hint's number and end at the hole's edge, so neither number is covered.
+    const start = Math.min(length / 3, cellHeight * 0.35);
+    const sx = from.x + ux * start;
+    const sy = from.y + uy * start;
+    const ex = to.x - ux * Math.min(length / 3, cellHeight * 0.3);
+    const ey = to.y - uy * Math.min(length / 3, cellHeight * 0.3);
+    const bx = ex - ux * head;
+    const by = ey - uy * head;
+    for (const [color, extra] of [
+      [COLOR.ink, 3],
+      [COLOR.kit, 0],
+    ] as const) {
+      ctx.strokeStyle = css(color);
+      ctx.fillStyle = css(color);
+      ctx.lineWidth = width + extra;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ex + ux * extra, ey + uy * extra);
+      ctx.lineTo(bx - uy * (head * 0.6 + extra), by + ux * (head * 0.6 + extra));
+      ctx.lineTo(bx + uy * (head * 0.6 + extra), by - ux * (head * 0.6 + extra));
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   destroy(): void {

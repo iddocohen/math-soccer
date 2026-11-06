@@ -4,7 +4,8 @@
  *
  * Hole mode: a board printed like the chart covers the goal, with one open hole at the target (marked with a yellow
  * outline) and a few patched holes as decoration. Hint numbers are printed when the parent chose "immer", or from help
- * step 1 with "auf Wunsch". Help step 3 writes the answer in the hole. The square of a missed number is warm orange
+ * step 1 with "auf Wunsch". At help steps 1 and 2 an arrow points from the closest hint number to the hole (`hintFrom`,
+ * from core/match/help.ts). Help step 3 writes the answer in the hole. The square of a missed number is warm orange
  * with its number while `shown` is set. Squares outside the range in a partial first or last row are empty board.
  *
  * Goalkeeper mode (US5 completes it): the goal is open, the grid faint, the hints lit in the kit color. Line mode (US4
@@ -24,6 +25,14 @@ export interface BoardInput {
   helpStep: number;
   /** The missed number whose square shows, or null. */
   shown: number | null;
+  /** The hint number the help arrow starts at (help steps 1 and 2), or null for no arrow. */
+  hintFrom: number | null;
+}
+
+/** The help arrow in world pixels, from the center of the hint square to the center of the target square. */
+export interface Arrow {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
 }
 
 /**
@@ -58,6 +67,7 @@ export interface Board {
   fontSize: number;
   /** False when squares are too small for numbers (research R4): the labels then sit on a dark badge. */
   numbersFit: boolean;
+  arrow: Arrow | null;
 }
 
 /** Changes exactly when the drawn board changes; GoalView compares it to skip redrawing (plan decision 9). */
@@ -65,7 +75,7 @@ export function boardKey(input: BoardInput): string {
   const t = input.target;
   const target = t ? `${t.number}:${t.hints.join(',')}:${t.patchedHoles.join(',')}` : '-';
   const { min, max } = input.layout;
-  return [min, max, input.mode, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-'].join('|');
+  return [min, max, input.mode, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-'].join('|');
 }
 
 export function buildBoard(input: BoardInput): Board {
@@ -102,5 +112,15 @@ export function buildBoard(input: BoardInput): Board {
       squares.push({ n, rect, kind, outlined: isTarget, lit: mode === 'keeper' && hints.has(n), shown: isShown, label });
     }
   }
-  return { squares, fontSize, numbersFit };
+  return { squares, fontSize, numbersFit, arrow: helpArrow(input) };
+}
+
+function center(r: Rect): { x: number; y: number } {
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+}
+
+function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {
+  if (!target || hintFrom === null || helpStep < 1 || helpStep >= 3) return null;
+  if (hintFrom < layout.min || hintFrom > layout.max || hintFrom === target.number) return null;
+  return { from: center(cellRect(layout, goal, hintFrom)), to: center(cellRect(layout, goal, target.number)) };
 }

@@ -76,6 +76,10 @@ export const de = {
       downLeft: 'schräg runter nach links: +9',
       upRight: 'schräg hoch nach rechts: −9',
     },
+    /** Help step 1 from a neighbor of the target: "Von 36 eine Reihe runter: +10". */
+    fromNeighbor: (from: number, step: string) => `Von ${from} ${step}`,
+    /** Help step 1 from a hint further away: "Von 26: +20". */
+    fromHint: (from: number, offset: number) => `Von ${from}: ${offset < 0 ? '−' : '+'}${Math.abs(offset)}`,
     chartTitle: 'Die Zahlentafel',
     chartTarget: 'Hier ist das Ziel',
     chartLast: 'Hier war dein Ball',

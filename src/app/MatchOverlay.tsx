@@ -4,11 +4,15 @@
  * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
- * `data-help`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows) and `data-ball` (ball kind).
+ * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows) and `data-ball` (ball kind).
+ *
+ * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
+ * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
  * The overlay lets taps through to the canvas except on its buttons.
  */
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
+import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
 import type { Settings } from '../core/settings/schema';
 import { t } from '../i18n';
 
@@ -28,6 +32,17 @@ export function messageText(message: MatchMessage | null): string {
   }
 }
 
+/** The help line for the help step: the hint from step 1, the answer at step 3, or '' without help. */
+export function helpText(state: Pick<MatchState, 'helpStep' | 'target' | 'min' | 'max'>): string {
+  const h = t().help;
+  const target = state.target;
+  if (!target || state.helpStep < HINT_STEP) return '';
+  if (state.helpStep >= ANSWER_STEP) return h.answer(target.number);
+  const hint = helpHint(layoutChart(state.min, state.max), target);
+  if (!hint) return '';
+  return hint.direction ? h.fromNeighbor(hint.from, h.direction[hint.direction]) : h.fromHint(hint.from, hint.offset);
+}
+
 /** Minutes and two-digit seconds, "5:40". */
 export function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -45,6 +60,7 @@ interface Props {
 export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Props) {
   const text = t();
   const layout = layoutChart(state.min, state.max);
+  const help = helpText(state);
   const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
   return (
     <div
@@ -53,6 +69,7 @@ export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Pro
       data-target={state.target?.number ?? ''}
       data-phase={state.phase}
       data-help={state.helpStep}
+      data-help-chart={state.helpChartOpen ? 'open' : 'closed'}
       data-goals={state.goals}
       data-hearts={state.hearts}
       data-rows={layout.rows}
@@ -92,6 +109,11 @@ export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Pro
         </div>
       </div>
       <div className="overlay-bottom">
+        {help !== '' && (
+          <p className="help-text" data-testid="help-text" aria-live="polite">
+            {help}
+          </p>
+        )}
         <output className="entry" data-testid="entry" aria-label={text.match.entryLabel}>
           {state.entry}
         </output>

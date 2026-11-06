@@ -11,6 +11,10 @@
  * the difficulty's number of misses in a row a heart is lost, the target stays and help jumps to the answer (FR-027).
  * The round is saved between shots so a refresh continues it (FR-036a: a stored round for another range or mode is
  * discarded).
+ *
+ * Help (T038, FR-024, FR-025): H, the help button and each miss raise the help step up to 3. Step 2 opens the help
+ * chart; Enter, Space, Escape or a tap close it, and that Enter does not shoot. Help never changes hearts, stars or
+ * goals. What each step shows comes from help.ts.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
@@ -20,12 +24,13 @@ import type { StoredRound } from '../storage/schemas';
 import { NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
 import type { Mode, Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
+import { ANSWER_STEP, CHART_STEP } from './help';
 
 export const PHASES = ['aiming', 'ballInFlight', 'landed', 'celebrating', 'roundOver'] as const;
 export type Phase = (typeof PHASES)[number];
 
 /** The highest help step: step 3 shows the answer. */
-export const MAX_HELP_STEP = 3;
+export const MAX_HELP_STEP = ANSWER_STEP;
 
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
@@ -55,6 +60,17 @@ export interface ShownSquare {
   remainingMs: number;
 }
 
+/**
+ * The target the child just scored, for the attempt records (T043 adds the rest of data-model "AttemptRecord").
+ * `solved` is false when the goal came after help step 3, the answer (FR-025b).
+ */
+export interface FinishedAttempt {
+  number: number;
+  solved: boolean;
+  /** The highest help step used on the target, 0 to 3. */
+  helpStep: number;
+}
+
 export interface MatchState {
   /** False before the first `start()`. */
   started: boolean;
@@ -80,6 +96,12 @@ export interface MatchState {
   missesInRow: number;
   /** 0 to 3. */
   helpStep: number;
+  /** The help chart of step 2 is open (FR-025a). */
+  helpChartOpen: boolean;
+  /** The last number shot at the current target, marked on the help chart; null before the first miss. */
+  lastGuess: number | null;
+  /** The last target scored in this round, or null. */
+  lastAttempt: FinishedAttempt | null;
   starsThisRound: number;
   /** Time played, not counted while paused or after the round. */
   elapsedMs: number;
@@ -139,6 +161,9 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
     hearts: START_HEARTS,
     missesInRow: 0,
     helpStep: 0,
+    helpChartOpen: false,
+    lastGuess: null,
+    lastAttempt: null,
     starsThisRound: 0,
     elapsedMs: 0,
   };
@@ -196,9 +221,16 @@ export class MatchController {
     return true;
   }
 
-  /** One key of the match: digits and Backspace edit the entry, Enter shoots, H asks for help, Escape pauses. */
+  /**
+   * One key of the match: digits and Backspace edit the entry, Enter shoots, H asks for help, Escape pauses. While the
+   * help chart is open, Enter and Escape only close it, and a digit or Backspace closes it and edits the entry.
+   */
   typeKey(key: EntryKey): void {
     if (!this.state.started) return;
+    if (this.state.helpChartOpen && key !== 'help') {
+      this.closeHelpChart();
+      if (key === 'escape' || key === 'enter') return;
+    }
     if (key === 'escape') {
       if (this.state.paused) this.resume();
       else this.pause();
@@ -222,6 +254,11 @@ export class MatchController {
   shoot(): void {
     const s = this.state;
     if (!s.started || s.paused || s.phase !== 'aiming') return;
+    // Enter closes the open help chart and does not also shoot.
+    if (s.helpChartOpen) {
+      this.closeHelpChart();
+      return;
+    }
     const n = entryValue(s.entry);
     if (n === null) return;
     if (n < s.min || n > s.max) {
@@ -243,6 +280,7 @@ export class MatchController {
       this.set({
         ...s,
         ball: { ...s.ball, outcome: 'goal' },
+        lastAttempt: { number: s.ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
         starsThisRound: s.starsThisRound + GOAL_STARS,
@@ -267,6 +305,8 @@ export class MatchController {
         hearts,
         missesInRow: 0,
         helpStep: MAX_HELP_STEP,
+        helpChartOpen: false,
+        lastGuess: number,
         phase: hearts <= 0 ? 'roundOver' : 'aiming',
         message: { kind: 'heartLost', number },
       });
@@ -278,7 +318,8 @@ export class MatchController {
       shown,
       phase: 'aiming',
       missesInRow: misses,
-      helpStep: Math.min(MAX_HELP_STEP, s.helpStep + 1),
+      ...this.helpRaised(s.helpStep),
+      lastGuess: number,
       message: { kind: 'miss', number },
     });
   }
@@ -289,12 +330,18 @@ export class MatchController {
     this.set(this.afterCelebration(this.state));
   }
 
-  /** One help step further, up to step 3. Not while the ball flies or after the round. */
+  /** One help step further, up to step 3, while the child aims. Step 2 opens the help chart. */
   askHelp(): void {
     const s = this.state;
-    if (!s.started || s.paused || s.phase === 'ballInFlight' || s.phase === 'roundOver') return;
+    if (!s.started || s.paused || s.phase !== 'aiming') return;
     if (s.helpStep >= MAX_HELP_STEP) return;
-    this.set({ ...s, helpStep: s.helpStep + 1 });
+    this.set({ ...s, ...this.helpRaised(s.helpStep) });
+  }
+
+  /** Closes the help chart; the help step stays. */
+  closeHelpChart(): void {
+    if (!this.state.helpChartOpen) return;
+    this.set({ ...this.state, helpChartOpen: false }, { save: false });
   }
 
   pause(): void {
@@ -321,8 +368,23 @@ export class MatchController {
     this.set({ ...s, elapsedMs, shown }, { save });
   }
 
+  /** The help step after `step`, capped at 3; the help chart is open exactly at step 2. */
+  private helpRaised(step: number): Pick<MatchState, 'helpStep' | 'helpChartOpen'> {
+    const helpStep = Math.min(MAX_HELP_STEP, step + 1);
+    return { helpStep, helpChartOpen: helpStep === CHART_STEP };
+  }
+
   private afterCelebration(s: MatchState): MatchState {
-    const next: MatchState = { ...s, ball: null, helpStep: 0, missesInRow: 0, shown: null, message: null };
+    const next: MatchState = {
+      ...s,
+      ball: null,
+      helpStep: 0,
+      helpChartOpen: false,
+      lastGuess: null,
+      missesInRow: 0,
+      shown: null,
+      message: null,
+    };
     if (s.roundType === 'goalCount' && s.goals >= this.roundSettings.goalsPerRound) return { ...next, phase: 'roundOver' };
     return this.withNextTarget({ ...next, phase: 'aiming' });
   }

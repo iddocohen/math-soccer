@@ -7,7 +7,7 @@ import { boardKey, buildBoard, type BoardInput } from './board';
 const target: Target = { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [12, 83], directions: ['right'], difficultyStep: 0 };
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
-  return { layout: layoutChart(1, 100), goal: GOAL_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, ...over };
+  return { layout: layoutChart(1, 100), goal: GOAL_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, ...over };
 }
 
 const square = (b: ReturnType<typeof buildBoard>, n: number) => b.squares.find((s) => s.n === n)!;
@@ -71,5 +71,27 @@ describe('boardKey (plan decision 9)', () => {
     expect(boardKey(input({ hintsVisible: false }))).not.toBe(base);
     expect(boardKey(input({ helpStep: 1 }))).not.toBe(base);
     expect(boardKey(input({ shown: 12 }))).not.toBe(base);
+  });
+});
+
+describe('buildBoard: help on the board (T040)', () => {
+  it('draws an arrow from the hint square to the hole at help steps 1 and 2 only', () => {
+    expect(buildBoard(input({ helpStep: 0, hintFrom: 36 })).arrow).toBeNull();
+    const arrow = buildBoard(input({ helpStep: 1, hintFrom: 36 })).arrow;
+    expect(arrow).not.toBeNull();
+    // 36 is straight above 46: same x, and the arrow points down.
+    expect(arrow!.from.x).toBeCloseTo(arrow!.to.x);
+    expect(arrow!.to.y).toBeGreaterThan(arrow!.from.y);
+    expect(buildBoard(input({ helpStep: 2, hintFrom: 36 })).arrow).not.toBeNull();
+    expect(buildBoard(input({ helpStep: 3, hintFrom: 36 })).arrow).toBeNull();
+  });
+
+  it('writes the answer in the hole at help step 3', () => {
+    expect(square(buildBoard(input({ helpStep: 2 })), 46).label).toBeNull();
+    expect(square(buildBoard(input({ helpStep: 3 })), 46).label).toEqual({ text: '46', style: 'answer' });
+  });
+
+  it('the board key changes with the arrow start', () => {
+    expect(boardKey(input({ helpStep: 1, hintFrom: 36 }))).not.toBe(boardKey(input({ helpStep: 1, hintFrom: 45 })));
   });
 });

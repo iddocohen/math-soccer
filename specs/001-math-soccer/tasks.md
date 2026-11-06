@@ -93,10 +93,10 @@ description: "Task list for Math Soccer"
 
 **Independent Test**: quickstart scenario 3.
 
-- [ ] T037 [P] [US2] `src/core/match/help.test.ts`: H and each miss advance the help step up to 3; help never changes hearts or stars; step 1 reveals hints when `hintDisplay` is `onRequest`; a shot after step 3 scores and is recorded as unsolved (FR-025b)
-- [ ] T038 [US2] Implement help in `src/core/match/MatchController.ts`: `askHelp`, automatic step after each miss, step 1 hint text (direction arrow text such as "eine Reihe runter: +10" from the closest hint), step 3 answer
-- [ ] T039 [US2] Create `src/app/HelpChart.tsx`: full chart of the range in a modal (`data-testid="help-chart"`), target with a thick outline, last typed number as a filled warm square with a ball icon (FR-025a); closes with Enter, Escape or a tap
-- [ ] T040 [US2] Show help step 1 hint text and step 3 answer in `src/app/MatchOverlay.tsx` and `src/game/GoalView.ts`; add `tests/e2e/help.spec.ts` covering three H presses
+- [X] T037 [P] [US2] `src/core/match/help.test.ts`: H and each miss advance the help step up to 3; help never changes hearts or stars; step 1 reveals hints when `hintDisplay` is `onRequest`; a shot after step 3 scores and is recorded as unsolved (FR-025b)
+- [X] T038 [US2] Implement help in `src/core/match/MatchController.ts`: `askHelp`, automatic step after each miss, step 1 hint text (direction arrow text such as "eine Reihe runter: +10" from the closest hint), step 3 answer
+- [X] T039 [US2] Create `src/app/HelpChart.tsx`: full chart of the range in a modal (`data-testid="help-chart"`), target with a thick outline, last typed number as a filled warm square with a ball icon (FR-025a); closes with Enter, Escape or a tap
+- [X] T040 [US2] Show help step 1 hint text and step 3 answer in `src/app/MatchOverlay.tsx` and `src/game/GoalView.ts`; add `tests/e2e/help.spec.ts` covering three H presses
 
 ---
 

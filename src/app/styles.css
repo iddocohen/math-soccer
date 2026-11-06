@@ -289,3 +289,119 @@ button:focus-visible {
     scroll-behavior: auto;
   }
 }
+
+/* Help: the hint or answer line (steps 1 and 3) and the help chart (step 2) */
+.help-text {
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: var(--kit);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+
+.help-chart-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(15 29 43 / 80%);
+}
+
+.help-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--chalk);
+  color: var(--ink);
+}
+
+.help-chart h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.help-chart-grid {
+  display: grid;
+  gap: 2px;
+}
+
+.help-chart-row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+}
+
+.help-chart-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(8.5vw, 6.5vh, 52px);
+  height: min(8.5vw, 6.5vh, 52px);
+  border-radius: 4px;
+  background: #e2e6da;
+  font-weight: 700;
+  font-size: min(3.2vw, 2.6vh, 1.2rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.help-chart-dense .help-chart-cell {
+  width: min(8.5vw, 40px);
+  height: 26px;
+  font-size: 0.8rem;
+}
+
+.help-chart-outside {
+  background: transparent;
+}
+
+.help-chart-target {
+  outline: 5px solid var(--kit);
+  outline-offset: -5px;
+  background: var(--chalk);
+}
+
+.help-chart-last {
+  background: var(--miss);
+  color: #fff;
+}
+
+.help-chart-ball {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 38%;
+  height: 38%;
+}
+
+.help-chart-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.help-chart-key {
+  position: relative;
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.help-chart-key .help-chart-ball {
+  width: 60%;
+  height: 60%;
+}
