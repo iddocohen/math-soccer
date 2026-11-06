@@ -90,6 +90,7 @@ export const de = {
     goalsOnly: goalCount,
     newRecord: 'Neuer Rekord!',
     record: (n: number) => `Dein Rekord: ${n}`,
+    recordTime: (goals: number, timeMs: number) => `Dein Rekord: ${goalCount(goals)} in ${clock(timeMs)}`,
     stars: (n: number) => `+${starCount(n)}`,
     again: 'Nochmal',
     back: 'Zurück',

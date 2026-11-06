@@ -161,6 +161,8 @@ button:focus-visible {
   font-weight: 800;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  /* Right of the ball at the kick spot, so the box never covers the ball. */
+  transform: translateX(12vw);
 }
 
 .message {
@@ -204,6 +206,82 @@ button:focus-visible {
 .round-end-buttons {
   display: flex;
   gap: 16px;
+}
+
+/* Gear and fullscreen at the top right of the start screen */
+.start {
+  position: relative;
+}
+
+.top-right {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  gap: 8px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgb(15 29 43 / 80%);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* Match overlay: goal counter, hearts and clock on the left, help and pause on the right */
+.overlay-status,
+.overlay-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hearts {
+  display: inline-flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgb(15 29 43 / 80%);
+}
+
+/* A heart is a small ball; a lost one fades. */
+.heart {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, var(--ink) 0 28%, var(--chalk) 30%);
+  transition: opacity 0.6s ease;
+}
+
+.heart-gone {
+  opacity: 0.2;
+}
+
+.clock {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgb(15 29 43 / 80%);
+  font-weight: 800;
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Personal best on the round end */
+.round-end .new-record {
+  color: var(--kit);
+  font-weight: 800;
+  font-size: 1.8rem;
+}
+
+.round-end .record {
+  color: var(--muted);
+  font-size: 1.1rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

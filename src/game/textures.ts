@@ -11,6 +11,8 @@ export const TEX = {
   player: 'player',
   keeper: 'keeper',
   fan: 'fan',
+  fanHead: 'fan-head',
+  fanArms: 'fan-arms',
   scarf: 'scarf',
 } as const;
 
@@ -18,7 +20,9 @@ export const TEX = {
 export const BALL_SIZE: Record<BallKind, number> = { soccer: 40, tennis: 30, pingpong: 24 };
 export const PLAYER_SIZE = { width: 64, height: 112 } as const;
 export const KEEPER_SIZE = { width: 120, height: 110 } as const;
-export const FAN_SIZE = { width: 16, height: 26 } as const;
+export const FAN_SIZE = { width: 16, height: 14 } as const;
+export const FAN_HEAD_SIZE = 12;
+export const FAN_ARMS_SIZE = { width: 26, height: 18 } as const;
 export const SCARF_SIZE = { width: 32, height: 6 } as const;
 
 const INK = 0x12202c;
@@ -98,13 +102,27 @@ export function ensureTextures(scene: Phaser.Scene): void {
     g.fillRect(cx + 42, 32, 16, 16);
   });
 
-  // A fan in the stands: head and a white shirt (tinted per fan).
+  // A fan in the stands is three images, so only the shirt and the arms take the fan's color: the white shirt
+  // (tinted per fan), the head, and two raised arms in sleeves (tinted like the shirt) for cheering and clapping.
   make(TEX.fan, FAN_SIZE.width, FAN_SIZE.height, (g) => {
-    const cx = FAN_SIZE.width / 2;
-    g.fillStyle(SKIN, 1);
-    g.fillCircle(cx, 6, 6);
     g.fillStyle(WHITE, 1);
-    g.fillRect(cx - 7, 12, 14, 14);
+    g.fillRoundedRect(1, 0, FAN_SIZE.width - 2, FAN_SIZE.height, 3);
+  });
+
+  make(TEX.fanHead, FAN_HEAD_SIZE, FAN_HEAD_SIZE, (g) => {
+    g.fillStyle(SKIN, 1);
+    g.fillCircle(FAN_HEAD_SIZE / 2, FAN_HEAD_SIZE / 2, FAN_HEAD_SIZE / 2);
+  });
+
+  make(TEX.fanArms, FAN_ARMS_SIZE.width, FAN_ARMS_SIZE.height, (g) => {
+    const { width: w, height: h } = FAN_ARMS_SIZE;
+    g.lineStyle(4, WHITE, 1);
+    g.beginPath();
+    g.moveTo(6, h);
+    g.lineTo(2, 2);
+    g.moveTo(w - 6, h);
+    g.lineTo(w - 2, 2);
+    g.strokePath();
   });
 
   // A scarf held up by cheering fans (tinted in the scarf color).

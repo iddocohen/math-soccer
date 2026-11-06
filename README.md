@@ -49,7 +49,7 @@ pnpm e2e          # browser tests in Chromium, Firefox and WebKit, on iPad sizes
 pnpm lint && pnpm typecheck
 ```
 
-The browser tests build the game and serve it on port 4173, and a second build for GitHub Pages under `/math-soccer/` on port 4174. A server already running on one of these ports is used as it is, so stop it first to test fresh code.
+The browser tests build the game and serve it on port 4273, and a second build for GitHub Pages under `/math-soccer/` on port 4274. A server already running on one of these ports is used as it is, so stop it first to test fresh code.
 
 ## Deployment
 

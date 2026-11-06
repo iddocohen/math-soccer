@@ -1,0 +1,104 @@
+/**
+ * The React overlay over the match scene (contracts/screens.md "Match"): the goal counter, the hearts as three balls
+ * (with "Bis die Bälle weg sind"), the clock when the parent turned it on, the help button and the pause button at the
+ * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
+ *
+ * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
+ * `data-help`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows) and `data-ball` (ball kind).
+ * The overlay lets taps through to the canvas except on its buttons.
+ */
+import { ballKind, layoutChart } from '../core/chart/layout';
+import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
+import type { Settings } from '../core/settings/schema';
+import { t } from '../i18n';
+
+/** German text of a match message. */
+export function messageText(message: MatchMessage | null): string {
+  const f = t().feedback;
+  if (message === null) return '';
+  switch (message.kind) {
+    case 'outOfRange':
+      return f.outOfRange(message.min, message.max);
+    case 'goal':
+      return f.goal;
+    case 'miss':
+      return f.miss(message.number);
+    case 'heartLost':
+      return f.heartLost;
+  }
+}
+
+/** Minutes and two-digit seconds, "5:40". */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+interface Props {
+  state: MatchState;
+  settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
+  onHelp: () => void;
+  onPause: () => void;
+  onResume: () => void;
+}
+
+export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Props) {
+  const text = t();
+  const layout = layoutChart(state.min, state.max);
+  const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
+  return (
+    <div
+      className="overlay"
+      data-testid="match"
+      data-target={state.target?.number ?? ''}
+      data-phase={state.phase}
+      data-help={state.helpStep}
+      data-goals={state.goals}
+      data-hearts={state.hearts}
+      data-rows={layout.rows}
+      data-ball={ballKind(layout)}
+    >
+      <div className="overlay-top">
+        <div className="overlay-status">
+          <span className="goal-count" data-testid="goal-count">
+            {goals}
+          </span>
+          {state.roundType === 'untilHearts' && (
+            <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
+              {Array.from({ length: START_HEARTS }, (_, i) => (
+                <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
+              ))}
+            </span>
+          )}
+          {settings.showClock && (
+            <span className="clock" data-testid="clock">
+              {formatClock(state.elapsedMs)}
+            </span>
+          )}
+        </div>
+        <div className="overlay-buttons">
+          <button type="button" className="icon-button" aria-label={text.match.help} data-testid="help-button" onClick={onHelp}>
+            ?
+          </button>
+          {state.paused ? (
+            <button type="button" className="icon-button" aria-label={text.match.resume} onClick={onResume}>
+              <span aria-hidden="true">▶</span>
+            </button>
+          ) : (
+            <button type="button" className="icon-button" aria-label={text.match.pause} onClick={onPause}>
+              <span aria-hidden="true">❚❚</span>
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="overlay-bottom">
+        <output className="entry" data-testid="entry" aria-label={text.match.entryLabel}>
+          {state.entry}
+        </output>
+        <p className="message" data-testid="message" aria-live="polite">
+          {state.paused ? text.match.paused : messageText(state.message)}
+        </p>
+      </div>
+    </div>
+  );
+}

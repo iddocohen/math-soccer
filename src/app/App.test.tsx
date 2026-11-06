@@ -1,18 +1,21 @@
 /**
- * The app shell (T022): start screen, match and keys. The Phaser game is replaced by a stand-in so the app runs in
- * jsdom.
+ * The app shell (T022, T034 to T036): start screen, match overlay, round end, personal bests and keys. The Phaser game
+ * is replaced by a stand-in so the app runs in jsdom; the stand-in keeps the controller, so a test can land the ball and
+ * end the celebration as MatchScene does.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
-import { ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import type { MatchController } from '../core/match/MatchController';
+import { RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { App, modeFromUrl, seedFromUrl } from './App';
 
-const game = vi.hoisted(() => ({ created: 0, destroyed: 0 }));
+const game = vi.hoisted(() => ({ created: 0, destroyed: 0, controller: null as MatchController | null }));
 
 vi.mock('../game/createGame', () => ({
-  createGame: () => {
+  createGame: (_parent: HTMLElement, controller: MatchController) => {
     game.created++;
+    game.controller = controller;
     return { game: {}, destroy: () => void game.destroyed++ };
   },
 }));
@@ -21,7 +24,19 @@ beforeEach(() => {
   localStorage.clear();
   game.created = 0;
   game.destroyed = 0;
+  game.controller = null;
 });
+
+/** Types the target, shoots, and lands the ball and ends the celebration as MatchScene does. */
+function scoreGoal(): void {
+  const target = screen.getByTestId('match').getAttribute('data-target')!;
+  for (const k of target) fireEvent.keyDown(window, { key: k });
+  fireEvent.keyDown(window, { key: 'Enter' });
+  act(() => {
+    game.controller!.ballLanded();
+    game.controller!.celebrationDone();
+  });
+}
 
 afterEach(cleanup);
 
@@ -72,5 +87,79 @@ describe('App', () => {
     expect(seedFromUrl('?seed=x')).toBeUndefined();
     expect(modeFromUrl('?mode=keeper')).toBe('keeper');
     expect(modeFromUrl('?mode=penalty')).toBeUndefined();
+  });
+
+  it('the match carries the chart rows and the ball kind for tests', async () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    const match = screen.getByTestId('match');
+    expect(match.getAttribute('data-rows')).toBe('10');
+    expect(match.getAttribute('data-ball')).toBe('soccer');
+    expect(screen.getByTestId('hearts').querySelectorAll('.heart')).toHaveLength(3);
+    await waitFor(() => expect(game.controller).not.toBeNull());
+  });
+
+  it('the round end shows the result and "Neuer Rekord!", stores the best, and "Nochmal" starts a new round', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    expect(screen.getByTestId('goal-count').textContent).toBe('0 von 1 Toren');
+    scoreGoal();
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    expect(screen.getByTestId('round-result').textContent).toMatch(/^1 Tor in \d+:\d\d$/);
+    expect(screen.getByTestId('new-record').textContent).toBe('Neuer Rekord!');
+    const stored = JSON.parse(localStorage.getItem(RECORDS_KEY)!) as { bests: Record<string, { goals: number }> };
+    expect(stored.bests['1-100|holes|goalCount']?.goals).toBe(1);
+
+    fireEvent.click(screen.getByText('Nochmal'));
+    expect(screen.queryByTestId('round-end')).toBeNull();
+    expect(screen.getByTestId('match').getAttribute('data-phase')).toBe('aiming');
+  });
+
+  it('shows the stored record when the round does not beat it, and no record with "Rekorde zeigen" off', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
+    localStorage.setItem(
+      RECORDS_KEY,
+      JSON.stringify({ version: 1, bests: { '1-100|holes|goalCount': { goals: 1, timeMs: 0, at: '2026-11-01T00:00:00.000Z' } } }),
+    );
+    const first = render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    expect(screen.queryByTestId('new-record')).toBeNull();
+    expect(screen.getByTestId('record').textContent).toBe('Dein Rekord: 1 Tor in 0:00');
+    first.unmount();
+
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1, showRecords: false }));
+    game.controller = null;
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    expect(screen.queryByTestId('record')).toBeNull();
+    expect(screen.queryByTestId('new-record')).toBeNull();
+  });
+
+  it('"Zurück" on the round end goes back to the start screen', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    fireEvent.click(screen.getByText('Zurück'));
+    expect(screen.getByTestId('start')).toBeTruthy();
+  });
+
+  it('the help and pause buttons work like H and Escape', () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.click(screen.getByTestId('help-button'));
+    expect(screen.getByTestId('match').getAttribute('data-help')).toBe('1');
+    fireEvent.click(screen.getByLabelText('Pause'));
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+    fireEvent.click(screen.getByLabelText('Weiter'));
+    expect(screen.getByTestId('message').textContent).toBe('');
   });
 });
