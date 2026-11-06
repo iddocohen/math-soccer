@@ -78,7 +78,7 @@ export interface Board {
  */
 export function cellPanelVisible(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, solved = false): boolean {
   if (!target || solved) return false;
-  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false);
+  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false, solved);
   return litRow !== null && litColumn !== null;
 }
 
@@ -92,7 +92,8 @@ export function boardKey(input: BoardInput): string {
 
 export function buildBoard(input: BoardInput): Board {
   const { layout, goal, target, hintsVisible, helpStep, shown } = input;
-  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false);
+  // The bands go with the scales once the target is scored (amendment 14, FR-115).
+  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false, input.solved);
   const cellHeight = goal.height / layout.rows;
   const numbersFit = showNumbers(layout, goal);
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;

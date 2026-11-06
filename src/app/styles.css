@@ -351,17 +351,7 @@ button:focus-visible {
   }
 }
 
-/* Help: the hint or answer line (steps 1, 2 and 4) and the help chart (step 3) */
-.help-text {
-  margin: 0;
-  padding: 4px 14px;
-  border-radius: 8px;
-  background: var(--kit);
-  color: var(--ink);
-  font-weight: 800;
-  font-size: 1.3rem;
-}
-
+/* Help: the help chart (step 3) */
 .help-chart-backdrop {
   position: absolute;
   inset: 0;

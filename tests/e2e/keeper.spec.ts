@@ -62,7 +62,7 @@ test('the number box shows a faint "?" before the child types; the first digit r
   expect(await placeholder()).toBe('none');
 });
 
-test('the help line, the typed number and the message lie right of the player and the ball (amendment 08)', async ({ page }) => {
+test('the typed number and the message lie right of the player and the ball (amendment 08)', async ({ page }) => {
   const match = await startRound(page);
   await page.keyboard.press('h');
   await page.keyboard.press('h');
@@ -72,7 +72,7 @@ test('the help line, the typed number and the message lie right of the player an
   expect(canvas).not.toBeNull();
   // World x to screen x with the canvas scale.
   const minX = canvas!.x + (OVERLAY_LEFT * canvas!.width) / WORLD_WIDTH - 1;
-  for (const id of ['help-text', 'entry']) {
+  for (const id of ['entry', 'message']) {
     const box = await page.getByTestId(id).boundingBox();
     expect(box, id).not.toBeNull();
     expect(box!.x, `${id} right of the ball`).toBeGreaterThanOrEqual(minX);

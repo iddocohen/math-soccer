@@ -10,16 +10,40 @@ const layout = layoutChart(1, 100);
 const cell = cellRect(layout, CHART_RECT, 46);
 
 describe('buildScales', () => {
+  it('shows no scale, strip or arrow without help (amendment 14, FR-115)', () => {
+    expect(buildScales(layout, CHART_RECT, target, 0, true)).toMatchObject({
+      rowLabels: [],
+      columnLabels: [],
+      rowArrow: null,
+      columnArrow: null,
+      rowBacking: null,
+      columnBacking: null,
+    });
+  });
+
+  it('shows the row scale from step 1, the column scale from step 2, and none once the target is scored (FR-115)', () => {
+    const one = buildScales(layout, CHART_RECT, target, 1, true);
+    expect(one.rowLabels).toHaveLength(10);
+    expect(one.columnLabels).toEqual([]);
+    expect(one.columnBacking).toBeNull();
+    for (const step of [2, 3, 4]) {
+      const s = buildScales(layout, CHART_RECT, target, step, true);
+      expect(s.rowLabels).toHaveLength(10);
+      expect(s.columnLabels).toHaveLength(10);
+    }
+    for (const step of [1, 2, 4]) {
+      expect(buildScales(layout, CHART_RECT, target, step, true, true)).toMatchObject({ rowLabels: [], columnLabels: [], rowArrow: null, columnArrow: null });
+    }
+  });
+
   it('puts a row label at the height of each row, right of the right post, and 1 to 10 above the crossbar', () => {
-    const s = buildScales(layout, CHART_RECT, target, 0, true);
+    const s = buildScales(layout, CHART_RECT, target, 2, true);
     expect(s.rowLabels.map((l) => l.text)).toEqual(['0', '10', '20', '30', '40', '50', '60', '70', '80', '90']);
     expect(s.rowLabels.every((l) => l.x > GOAL_FRAME.x + GOAL_FRAME.width)).toBe(true);
     expect(s.rowLabels[4]!.y).toBeCloseTo(cell.y + cell.height / 2);
     expect(s.columnLabels.map((l) => l.text)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
     expect(s.columnLabels.every((l) => l.y < GOAL_FRAME.y)).toBe(true);
     expect(s.columnLabels[5]!.x).toBeCloseTo(cell.x + cell.width / 2);
-    expect(s.rowArrow).toBeNull();
-    expect(s.columnArrow).toBeNull();
   });
 
   it('points an arrow from the row scale at the target row from step 1, and from the column scale from step 2', () => {
@@ -66,7 +90,7 @@ describe('buildScales', () => {
       [layoutChart(0, 1000), 463],
       [layoutChart(0, 9), 4],
     ] as const) {
-      for (const step of [0, 1, 2]) {
+      for (const step of [2, 3, 4]) {
         const s = buildScales(chart, CHART_RECT, { ...target, number: n }, step, true);
         const row = s.rowBacking!;
         const column = s.columnBacking!;
@@ -94,5 +118,7 @@ describe('buildScales', () => {
     expect(key(1)).not.toBe(key(2));
     expect(key(2)).toBe(key(3));
     expect(key(2)).not.toBe(key(2, false));
+    // Scoring the target takes the scales away (FR-115).
+    expect(scalesKey(layout, target, 2, true, true)).not.toBe(key(2));
   });
 });

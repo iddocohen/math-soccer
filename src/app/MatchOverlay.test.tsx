@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchController, type MatchView } from '../core/match/MatchController';
 import { defaultSettings } from '../core/settings/defaults';
-import { helpText, litLabels, MatchOverlay } from './MatchOverlay';
+import { litLabels, MatchOverlay } from './MatchOverlay';
 import type { Target } from '../core/types';
 
 afterEach(cleanup);
@@ -97,20 +97,39 @@ describe('MatchOverlay number pad, speaker and fullscreen (T061 to T063)', () =>
   });
 });
 
-describe('help line and lit labels of the row and column helper (FR-094, amendment 10)', () => {
+describe('lit labels and scales of the row and column helper (FR-094, amendment 10, amendment 14)', () => {
   const target: Target = { number: 46, hints: [36], directions: ['down'], level: 1, pattern: 'neighbors' };
-  const at = (helpStep: number) => ({ helpStep, target, min: 1, max: 100 });
+  const at = (helpStep: number) => ({ helpStep, target, min: 1, max: 100, ball: null });
 
-  it('names the hint and the row at step 1, adds the column at steps 2 and 3, and says the answer at step 4', () => {
-    expect(helpText(at(0))).toBe('');
-    expect(helpText(at(1))).toBe('Von 36 eine Reihe runter: +10. Die Zahl ist in der Reihe 40.');
-    expect(helpText(at(2))).toBe('Von 36 eine Reihe runter: +10. Die Zahl ist in der Reihe 40 und in der Spalte 6.');
-    expect(helpText(at(3))).toBe(helpText(at(2)));
-    expect(helpText(at(4))).toBe('Das ist 46. Schieß!');
+  it('shows no help sentence at any help step (amendment 14, FR-119)', () => {
+    for (const helpStep of [0, 1, 2, 3, 4]) {
+      const { unmount } = render(<MatchOverlay state={{ ...running(), target, helpStep }} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+      expect(screen.queryByTestId('help-text')).toBeNull();
+      unmount();
+    }
   });
 
-  it('names only the row and column when the target has no hint number', () => {
-    expect(helpText({ ...at(2), target: { ...target, hints: [] } })).toBe('Die Zahl ist in der Reihe 40 und in der Spalte 6.');
+  it('carries which scales show as data-scales: none, row, both, and none once scored (FR-115)', () => {
+    const scalesAt = (helpStep: number, scored = false) => {
+      const state: MatchView = { ...running(), target, helpStep, ...(scored ? { phase: 'celebrating', ball: { number: 46, outcome: 'goal', atMs: 0 } } : {}) };
+      const { unmount } = render(<MatchOverlay state={state} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+      const value = screen.getByTestId('match').getAttribute('data-scales');
+      unmount();
+      return value;
+    };
+    expect([0, 1, 2, 3, 4].map((step) => scalesAt(step))).toEqual(['none', 'row', 'both', 'both', 'both']);
+    expect(scalesAt(2, true)).toBe('none');
+    expect(litLabels({ ...at(2), ball: { number: 46, outcome: 'goal', atMs: 0 } })).toEqual({ row: '', col: '' });
+  });
+
+  it('shows the home button "Zum Start" only with onHome, and not on the round end (FR-116)', () => {
+    const home = vi.fn();
+    const { unmount } = render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+    expect(screen.queryByTestId('home-button')).toBeNull();
+    unmount();
+    render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} onHome={home} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Zum Start' }));
+    expect(home).toHaveBeenCalledTimes(1);
   });
 
   it('carries the lit row and column labels as data-help-row and data-help-col', () => {

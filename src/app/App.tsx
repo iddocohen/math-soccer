@@ -33,14 +33,18 @@
  * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
  * round continues (a round the child paused stays paused) and the chosen look shows at once.
  *
+ * Pause and home (amendment 14, FR-116 to FR-118): while the child paused the round, PauseScreen offers "Weiter" and
+ * "Zum Start"; the home button pauses and asks "Runde beenden?" with the same two buttons. "Zum Start" goes through
+ * `abandonRound`: the controller drops the round (MatchController.abandon) and the start screen shows.
+ *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
  * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
  * load, the start screen shows a short note (M6, H5, FR-036); play is never interrupted.
  *
  * Polish (T061, T062): the number pad shows by the parent's setting (automatic: only without a mouse or trackpad,
- * FR-031). With "Vorlesen" on (FR-032), each new target reads a short task aloud that never says the number, and each
- * new help line is read aloud; the speaker icon repeats the help line, or the task when there is none. The start tap
+ * FR-031). With "Vorlesen" on (FR-032), each new target reads a short task aloud that never says the number; the
+ * speaker icon repeats it. There is no help sentence to read (amendment 14, FR-119). The start tap
  * speaks a short greeting, since tablet browsers speak only after a user tap.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -64,9 +68,10 @@ import { resetMessage, t } from '../i18n';
 import { START_KINDS, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
-import { helpText, MatchOverlay } from './MatchOverlay';
+import { MatchOverlay } from './MatchOverlay';
 import { numberPadShown, useFinePointer } from './NumberPad';
 import { ParentGate } from './ParentGate';
+import { PauseScreen } from './PauseScreen';
 import { createPersistence, type DataKind, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
 import { RoundEnd, type RoundRecord } from './RoundEnd';
@@ -367,15 +372,8 @@ export function App() {
     if (!speech || taskKey === null) return;
     speaker.speak(t().match.task);
   }, [speech, taskKey, speaker]);
-  const help = screen === 'match' ? helpText(state) : '';
-  useEffect(() => {
-    if (speech && help !== '') speaker.speak(help);
-  }, [speech, help, speaker]);
-  const speakTask = useCallback(() => {
-    const s = controller.getState();
-    const line = helpText(s);
-    speaker.speak(line !== '' ? line : t().match.task);
-  }, [controller, speaker]);
+  // The speaker icon reads the task again; there is no help sentence to read (amendment 14, FR-119).
+  const speakTask = useCallback(() => speaker.speak(t().match.task), [speaker]);
 
   const finePointer = useFinePointer();
   const showPad = numberPadShown(settings().numberPad, finePointer);
@@ -484,6 +482,22 @@ export function App() {
   const askHelp = useCallback(() => controller.askHelp(), [controller]);
   const pause = useCallback(() => controller.pause(), [controller]);
   const resume = useCallback(() => controller.resume(), [controller]);
+  // The home button pauses and asks "Runde beenden?" (FR-116); the pause screen then shows that question.
+  const [quitAsked, setQuitAsked] = useState(false);
+  const askQuit = useCallback(() => {
+    controller.pause();
+    setQuitAsked(true);
+  }, [controller]);
+  useEffect(() => {
+    if (!state.paused) setQuitAsked(false);
+  }, [state.paused]);
+  // "Zum Start" (FR-118): the one way a round ends without a round end. A later cup match hooks in here, so the match
+  // counts as neither won nor lost.
+  const abandonRound = useCallback(() => {
+    controller.abandon();
+    setQuitAsked(false);
+    setScreen('start');
+  }, [controller]);
   const closeHelpChart = useCallback(() => controller.closeHelpChart(), [controller]);
 
   if (screen === 'lockerRoom' && lockerOn) {
@@ -519,7 +533,6 @@ export function App() {
       <div className="game-parent" ref={gameParent} />
       <MatchOverlay
         state={state}
-        help={help}
         clock={clock}
         keeper={keeper}
         ball={locker.ball}
@@ -532,7 +545,12 @@ export function App() {
         onHelp={askHelp}
         onPause={pause}
         onResume={resume}
+        onHome={askQuit}
       />
+      {/* The pause screen shows while the child paused the round, not under a parent screen or the locker room. */}
+      {state.paused && !roundOver && keyScreen === 'paused' && (
+        <PauseScreen kind={quitAsked ? 'quit' : 'pause'} onResume={resume} onHome={abandonRound} />
+      )}
       {state.helpChartOpen && state.target && !state.paused && (
         <HelpChart
           min={state.min}

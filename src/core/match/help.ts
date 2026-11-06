@@ -10,7 +10,8 @@
  * - Step 3, the help chart: the full chart of the range in a modal, with the target and the last typed number marked.
  * - Step 4, the answer: the target number is written on the target square.
  *
- * The row and column scales (FR-091 to FR-093): each row is labelled with its tens (0, 10 … 90 on 1 to 100, 190 for the
+ * The row and column scales (FR-091 to FR-093, amendment 14 FR-115): they show only from help step 1 (row) and 2
+ * (column) until the target is scored. Each row is labelled with its tens (0, 10 … 90 on 1 to 100, 190 for the
  * row 191 to 200), each column with 1 to 10. Over 20 rows only every fifth row label shows, plus the lit one.
  */
 import { cellOf, COLUMNS, type ChartLayout } from '../chart/layout';
@@ -93,6 +94,19 @@ export function columnLabel(col: number): number {
   return col + 1;
 }
 
+/** Which scales show (amendment 14, FR-115): none, the row scale alone, or the row and the column scale. */
+export type ScalesShown = 'none' | 'row' | 'both';
+
+/**
+ * The scales are hidden while the child aims without help. The row scale comes with help step 1, the column scale with
+ * step 2, and both stay at steps 3 and 4. Once the target is scored (`solved`) both go; a new target starts at step 0,
+ * so a replaced target has none either.
+ */
+export function scalesShown(helpStep: number, solved = false): ScalesShown {
+  if (solved || helpStep < ROW_STEP) return 'none';
+  return helpStep < COLUMN_STEP ? 'row' : 'both';
+}
+
 /** One label of a scale: its row or column, its text, and whether it is lit by help. */
 export interface ScaleLabel {
   index: number;
@@ -112,30 +126,37 @@ export interface RowColumnHelp {
 }
 
 /**
- * The row and column scales and the bands for `helpStep`. The bands show at steps 1 and 2 and stay while the help
- * chart is open (step 3) and with the answer (step 4), so the crossing still points at the target. With the helper off
- * only the lit labels show (FR-095). Over 20 rows only every fifth row label shows, plus the lit one.
+ * The row and column scales and the bands for `helpStep` (amendment 14, FR-115). Without help no scale shows; the row
+ * scale and band come with step 1, the column scale and band with step 2, and both stay while the help chart is open
+ * (step 3) and with the answer (step 4), so the crossing still points at the target. Once the target is scored
+ * (`solved`) the scales and bands go. With the helper off a shown scale has only its lit label (FR-095). Over 20 rows
+ * only every fifth row label shows, plus the lit one.
  */
 export function rowColumnHelp(
   layout: ChartLayout,
   target: Pick<Target, 'number'> | null,
   helpStep: number,
   helperOn: boolean,
+  solved = false,
 ): RowColumnHelp {
+  const shown = scalesShown(helpStep, solved);
   const cell = target && target.number >= layout.min && target.number <= layout.max ? cellOf(layout, target.number) : null;
-  const litRow = cell && helpStep >= ROW_STEP ? cell.row : null;
-  const litColumn = cell && helpStep >= COLUMN_STEP ? cell.col : null;
+  const litRow = cell && shown !== 'none' ? cell.row : null;
+  const litColumn = cell && shown === 'both' ? cell.col : null;
   const sparse = layout.rows > ROW_LABELS_ALL_UP_TO;
   const rows: ScaleLabel[] = [];
-  for (let row = 0; row < layout.rows; row++) {
-    const lit = row === litRow;
-    const shown = lit || (helperOn && (!sparse || row % 5 === 0));
-    if (shown) rows.push({ index: row, text: String(rowLabel(layout, row)), lit });
+  if (shown !== 'none') {
+    for (let row = 0; row < layout.rows; row++) {
+      const lit = row === litRow;
+      if (lit || (helperOn && (!sparse || row % 5 === 0))) rows.push({ index: row, text: String(rowLabel(layout, row)), lit });
+    }
   }
   const columns: ScaleLabel[] = [];
-  for (let col = 0; col < COLUMNS; col++) {
-    const lit = col === litColumn;
-    if (lit || helperOn) columns.push({ index: col, text: String(columnLabel(col)), lit });
+  if (shown === 'both') {
+    for (let col = 0; col < COLUMNS; col++) {
+      const lit = col === litColumn;
+      if (lit || helperOn) columns.push({ index: col, text: String(columnLabel(col)), lit });
+    }
   }
   return { rows, columns, litRow, litColumn };
 }

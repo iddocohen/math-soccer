@@ -33,6 +33,8 @@
  * SHOWN_MS of play time, so the scene still reads the landed ball, the message and the shown square right after
  * `ballLanded`.
  *
+ * "Zum Start" (amendment 14, FR-118): `abandon()` drops the round without a round end; see there.
+ *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
@@ -562,6 +564,20 @@ export class MatchController {
   resume(): void {
     if (!this.state.paused) return;
     this.set({ ...this.state, paused: false }, { save: false });
+  }
+
+  /**
+   * "Zum Start" (amendment 14, FR-118): ends the round without a round end. Stars and the attempts already recorded
+   * stay where they went; the unfinished target records no attempt, the round never reaches 'roundOver' (so it is no
+   * personal best), the stored round is deleted, and a time challenge's countdown stops because no round runs. The
+   * state goes back to the one before the first `start()`.
+   */
+  abandon(): void {
+    if (!this.state.started) return;
+    this.newTargetPending = false;
+    this.feedbackMs = 0;
+    this.options.store?.clear();
+    this.set(freshState(this.roundSettings, 0, false), { save: false });
   }
 
   /**

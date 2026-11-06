@@ -1,7 +1,7 @@
 // Structure adapted from math-tank tests/e2e/pauseResume.spec.ts.
 /**
  * Pause and resume (T063, FR-029, FR-033): Escape and the pause button pause the round; while paused keys type
- * nothing and the message says how to go on; Escape (or the resume button) resumes. The clock shows because the
+ * nothing, the message says how to go on and the pause screen shows; Escape (or its "Weiter") resumes. The clock shows because the
  * stored settings turn it on.
  */
 import { expect, seedStorage, startRound, test } from './fixtures';
@@ -34,6 +34,7 @@ test('Escape and the pause button pause the round; Escape and the resume button 
 
   await page.getByRole('button', { name: text.match.pause }).click();
   await expect(message).toHaveText(text.match.paused);
-  await page.getByRole('button', { name: text.match.resume }).click();
+  // The pause screen lies over the match; its "Weiter" goes on (amendment 14, FR-117).
+  await page.getByTestId('pause-screen').getByRole('button', { name: text.match.resume }).click();
   await expect(message).not.toHaveText(text.match.paused);
 });

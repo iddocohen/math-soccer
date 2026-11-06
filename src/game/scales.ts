@@ -2,6 +2,8 @@
  * Where the row and column helper sits (amendment 10, FR-091 to FR-095), as plain data for HelperView. No Phaser here,
  * so the rules have unit tests.
  *
+ * - The scales show only with help (amendment 14, FR-115): none while the child aims without help, the row scale from
+ *   help step 1, the column scale from step 2, and none once the target is scored.
  * - The row scale stands right of the goal, outside the right post: one label per chart row at the height of its row,
  *   the row's tens (core/match/help.ts `rowColumnHelp`).
  * - The column scale stands above the crossbar: 1 to 10, each above its column.
@@ -12,7 +14,7 @@
  *   and the grass (FR-101a). One strip per scale, no box per label.
  */
 import { COLUMNS, type ChartLayout } from '../core/chart/layout';
-import { ROW_LABELS_ALL_UP_TO, rowColumnHelp } from '../core/match/help';
+import { ROW_LABELS_ALL_UP_TO, rowColumnHelp, scalesShown } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME } from '../core/match/world';
 import type { DeepReadonly, Rect, Target } from '../core/types';
 import { clamp } from '../core/util';
@@ -59,13 +61,20 @@ export interface Scales {
 }
 
 /** Changes exactly when the drawn scales change; HelperView compares it to skip redrawing. */
-export function scalesKey(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, helperOn: boolean): string {
-  const help = rowColumnHelp(layout, target, helpStep, helperOn);
-  return [layout.min, layout.max, help.litRow ?? '-', help.litColumn ?? '-', helperOn ? 1 : 0].join('|');
+export function scalesKey(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, helperOn: boolean, solved = false): string {
+  const help = rowColumnHelp(layout, target, helpStep, helperOn, solved);
+  return [layout.min, layout.max, scalesShown(helpStep, solved), help.litRow ?? '-', help.litColumn ?? '-', helperOn ? 1 : 0].join('|');
 }
 
-export function buildScales(layout: ChartLayout, chart: Rect, target: DeepReadonly<Target> | null, helpStep: number, helperOn: boolean): Scales {
-  const help = rowColumnHelp(layout, target, helpStep, helperOn);
+export function buildScales(
+  layout: ChartLayout,
+  chart: Rect,
+  target: DeepReadonly<Target> | null,
+  helpStep: number,
+  helperOn: boolean,
+  solved = false,
+): Scales {
+  const help = rowColumnHelp(layout, target, helpStep, helperOn, solved);
   const cellHeight = chart.height / layout.rows;
   const cellWidth = chart.width / COLUMNS;
   const rowX = GOAL_FRAME.x + GOAL_FRAME.width + ROW_LABEL_GAP;

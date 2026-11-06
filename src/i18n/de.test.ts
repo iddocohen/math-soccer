@@ -62,10 +62,6 @@ describe('texts from contracts/screens.md', () => {
     expect(de.roundEnd.back).toBe('Zurück');
   });
 
-  it('help step 1 direction text', () => {
-    expect(de.help.direction.down).toBe('eine Reihe runter: +10');
-  });
-
   it('parent gate, settings groups, progress and locker room', () => {
     expect([de.parent.settings, de.parent.progress]).toEqual(['Einstellungen', 'Fortschritt']);
     expect(Object.values(de.settings.groups)).toEqual([

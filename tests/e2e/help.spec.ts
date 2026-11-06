@@ -1,7 +1,7 @@
 /**
  * US2 end to end with the keyboard only (T040, T096; acceptance scenarios US2-1 to US2-4, FR-024, FR-025, FR-025a,
- * FR-094, amendment 10): four H presses walk through the help steps. H once shows the hint line and lights the target's
- * row; H twice lights its column; H a third time opens the help chart with the target outlined; Enter closes the chart
+ * FR-094, amendment 10, amendment 14 FR-119): four H presses walk through the help steps, with no help sentence under
+ * the goal. H once lights the target's row; H twice lights its column; H a third time opens the help chart with the target outlined; Enter closes the chart
  * and does not shoot; H a fourth time writes the answer, and shooting it scores without costing a heart. Other tests
  * check that a miss lights the row and a second miss the column (`data-help-row`, `data-help-col`), and that the chart
  * opened after misses marks the last typed number. Game state is read from the overlay's data-* attributes; there are
@@ -29,13 +29,12 @@ test('four H presses: row, column, help chart, answer; Enter closes the chart wi
   const helpText = page.getByTestId('help-text');
   const chart = page.getByTestId('help-chart');
 
-  // Step 1: a hint line that starts at a hint number and names the row (US2-1, FR-094).
-  await expect(helpText).toBeHidden();
+  // Step 1: the row lights up (US2-1, FR-094); no help sentence shows (FR-119).
   await expect(match).toHaveAttribute('data-help-row', '');
   await page.keyboard.press('h');
   await expect(match).toHaveAttribute('data-help', '1');
-  await expect(helpText).toHaveText(new RegExp(`^Von \\d+.*${text.help.inRow(Number(row))}\\.$`));
   await expect(match).toHaveAttribute('data-help-row', row);
+  await expect(helpText).toHaveCount(0);
   await expect(match).toHaveAttribute('data-help-col', '');
   await expect(chart).toBeHidden();
 
@@ -43,7 +42,6 @@ test('four H presses: row, column, help chart, answer; Enter closes the chart wi
   await page.keyboard.press('h');
   await expect(match).toHaveAttribute('data-help', '2');
   await expect(match).toHaveAttribute('data-help-col', col);
-  await expect(helpText).toContainText(text.help.inRowAndColumn(Number(row), Number(col)));
   await expect(chart).toBeHidden();
 
   // Step 3: the full chart with the target outlined (US2-2).
@@ -63,7 +61,7 @@ test('four H presses: row, column, help chart, answer; Enter closes the chart wi
   // Step 4: the answer (US2-3); shooting it scores and costs nothing (US2-4).
   await page.keyboard.press('h');
   await expect(match).toHaveAttribute('data-help', '4');
-  await expect(helpText).toHaveText(text.help.answer(target));
+  await expect(helpText).toHaveCount(0);
   await expect(chart).toBeHidden();
   await typeAndShoot(page, target);
   await expect(match).toHaveAttribute('data-goals', '1');
@@ -71,7 +69,7 @@ test('four H presses: row, column, help chart, answer; Enter closes the chart wi
   // The next target starts without help.
   await expect(match).toHaveAttribute('data-help', '0');
   await expect(match).toHaveAttribute('data-help-row', '');
-  await expect(helpText).toBeHidden();
+  await expect(helpText).toHaveCount(0);
 });
 
 test('a miss lights the target row and its label; a second miss lights the column (amendment 10)', async ({ page }) => {

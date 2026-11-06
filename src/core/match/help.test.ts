@@ -11,7 +11,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { Target } from '../types';
 import type { Digit } from './entry';
-import { ANSWER_STEP, CHART_STEP, COLUMN_STEP, columnLabel, helpHint, hintsVisible, ROW_STEP, rowColumnHelp, rowLabel, targetHintDisplay } from './help';
+import { ANSWER_STEP, CHART_STEP, COLUMN_STEP, columnLabel, helpHint, hintsVisible, ROW_STEP, rowColumnHelp, rowLabel, scalesShown, targetHintDisplay } from './help';
 import { GOAL_STARS } from '../rewards/lockerRoom';
 import { MatchController, MAX_HELP_STEP } from './MatchController';
 
@@ -271,8 +271,8 @@ describe('the row and column helper (FR-091 to FR-095, amendment 10)', () => {
     expect(rowLabel(layout, 9)).toBe(90);
   });
 
-  it('shows every label while the helper is on, and none when it is off unless help lights it (FR-095)', () => {
-    const on = rowColumnHelp(layout, target(46), 0, true);
+  it('shows every label of a shown scale while the helper is on, and none when it is off unless help lights it (FR-095)', () => {
+    const on = rowColumnHelp(layout, target(46), 2, true);
     expect(on.rows).toHaveLength(10);
     expect(on.columns).toHaveLength(10);
     const off = rowColumnHelp(layout, target(46), 0, false);
@@ -291,7 +291,39 @@ describe('the row and column helper (FR-091 to FR-095, amendment 10)', () => {
     expect(texts).toContain('450');
     expect(texts).not.toContain('470');
     expect(help.rows.filter((r) => !r.lit).every((r) => r.index % 5 === 0)).toBe(true);
-    expect(rowColumnHelp(layoutChart(1, 200), null, 0, true).rows).toHaveLength(20);
+    expect(rowColumnHelp(layoutChart(1, 200), null, 1, true).rows).toHaveLength(20);
+  });
+});
+
+describe('the scales show only with help (amendment 14, FR-115)', () => {
+  const t46 = { number: 46 };
+
+  it('hides both scales at help step 0, shows the row scale from step 1 and the column scale from step 2', () => {
+    expect(scalesShown(0)).toBe('none');
+    expect(scalesShown(1)).toBe('row');
+    for (const step of [2, 3, 4]) expect(scalesShown(step)).toBe('both');
+    expect(rowColumnHelp(layout, t46, 0, true)).toMatchObject({ rows: [], columns: [], litRow: null, litColumn: null });
+    const one = rowColumnHelp(layout, t46, 1, true);
+    expect(one.rows).toHaveLength(10);
+    expect(one.columns).toEqual([]);
+    expect(one).toMatchObject({ litRow: 4, litColumn: null });
+  });
+
+  it('shows no scale and no band once the target is scored', () => {
+    for (const step of [0, 1, 2, 3, 4]) {
+      expect(scalesShown(step, true)).toBe('none');
+      expect(rowColumnHelp(layout, t46, step, true, true)).toEqual({ rows: [], columns: [], litRow: null, litColumn: null });
+    }
+  });
+
+  it('a replaced target starts again without scales, since a new target starts at help step 0', () => {
+    const c = makeController();
+    c.askHelp();
+    c.askHelp();
+    expect(scalesShown(c.getState().helpStep)).toBe('both');
+    // A target-shaping setting saved during the round replaces the target (FR-052).
+    c.applySettings({ ...defaultSettings(), pointAfterFullHelp: !defaultSettings().pointAfterFullHelp });
+    expect(scalesShown(c.getState().helpStep)).toBe('none');
   });
 });
 

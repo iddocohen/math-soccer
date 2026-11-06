@@ -63,6 +63,10 @@ export const de = {
     pause: 'Pause',
     paused: 'Pause. Weiter mit Enter.',
     resume: 'Weiter',
+    /** The home button and the pause screen's way back to the start screen (amendment 14, FR-116 to FR-118). */
+    home: 'Zum Start',
+    /** The question after the home button (FR-116). */
+    quitAsk: 'Runde beenden?',
     fullscreen: 'Vollbild',
     gear: 'Für Eltern',
     lockerRoom: 'Kabine',
@@ -94,29 +98,10 @@ export const de = {
 
   /** Help steps (spec US2, amendment 10): step 1 the row with a hint, step 2 the column, step 3 the full chart, step 4 the answer. */
   help: {
-    direction: {
-      right: 'eins nach rechts: +1',
-      left: 'eins nach links: −1',
-      down: 'eine Reihe runter: +10',
-      up: 'eine Reihe hoch: −10',
-      downRight: 'schräg runter nach rechts: +11',
-      upLeft: 'schräg hoch nach links: −11',
-      downLeft: 'schräg runter nach links: +9',
-      upRight: 'schräg hoch nach rechts: −9',
-    },
-    /** Help step 1 from a neighbor of the target: "Von 36 eine Reihe runter: +10". */
-    fromNeighbor: (from: number, step: string) => `Von ${from} ${step}`,
-    /** Help step 1 from a hint further away: "Von 26: +20". */
-    fromHint: (from: number, offset: number) => `Von ${from}: ${offset < 0 ? '−' : '+'}${Math.abs(offset)}`,
-    /** Help step 1, the target's row by its tens label (FR-094): "Die Zahl ist in der Reihe 40". */
-    inRow: (row: number) => `Die Zahl ist in der Reihe ${row}`,
-    /** Help step 2 adds the column, 1 to 10: "Die Zahl ist in der Reihe 40 und in der Spalte 6". */
-    inRowAndColumn: (row: number, col: number) => `Die Zahl ist in der Reihe ${row} und in der Spalte ${col}`,
     chartTitle: 'Die Zahlentafel',
     chartTarget: 'Hier ist das Ziel',
     chartLast: 'Hier war dein Ball',
     chartClose: 'Weiter',
-    answer: (n: number) => `Das ist ${n}. Schieß!`,
   },
 
   /** Round end (contracts/screens.md "Round end"). */

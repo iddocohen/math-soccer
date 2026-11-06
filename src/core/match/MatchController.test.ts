@@ -859,3 +859,61 @@ describe('a goal that raises the level (FR-088, amendment 09)', () => {
     expect(c.getState().message).toEqual({ kind: 'goal' });
   });
 });
+
+describe('abandon: "Zum Start" (amendment 14, FR-118)', () => {
+  function setup(settings: Settings = defaultSettings()) {
+    const records: AttemptRecord[] = [];
+    const store = memoryStore();
+    const c = new MatchController({
+      settings: () => settings,
+      store,
+      newSeed: () => 7,
+      nextTarget: () => target(46),
+      onAttempt: (r) => void records.push(r),
+    });
+    c.start();
+    return { c, store, records };
+  }
+
+  function shootAt(c: MatchController, n: number) {
+    type(c, String(n));
+    c.shoot();
+    c.ballLanded();
+  }
+
+  it('keeps the finished attempts, records none for the open target and never ends the round', () => {
+    const { c, store, records } = setup();
+    shootAt(c, 46);
+    c.celebrationDone();
+    shootAt(c, 47);
+    expect(records).toHaveLength(1);
+    expect(store.round).not.toBeNull();
+    const phases: string[] = [];
+    c.subscribe(() => phases.push(c.getState().phase));
+    c.pause();
+    c.abandon();
+    // No attempt for the open target, and no 'roundOver', so the app records no personal best.
+    expect(records).toHaveLength(1);
+    expect(phases).not.toContain('roundOver');
+    expect(store.round).toBeNull();
+    expect(c.getState()).toMatchObject({ started: false, phase: 'aiming', paused: false, goals: 0, starsThisRound: 0, target: null });
+  });
+
+  it('stops the countdown of a time challenge', () => {
+    const { c } = setup({ ...defaultSettings(), timeChallenge: { ...defaultSettings().timeChallenge, allowed: true } });
+    c.start('time');
+    c.tick(5_000);
+    c.abandon();
+    const before = c.getState();
+    c.tick(5_000);
+    expect(c.getState()).toBe(before);
+    expect(remainingMs(before)).toBeNull();
+  });
+
+  it('does nothing before a round started', () => {
+    const c = new MatchController({ settings: defaultSettings });
+    const before = c.getState();
+    c.abandon();
+    expect(c.getState()).toBe(before);
+  });
+});

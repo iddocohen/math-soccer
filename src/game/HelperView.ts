@@ -1,6 +1,6 @@
 /**
  * The row and column helper beside the goal (T096, amendment 10, FR-091 to FR-095), drawn from `buildScales`
- * (src/game/scales.ts) into two canvas textures: the row scale right of the goal and the column scale above the
+ * (src/game/scales.ts) into two canvas textures, empty until help asks for a scale (amendment 14, FR-115): the row scale right of the goal and the column scale above the
  * crossbar. Calm chalk numbers with a thin dark edge on one dark strip per scale (FR-101a), no box per label; a lit label is larger and in the kit color, and the
  * help arrows from the scales point at the target's row and column. Like the board, the textures are redrawn only when
  * `scalesKey` changes. They sit in front of the posts, so an arrow crosses the post or the crossbar into the goal.
@@ -40,11 +40,11 @@ export class HelperView {
   }
 
   /** Redraws the scales when what they show changed; returns true when it did. */
-  update(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, helperOn: boolean): boolean {
-    const key = scalesKey(layout, target, helpStep, helperOn);
+  update(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, helperOn: boolean, solved = false): boolean {
+    const key = scalesKey(layout, target, helpStep, helperOn, solved);
     if (key === this.key) return false;
     this.key = key;
-    const scales = buildScales(layout, CHART_RECT, target, helpStep, helperOn);
+    const scales = buildScales(layout, CHART_RECT, target, helpStep, helperOn, solved);
     drawStrip(this.rows, (ctx) => {
       if (scales.rowBacking) paintBacking(ctx, scales.rowBacking);
       if (scales.rowArrow) paintArrow(ctx, scales.rowArrow, ARROW_WIDTH);

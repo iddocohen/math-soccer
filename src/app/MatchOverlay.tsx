@@ -12,10 +12,10 @@
  * `data-round-type` (untilHearts, goalCount or time), `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
  * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
- * Help (T040, T096, FR-024, FR-094): from help step 1 a line above the typed number (`data-testid="help-text"`) names
- * the way from the closest hint number to the target ("Von 36 eine Reihe runter: +10") and the target's row ("Die Zahl
- * ist in der Reihe 40"); from step 2 also its column ("und in der Spalte 6"); at step 4 it says the answer.
- * `data-help-row` and `data-help-col` carry the lit row and column labels, empty while none is lit.
+ * Help (T040, T096, FR-024, FR-094): the overlay shows no help sentence (amendment 14, FR-119); help shows in the scene
+ * as arrows, bands, scales, the hint arrow and the answer, and in the help chart.
+ * `data-help-row` and `data-help-col` carry the lit row and column labels, empty while none is lit. `data-scales` says
+ * which scales the scene draws (amendment 14, FR-115): `none`, `row` or `both`.
  * The overlay lets taps through to the canvas except on its buttons.
  *
  * Locker room from the match (amendment 01, FR-049, as math-tank amendment 23): with `onLockerRoom` (the locker room is
@@ -23,15 +23,18 @@
  * room over the match. The icon never takes focus, so keys cannot press it, and it does not show on the round end.
  * `data-shirt` carries the chosen shirt color id for tests.
  *
+ * Home (amendment 14, FR-116): with `onHome` a house icon with the accessible name "Zum Start" sits next to pause. One
+ * tap pauses the round and the app asks "Runde beenden?" (PauseScreen.tsx). The icon never takes focus.
+ *
  * Polish (T061 to T063): with `pad` the on-screen number pad (NumberPad.tsx, FR-031) shows at the bottom and
  * `data-number-pad` is true. With `onSpeak` ("Vorlesen" on and a German voice, FR-032) a speaker icon reads the task
  * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
  * these icons never take focus, so Enter and Space keep shooting.
  */
 import { memo, type CSSProperties, type ReactNode } from 'react';
-import { ballKind, cellOf, layoutChart } from '../core/chart/layout';
+import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
-import { ANSWER_STEP, columnLabel, COLUMN_STEP, HINT_STEP, helpHint, rowColumnHelp, rowLabel } from '../core/match/help';
+import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
 import type { Digit } from '../core/match/entry';
@@ -71,29 +74,17 @@ export function messageText(message: MatchMessage | null): string {
   }
 }
 
-/**
- * The help line for the help step: from step 1 the hint and the row, from step 2 also the column, the answer at step 4,
- * or '' without help.
- */
-export function helpText(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max'>): string {
-  const h = t().help;
-  const target = state.target;
-  if (!target || state.helpStep < HINT_STEP) return '';
-  if (state.helpStep >= ANSWER_STEP) return h.answer(target.number);
-  const layout = layoutChart(state.min, state.max);
-  const hint = helpHint(layout, target);
-  const way = hint ? (hint.direction ? h.fromNeighbor(hint.from, h.direction[hint.direction]) : h.fromHint(hint.from, hint.offset)) : '';
-  const { row, col } = cellOf(layout, target.number);
-  const place = state.helpStep >= COLUMN_STEP ? h.inRowAndColumn(rowLabel(layout, row), columnLabel(col)) : h.inRow(rowLabel(layout, row));
-  return way ? `${way}. ${place}.` : `${place}.`;
+/** True once the ball scored the current target, while the goal is celebrated: the scales are gone (FR-115). */
+export function targetSolved(state: Pick<MatchView, 'ball'>): boolean {
+  return state.ball?.outcome === 'goal';
 }
 
 /** The lit row and column labels for `data-help-row` and `data-help-col`; '' while none is lit. */
-export function litLabels(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max'>): { row: string; col: string } {
+export function litLabels(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max' | 'ball'>): { row: string; col: string } {
   const target = state.target;
   if (!target) return { row: '', col: '' };
   const layout = layoutChart(state.min, state.max);
-  const { litRow, litColumn } = rowColumnHelp(layout, target, state.helpStep, false);
+  const { litRow, litColumn } = rowColumnHelp(layout, target, state.helpStep, false, targetSolved(state));
   return {
     row: litRow === null ? '' : String(rowLabel(layout, litRow)),
     col: litColumn === null ? '' : String(columnLabel(litColumn)),
@@ -108,8 +99,6 @@ export function formatClock(ms: number): string {
 
 interface Props {
   state: MatchView;
-  /** The help line of `state` when the caller already has it; computed from `state` otherwise. */
-  help?: string;
   /** Where the clock reads the time played, so a tick re-renders only the clock; `state.elapsedMs` otherwise. */
   clock?: ClockSource;
   /** The keeper's phase from the scene; shown in goalkeeper mode only. */
@@ -130,11 +119,12 @@ interface Props {
   onHelp: () => void;
   onPause: () => void;
   onResume: () => void;
+  /** The home button (FR-116): pauses and asks "Runde beenden?"; the button shows only when this is given. */
+  onHome?: () => void;
 }
 
 export const MatchOverlay = memo(function MatchOverlay({
   state,
-  help = helpText(state),
   clock,
   keeper = 'idle',
   ball = STARTER.ball,
@@ -147,6 +137,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   onHelp,
   onPause,
   onResume,
+  onHome,
 }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
@@ -164,6 +155,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-help-chart={state.helpChartOpen ? 'open' : 'closed'}
       data-help-row={lit.row}
       data-help-col={lit.col}
+      data-scales={scalesShown(state.helpStep, targetSolved(state))}
       data-goals={state.goals}
       data-hearts={state.hearts}
       data-rows={layout.rows}
@@ -209,6 +201,11 @@ export const MatchOverlay = memo(function MatchOverlay({
               <span aria-hidden="true">❚❚</span>
             </button>
           )}
+          {onHome && state.phase !== 'roundOver' && (
+            <button type="button" className="icon-button" data-testid="home-button" aria-label={text.match.home} title={text.match.home} {...noFocus} onClick={onHome}>
+              <HouseIcon />
+            </button>
+          )}
           {onSpeak && (
             <button type="button" className="icon-button" data-testid="speaker-button" aria-label={text.match.speaker} title={text.match.speaker} {...noFocus} onClick={onSpeak}>
               <span aria-hidden="true">🔊</span>
@@ -244,11 +241,6 @@ export const MatchOverlay = memo(function MatchOverlay({
         </div>
       </div>
       <div className="overlay-bottom">
-        {help !== '' && (
-          <p className="help-text" data-testid="help-text" aria-live="polite">
-            {help}
-          </p>
-        )}
         <div className="shot-line">
           {/* Empty, the box shows a faint "?" from the CSS (FR-100). */}
           <output className="entry" data-testid="entry" aria-label={text.match.entryLabel}>
@@ -289,6 +281,15 @@ function Countdown({ totalMs, source }: { totalMs: number; source: ClockSource }
     <span className={last ? 'clock countdown countdown-last' : 'clock countdown'} data-testid="countdown" data-last={last} data-left={Math.ceil(left / 1000)}>
       {formatClock(Math.ceil(left / 1000) * 1000)}
     </span>
+  );
+}
+
+/** A plain house for the home button (FR-116). */
+function HouseIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 4 L3 15 L7 15 L7 28 L13 28 L13 20 L19 20 L19 28 L25 28 L25 15 L29 15 Z" fill="currentColor" />
+    </svg>
   );
 }
 

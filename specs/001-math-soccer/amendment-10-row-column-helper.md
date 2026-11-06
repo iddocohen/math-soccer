@@ -8,7 +8,7 @@
 
 - **FR-091**: A row scale MUST stand on the right side of the goal, outside the right post. It has one label per chart row: the row's tens, written 0, 10, 20 … 90 for the hundred chart and continuing for larger ranges, for example 190 for the row 191 to 200. Each label sits at the height of its row.
 - **FR-092**: A column scale MUST stand above the crossbar. It has one label per column, 1 to 10, each above its column.
-- **FR-093**: The helper MUST be shown at all times by default, in a calm style (chalk text, no boxes). The parent can turn it off ("Zeilen- und Spaltenhilfe"). It never shows the answer by itself.
+- **FR-093**: The helper MUST be shown in a calm style (chalk text, no boxes). It never shows the answer by itself. Amendment 14 (FR-115) replaces "shown at all times by default": the row scale shows from help step 1, the column scale from step 2, and both go when the target is solved or replaced. The parent switch ("Zeilen- und Spaltenhilfe") decides whether a shown scale has all its labels or only the lit one.
 - On charts with too many rows for readable labels (over 20 rows), only every fifth row label is shown, and the highlighted one always shows.
 - Design call on the edge case: the tens label of a row and its last number differ (row "0" ends with 10, row "10" ends with 20). Help text never claims that the label is the row's first number.
 

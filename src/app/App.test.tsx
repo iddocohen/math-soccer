@@ -196,6 +196,50 @@ describe('App', () => {
     fireEvent.click(screen.getByLabelText('Weiter'));
     expect(screen.getByTestId('message').textContent).toBe('');
   });
+
+  it('the pause screen offers "Weiter" and "Zum Start"; Enter goes on (amendment 14, FR-117)', () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(screen.queryByTestId('pause-screen')).toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    const pauseScreen = screen.getByTestId('pause-screen');
+    expect(pauseScreen.getAttribute('data-kind')).toBe('pause');
+    expect(screen.getByTestId('pause-resume').textContent).toBe('Weiter');
+    expect(screen.getByTestId('pause-home').textContent).toBe('Zum Start');
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(screen.queryByTestId('pause-screen')).toBeNull();
+    expect(screen.getByTestId('match').getAttribute('data-phase')).toBe('aiming');
+  });
+
+  it('the home button asks "Runde beenden?"; "Weiter" goes on, "Zum Start" keeps stars and records no best (FR-116, FR-118)', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 3 }));
+    render(<App />);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    const stars = JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!).stars as number;
+    expect(stars).toBeGreaterThan(0);
+    const attempts = JSON.parse(localStorage.getItem(PROGRESS_KEY)!).attempts.length as number;
+    expect(attempts).toBe(1);
+    expect(localStorage.getItem(ROUND_KEY)).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId('home-button'));
+    expect(game.controller!.getState().paused).toBe(true);
+    expect(screen.getByRole('dialog', { name: 'Runde beenden?' })).toBeTruthy();
+    fireEvent.click(screen.getByTestId('pause-resume'));
+    expect(screen.queryByTestId('pause-screen')).toBeNull();
+    expect(game.controller!.getState().paused).toBe(false);
+
+    fireEvent.click(screen.getByTestId('home-button'));
+    fireEvent.click(screen.getByTestId('pause-home'));
+    expect(screen.getByTestId('start')).toBeTruthy();
+    expect(screen.queryByTestId('round-end')).toBeNull();
+    expect(JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!).stars).toBe(stars);
+    expect(JSON.parse(localStorage.getItem(PROGRESS_KEY)!).attempts).toHaveLength(attempts);
+    expect(localStorage.getItem(ROUND_KEY)).toBeNull();
+    const records = localStorage.getItem(RECORDS_KEY);
+    expect(records === null || Object.keys(JSON.parse(records).bests ?? {}).length === 0).toBe(true);
+  });
 });
 
 describe('App parent screens (T041 to T046)', () => {

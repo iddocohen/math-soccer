@@ -165,7 +165,7 @@ export class MatchScene extends Phaser.Scene {
     // A scored target loses its cell panel at once (FR-097, parent feedback).
     const solved = s.ball?.outcome === 'goal';
     this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved });
-    this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper);
+    this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper, solved);
 
     this.setPaused(s.paused);
 
