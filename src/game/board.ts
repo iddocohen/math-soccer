@@ -8,10 +8,14 @@
  * from core/match/help.ts). Help step 3 writes the answer in the hole. The square of a missed number is warm orange
  * with its number while `shown` is set. Squares outside the range in a partial first or last row are empty board.
  *
- * Goalkeeper mode (US5 completes it): the goal is open, the grid faint, the hints lit in the kit color. Line mode (US4
- * completes it) prints a mostly blank board with the target outlined.
+ * Goalkeeper mode (US5 completes it): the goal is open, the grid faint, the hints lit in the kit color.
+ *
+ * Line mode (T051, FR-015, FR-016): the board is mostly blank. The given squares of the line are printed, the squares
+ * the child already shot are lit in the kit color with their number, and the next square is outlined as the target.
+ * Once the line is finished every square of it is lit and none is outlined.
  */
 import { cellRect, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
+import type { Line } from '../core/targets/lines';
 import type { Mode, Rect, Target } from '../core/types';
 
 /** The inputs of the board. GoalView redraws the cached board texture only when `boardKey` of these changes. */
@@ -27,6 +31,8 @@ export interface BoardInput {
   shown: number | null;
   /** The hint number the help arrow starts at (help steps 1 and 2), or null for no arrow. */
   hintFrom: number | null;
+  /** The line in line mode, or null. */
+  line: Pick<Line, 'squares' | 'given' | 'index'> | null;
 }
 
 /** The help arrow in world pixels, from the center of the hint square to the center of the target square. */
@@ -54,7 +60,7 @@ export interface Square {
   kind: SquareKind;
   /** The target's yellow outline. */
   outlined: boolean;
-  /** Filled in the kit color: a lit hint in goalkeeper mode. */
+  /** Filled in the kit color: a lit hint in goalkeeper mode, or a square already shot in line mode. */
   lit: boolean;
   /** Filled warm orange: the shown square of a miss. */
   shown: boolean;
@@ -75,7 +81,8 @@ export function boardKey(input: BoardInput): string {
   const t = input.target;
   const target = t ? `${t.number}:${t.hints.join(',')}:${t.patchedHoles.join(',')}` : '-';
   const { min, max } = input.layout;
-  return [min, max, input.mode, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-'].join('|');
+  const line = input.line ? `${input.line.squares.join(',')}:${input.line.given}:${input.line.index}` : '-';
+  return [min, max, input.mode, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-', line].join('|');
 }
 
 export function buildBoard(input: BoardInput): Board {
@@ -85,6 +92,8 @@ export function buildBoard(input: BoardInput): Board {
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;
   const hints = new Set(target && hintsVisible ? target.hints : []);
   const patched = new Set(target && mode === 'holes' ? target.patchedHoles : []);
+  const line = mode === 'lines' ? input.line : null;
+  const lineDone = line !== null && line.index >= line.squares.length;
   const squares: Square[] = [];
 
   for (let row = 0; row < layout.rows; row++) {
@@ -98,7 +107,8 @@ export function buildBoard(input: BoardInput): Board {
         squares.push({ n, rect, kind: mode === 'keeper' ? 'open' : 'empty', outlined: false, lit: false, shown: false, label: null });
         continue;
       }
-      const isTarget = target?.number === n;
+      const lineAt = line ? line.squares.indexOf(n) : -1;
+      const isTarget = target?.number === n && !lineDone;
       const isShown = shown === n;
       let kind: SquareKind = mode === 'keeper' ? 'open' : 'printed';
       if (mode === 'holes' && isTarget) kind = 'hole';
@@ -106,10 +116,14 @@ export function buildBoard(input: BoardInput): Board {
 
       let label: Square['label'] = null;
       if (hints.has(n)) label = { text: String(n), style: 'ink' };
+      // Printed and already shot squares of the line carry their number.
+      const lineLit = line !== null && lineAt >= line.given && lineAt < line.index;
+      if (line !== null && lineAt >= 0 && lineAt < line.index) label = { text: String(n), style: 'ink' };
       if (isTarget && helpStep >= 3) label = { text: String(n), style: mode === 'lines' ? 'ink' : 'answer' };
       if (isShown) label = { text: String(n), style: 'shown' };
 
-      squares.push({ n, rect, kind, outlined: isTarget, lit: mode === 'keeper' && hints.has(n), shown: isShown, label });
+      const lit = (mode === 'keeper' && hints.has(n)) || lineLit;
+      squares.push({ n, rect, kind, outlined: isTarget, lit, shown: isShown, label });
     }
   }
   return { squares, fontSize, numbersFit, arrow: helpArrow(input) };

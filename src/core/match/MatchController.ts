@@ -15,6 +15,14 @@
  * Help (T038, FR-024, FR-025): H, the help button and each miss raise the help step up to 3. Step 2 opens the help
  * chart; Enter, Space, Escape or a tap close it, and that Enter does not shoot. Help never changes hearts, stars or
  * goals. What each step shows comes from help.ts.
+ *
+ * Line mode (T050, FR-015 to FR-018, FR-026): a round plays lines from `makeLine` (core/targets/lines.ts). The
+ * direction of each new line is picked from the parent's line directions, directions not yet mastered twice as often.
+ * The target is the next empty square of the line. A correct number lights that square (`correctSquare`), earns
+ * SQUARE_STARS and makes the next square the target, without a celebration. The last square scores a goal, which is one
+ * finished line for `goalsPerRound`, and earns LINE_STARS on top. Misses, hearts and help work as in hole mode, on the
+ * one square: after a lost heart the square stays the target with the answer shown, and the line goes on after it.
+ * Every square is one attempt record with the line's direction.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
@@ -22,8 +30,9 @@ import { MISSES_PER_HEART } from '../settings/defaults';
 import type { Difficulty, Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
-import { NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
-import type { Mode, Target } from '../types';
+import { makeLine, type Line } from '../targets/lines';
+import { NO_PROGRESS, nextTarget, pickDirection, type TargetProgress } from '../targets/nextTarget';
+import { DIRECTIONS, type Mode, type Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
@@ -39,6 +48,10 @@ export const SHOWN_MS = 1500;
 /** Stars for a goal in hole and goalkeeper mode (data-model "LockerRoom"). */
 export const GOAL_STARS = 2;
 
+/** Stars for a correct square in line mode, and the bonus for a finished line (data-model "LockerRoom", FR-042). */
+export const SQUARE_STARS = 1;
+export const LINE_STARS = 3;
+
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 export const SAVE_TIME_EVERY_MS = 1000;
 
@@ -46,13 +59,14 @@ export const SAVE_TIME_EVERY_MS = 1000;
 export type MatchMessage =
   | { kind: 'outOfRange'; min: number; max: number }
   | { kind: 'goal' }
+  | { kind: 'correctSquare' }
   | { kind: 'miss'; number: number }
   | { kind: 'heartLost'; number: number };
 
-/** The ball after a shot: the typed number and, once landed, whether it scored. */
+/** The ball after a shot: the typed number and, once landed, whether it scored or lit a line square. */
 export interface Ball {
   number: number;
-  outcome: 'goal' | 'miss' | null;
+  outcome: 'goal' | 'square' | 'miss' | null;
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
@@ -89,6 +103,8 @@ export interface MatchState {
   message: MatchMessage | null;
   ball: Ball | null;
   target: Target | null;
+  /** The line in line mode; null in the other modes. */
+  line: Line | null;
   /** How many targets the round has had; the next target's random numbers derive from the seed and this count. */
   targetCount: number;
   /** The square of the last missed number while it shows its number. */
@@ -168,6 +184,7 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
     message: null,
     ball: null,
     target: null,
+    line: null,
     targetCount: 0,
     shown: null,
     goals: 0,
@@ -291,18 +308,25 @@ export class MatchController {
   ballLanded(): void {
     const s = this.state;
     if (s.phase !== 'ballInFlight' || !s.ball) return;
-    const goal = s.target !== null && s.ball.number === s.target.number;
-    if (goal) {
+    const hit = s.target !== null && s.ball.number === s.target.number;
+    if (hit && s.line && s.line.index < s.line.squares.length - 1) {
+      this.squareLit(s, s.line);
+      return;
+    }
+    if (hit) {
       // A shot at the answer of help step 3 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
       const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
+      // In line mode the goal finishes the line: every square lights, and a correct square's star comes with the bonus.
+      const lineStars = s.line ? SQUARE_STARS + LINE_STARS : GOAL_STARS;
       this.set({
         ...s,
+        line: s.line ? { ...s.line, index: s.line.squares.length } : null,
         ball: { ...s.ball, outcome: 'goal' },
         lastAttempt: { number: s.ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
-        starsThisRound: s.starsThisRound + GOAL_STARS,
+        starsThisRound: s.starsThisRound + lineStars,
         missesInRow: 0,
         message: { kind: 'goal' },
       });
@@ -348,6 +372,27 @@ export class MatchController {
       lastGuess: number,
       message: { kind: 'miss', number },
     });
+  }
+
+  /** A correct square of the line that is not its last: it lights, and the next square becomes the target (FR-016). */
+  private squareLit(s: MatchState, line: Line): void {
+    const ball = s.ball!;
+    this.recordAttempt(s, { solved: s.helpStep < MAX_HELP_STEP, endedAt: ball.atMs });
+    const next: MatchState = {
+      ...s,
+      ball: { ...ball, outcome: 'square' },
+      line: { ...line, index: line.index + 1 },
+      lastAttempt: { number: ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
+      starsThisRound: s.starsThisRound + SQUARE_STARS,
+      missesInRow: 0,
+      helpStep: 0,
+      helpChartOpen: false,
+      lastGuess: null,
+      shown: null,
+      message: { kind: 'correctSquare' },
+      phase: 'aiming',
+    };
+    this.set(this.withNextTarget(next));
   }
 
   /** Called by the scene when the goal celebration ends: the next target, or the end of the round. */
@@ -417,13 +462,30 @@ export class MatchController {
 
   /** The state with the round's next target. */
   private withNextTarget(state: MatchState): MatchState {
+    const fresh = { targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
+    if (state.mode === 'lines') {
+      const line = state.line && state.line.index < state.line.squares.length ? state.line : this.newLine(state);
+      return { ...state, ...fresh, line, target: lineTarget(line) };
+    }
     const target = this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state);
-    return { ...state, target, targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
+    return { ...state, ...fresh, target };
   }
 
-  /** Hole and goalkeeper targets from core/targets; line mode follows in US4. */
+  /**
+   * A new line for the round: the direction from the parent's line directions, weighting directions not yet mastered
+   * in line mode (FR-017, FR-040), and the parent's line length (FR-018).
+   */
+  private newLine(state: MatchState): Line {
+    const s = this.roundSettings;
+    const rng = createRng(deriveSeed(state.seed, state.targetCount));
+    const enabled = DIRECTIONS.filter((d) => s.lineDirections[d]);
+    const progress = this.options.progress?.('lines') ?? NO_PROGRESS;
+    const direction = pickDirection(enabled.length > 0 ? enabled : ['right'], progress.mastered, rng);
+    return makeLine(layoutChart(state.min, state.max), direction, s.lineLength, rng);
+  }
+
+  /** Hole and goalkeeper targets from core/targets. */
   private defaultTarget(state: MatchState): Target | null {
-    if (state.mode === 'lines') return null;
     return nextTarget({
       layout: layoutChart(state.min, state.max),
       mode: state.mode,
@@ -484,6 +546,7 @@ export class MatchController {
       missesInRow: s.missesInRow,
       helpStep: s.helpStep,
       target: s.target,
+      line: s.line,
       targetCount: s.targetCount,
       starsThisRound: s.starsThisRound,
       elapsedMs: s.elapsedMs,
@@ -493,4 +556,20 @@ export class MatchController {
       phase: s.phase,
     });
   }
+}
+
+/**
+ * The target of the line's current square. Its hint is the square before it, so help step 1 names the step of the line
+ * ("+10") and the arrow starts there; it trains the line's direction (FR-038).
+ */
+export function lineTarget(line: Line): Target {
+  const index = Math.min(line.index, line.squares.length - 1);
+  return {
+    mode: 'lines',
+    number: line.squares[index]!,
+    hints: index > 0 ? [line.squares[index - 1]!] : [],
+    patchedHoles: [],
+    directions: [line.direction],
+    difficultyStep: 0,
+  };
 }

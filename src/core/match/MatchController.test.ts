@@ -3,7 +3,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import type { Target } from '../types';
-import { GOAL_STARS, MatchController, MAX_HELP_STEP, missesPerHeart, SHOWN_MS, type RoundStore } from './MatchController';
+import { GOAL_STARS, LINE_STARS, MatchController, MAX_HELP_STEP, missesPerHeart, SHOWN_MS, SQUARE_STARS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
 
 function target(number: number): Target {
@@ -439,5 +439,122 @@ describe('attempt records (T043, FR-037)', () => {
     expect(c.getState().phase).toBe('roundOver');
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ solved: false, misses: 9 });
+  });
+});
+
+describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
+  const downOnly: Settings = {
+    ...defaultSettings(),
+    lineDirections: { right: false, down: true, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false },
+  };
+
+  function lineController(settings: Settings = downOnly, extra: Partial<ConstructorParameters<typeof MatchController>[0]> = {}) {
+    const c = new MatchController({ settings: () => settings, newSeed: () => 11, ...extra });
+    c.start('lines');
+    return c;
+  }
+
+  function shootAndLand(c: MatchController, n: number) {
+    type(c, String(n));
+    c.shoot();
+    c.ballLanded();
+  }
+
+  it('starts a line with two printed squares and the next square as the target', () => {
+    const s = lineController().getState();
+    expect(s.line).not.toBeNull();
+    const line = s.line!;
+    expect(line.direction).toBe('down');
+    expect(line.squares).toHaveLength(5);
+    expect(line.index).toBe(2);
+    expect(line.squares[1]! - line.squares[0]!).toBe(10);
+    expect(s.target).toMatchObject({ mode: 'lines', number: line.squares[2], hints: [line.squares[1]], directions: ['down'] });
+  });
+
+  it('a correct square lights, earns a star and makes the next square the target, without a goal', () => {
+    const c = lineController();
+    const line = c.getState().line!;
+    shootAndLand(c, line.squares[2]!);
+    const s = c.getState();
+    expect(s).toMatchObject({ phase: 'aiming', goals: 0, starsThisRound: SQUARE_STARS, message: { kind: 'correctSquare' }, ball: { outcome: 'square' } });
+    expect(s.line!.index).toBe(3);
+    expect(s.target!.number).toBe(line.squares[3]);
+  });
+
+  it('finishing the line scores one goal with the line bonus, then a new line starts', () => {
+    const c = lineController();
+    const line = c.getState().line!;
+    for (const n of line.squares.slice(2)) shootAndLand(c, n);
+    const s = c.getState();
+    expect(s).toMatchObject({ phase: 'celebrating', goals: 1, message: { kind: 'goal' }, ball: { outcome: 'goal' } });
+    expect(s.starsThisRound).toBe(3 * SQUARE_STARS + LINE_STARS);
+    expect(s.line!.index).toBe(line.squares.length);
+    c.celebrationDone();
+    const after = c.getState();
+    expect(after.phase).toBe('aiming');
+    expect(after.line!.index).toBe(2);
+    expect(after.line!.direction).toBe('down');
+  });
+
+  it('a goal is one finished line for goalsPerRound', () => {
+    const c = lineController({ ...downOnly, roundType: 'goalCount', goalsPerRound: 1 });
+    const line = c.getState().line!;
+    shootAndLand(c, line.squares[2]!);
+    expect(c.getState().goals).toBe(0);
+    shootAndLand(c, line.squares[3]!);
+    shootAndLand(c, line.squares[4]!);
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 1 });
+  });
+
+  it('a wrong number is a miss and the target stays', () => {
+    const c = lineController();
+    const target = c.getState().target!.number;
+    shootAndLand(c, target === 100 ? 99 : target + 1);
+    expect(c.getState()).toMatchObject({ phase: 'aiming', helpStep: 1, missesInRow: 1, target: { number: target } });
+  });
+
+  it('a lost heart keeps the square as the target with the answer shown, then the line continues (FR-027)', () => {
+    const c = lineController({ ...downOnly, difficulty: 'challenging' });
+    const line = c.getState().line!;
+    const target = line.squares[2]!;
+    for (let i = 0; i < 3; i++) shootAndLand(c, target === 100 ? 99 : target + 1);
+    expect(c.getState()).toMatchObject({ hearts: 2, helpStep: MAX_HELP_STEP, target: { number: target } });
+    shootAndLand(c, target);
+    expect(c.getState()).toMatchObject({ phase: 'aiming', helpStep: 0, target: { number: line.squares[3] } });
+  });
+
+  it('records one attempt per line square with the line direction', () => {
+    const records: AttemptRecord[] = [];
+    const c = lineController(downOnly, { onAttempt: (r) => records.push(r) });
+    const line = c.getState().line!;
+    for (const n of line.squares.slice(2)) shootAndLand(c, n);
+    expect(records.map((r) => r.target)).toEqual(line.squares.slice(2));
+    expect(records.every((r) => r.mode === 'lines' && r.solved && r.directions.join() === 'down')).toBe(true);
+  });
+
+  it('picks directions from the enabled ones, unmastered twice as often', () => {
+    const two: Settings = { ...downOnly, lineDirections: { ...downOnly.lineDirections, right: true } };
+    const counts = { down: 0, right: 0 };
+    for (let seed = 0; seed < 300; seed++) {
+      const c = new MatchController({ settings: () => two, newSeed: () => seed, progress: () => ({ mastered: ['right'], steps: {} }) });
+      c.start('lines');
+      const d = c.getState().line!.direction;
+      expect(['down', 'right']).toContain(d);
+      counts[d as 'down' | 'right']++;
+    }
+    expect(counts.down).toBeGreaterThan(counts.right * 1.4);
+  });
+
+  it('a refresh continues the line', () => {
+    let saved: StoredRound | null = null;
+    const store: RoundStore = { load: () => saved, save: (r) => (saved = r), clear: () => (saved = null) };
+    const c = lineController(downOnly, { store });
+    const line = c.getState().line!;
+    shootAndLand(c, line.squares[2]!);
+    const again = new MatchController({ settings: () => downOnly, store });
+    expect(again.restore()).toBe(true);
+    expect(again.getState().line).toEqual({ ...line, index: 3 });
+    expect(again.getState().target!.number).toBe(line.squares[3]);
   });
 });

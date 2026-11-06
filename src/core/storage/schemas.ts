@@ -122,6 +122,14 @@ export const targetSchema = z.object({
   difficultyStep: z.number().int().min(0).max(3),
 });
 
+/** A line of line mode (data-model "Line"). */
+export const lineSchema = z.object({
+  squares: z.array(z.number().int()).min(1),
+  direction: z.enum(DIRECTIONS),
+  given: z.number().int().min(0),
+  index: z.number().int().min(0),
+});
+
 /**
  * `mathsoccer.round.v1`: the running round, kept on refresh (data-model "Round"). No stored round means no round to
  * continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`.
@@ -138,6 +146,8 @@ export const roundSchema = z.object({
   missesInRow: z.number().int().min(0),
   helpStep: z.number().int().min(0).max(3),
   target: targetSchema.nullable(),
+  /** The line in line mode (T050); null in the other modes. */
+  line: lineSchema.nullable().default(null),
   /** How many targets the round has had; the seed of the next target derives from it. */
   targetCount: z.number().int().min(0),
   starsThisRound: z.number().int().min(0),

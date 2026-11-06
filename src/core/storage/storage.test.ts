@@ -40,6 +40,7 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     missesInRow: 0,
     helpStep: 0,
     target: { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [], directions: ['right', 'left', 'down', 'up'], difficultyStep: 0 },
+    line: null,
     targetCount: 1,
     starsThisRound: 0,
     elapsedMs: 0,

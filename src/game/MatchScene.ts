@@ -7,8 +7,10 @@
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
  *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the fans cheer, and after
  *   CELEBRATION_MS the scene calls `celebrationDone()`. A miss bounces the ball off the board, the fans slump with a
- *   soft "ohhh" and then clap.
- * - Sounds: a kick on every shot, a cheer on a goal, the "ohhh" with clapping on a miss.
+ *   soft "ohhh" and then clap. In line mode a correct square that is not the last of the line lights on the board
+ *   (GoalView), the ball bounces off it, and the fans clap (FR-016, FR-021).
+ * - Sounds: a kick on every shot, a cheer on a goal, clapping on a correct line square, the "ohhh" with clapping on a
+ *   miss.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -118,7 +120,7 @@ export class MatchScene extends Phaser.Scene {
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
-    this.goal.update({ layout, mode: s.mode, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom });
+    this.goal.update({ layout, mode: s.mode, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, line: s.line });
 
     this.setPaused(s.paused);
 
@@ -157,6 +159,10 @@ export class MatchScene extends Phaser.Scene {
         this.celebration = null;
         this.controller.celebrationDone();
       });
+    } else if (s.ball?.outcome === 'square') {
+      this.ball.bounce();
+      this.stands.clap();
+      this.options.sounds?.clap();
     } else if (s.ball?.outcome === 'miss') {
       this.ball.bounce();
       this.stands.ohh();

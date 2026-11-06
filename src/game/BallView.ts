@@ -5,7 +5,7 @@
  * - `fly(rect, onArrive)`: from the kick spot along an arc to the middle of `rect` (the `cellRect` of the typed number)
  *   in FLIGHT_MS, shrinking with distance to fit the square, with a shadow on the ground. Calls `onArrive` at the end.
  * - `intoNet()`: after a goal the ball drops behind the board, through the open hole, into the net.
- * - `bounce(onDone)`: after a miss the ball bounces off the board onto the pitch and fades, then waits at the kick spot.
+ * - `bounce(onDone)`: after a miss, or a correct square in line mode, the ball bounces off the board onto the pitch and fades, then waits at the kick spot.
  * - `reset()`: the ball waits at the kick spot.
  *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the ball.

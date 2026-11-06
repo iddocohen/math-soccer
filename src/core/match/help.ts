@@ -45,13 +45,14 @@ export function hintsVisible(hintDisplay: Settings['hintDisplay'], helpStep: num
 /**
  * How the hints of `target` show (FR-013, FR-040). The parent's "auf Wunsch" is the hardest the game may go: with
  * adaptive difficulty on, hints wait for a request only at adaptive step 3 and show always on the easier steps; with
- * adaptive off, the parent's choice applies as it is.
+ * adaptive off, the parent's choice applies as it is. In line mode the squares before the target are always printed, so
+ * the hint always shows.
  */
 export function targetHintDisplay(
   settings: Pick<Settings, 'hintDisplay' | 'adaptive'>,
-  target: Pick<Target, 'difficultyStep'> | null,
+  target: (Pick<Target, 'difficultyStep'> & Partial<Pick<Target, 'mode'>>) | null,
 ): Settings['hintDisplay'] {
-  if (settings.hintDisplay === 'always') return 'always';
+  if (settings.hintDisplay === 'always' || target?.mode === 'lines') return 'always';
   if (!settings.adaptive) return 'onRequest';
   return target !== null && target.difficultyStep >= ON_REQUEST_STEP ? 'onRequest' : 'always';
 }

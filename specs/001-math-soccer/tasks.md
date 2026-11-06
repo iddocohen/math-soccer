@@ -122,11 +122,11 @@ description: "Task list for Math Soccer"
 
 **Independent Test**: quickstart scenarios 8 and 9.
 
-- [ ] T048 [P] [US4] `src/core/targets/lines.test.ts`: every square of a line lies on the chart; +11 and +9 lines never wrap across a row edge; length shortens to 3 and falls back to `right` on tiny charts; same seed gives same line
-- [ ] T049 [US4] Create `src/core/targets/lines.ts` with `makeLine(layout, direction, length, rng)` stepping in row and column space (research R6)
-- [ ] T050 [US4] Implement line mode in `MatchController.ts`: first two squares printed, correct square lights up and earns a star, finishing the line scores a goal; a goal is one finished line for `goalsPerRound` (FR-015 to FR-018, FR-026)
-- [ ] T051 [US4] Draw line mode in `src/game/GoalView.ts` (mostly blank board, printed start squares, lit squares, marked target) and add clapping on a correct square in `StandsView.ts`
-- [ ] T052 [US4] `tests/e2e/lines.spec.ts`: with only `down` on, shoot the five targets and expect one goal
+- [X] T048 [P] [US4] `src/core/targets/lines.test.ts`: every square of a line lies on the chart; +11 and +9 lines never wrap across a row edge; length shortens to 3 and falls back to `right` on tiny charts; same seed gives same line
+- [X] T049 [US4] Create `src/core/targets/lines.ts` with `makeLine(layout, direction, length, rng)` stepping in row and column space (research R6)
+- [X] T050 [US4] Implement line mode in `MatchController.ts`: first two squares printed, correct square lights up and earns a star, finishing the line scores a goal; a goal is one finished line for `goalsPerRound` (FR-015 to FR-018, FR-026)
+- [X] T051 [US4] Draw line mode in `src/game/GoalView.ts` (mostly blank board, printed start squares, lit squares, marked target) and add clapping on a correct square in `StandsView.ts`
+- [X] T052 [US4] `tests/e2e/lines.spec.ts`: with only `down` on, shoot the five targets and expect one goal
 
 ---
 

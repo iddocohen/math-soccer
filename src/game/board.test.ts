@@ -7,7 +7,7 @@ import { boardKey, buildBoard, type BoardInput } from './board';
 const target: Target = { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [12, 83], directions: ['right'], difficultyStep: 0 };
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
-  return { layout: layoutChart(1, 100), goal: CHART_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, ...over };
+  return { layout: layoutChart(1, 100), goal: CHART_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, line: null, ...over };
 }
 
 const square = (b: ReturnType<typeof buildBoard>, n: number) => b.squares.find((s) => s.n === n)!;
@@ -93,5 +93,36 @@ describe('buildBoard: help on the board (T040)', () => {
 
   it('the board key changes with the arrow start', () => {
     expect(boardKey(input({ helpStep: 1, hintFrom: 36 }))).not.toBe(boardKey(input({ helpStep: 1, hintFrom: 45 })));
+  });
+});
+
+describe('buildBoard: line mode (FR-015, FR-016)', () => {
+  const line = { squares: [3, 13, 23, 33, 43], given: 2, index: 3 };
+  const lineTarget = { mode: 'lines' as const, number: 33, hints: [23], patchedHoles: [], directions: ['down' as const], difficultyStep: 0 };
+  const lines = (over: Partial<BoardInput> = {}) => buildBoard(input({ mode: 'lines', target: lineTarget, line, ...over }));
+
+  it('the board is mostly blank: only the given and shot squares of the line carry numbers', () => {
+    const b = lines();
+    expect(b.squares.filter((s) => s.label).map((s) => s.n)).toEqual([3, 13, 23]);
+    expect(b.squares.every((s) => s.kind === 'printed')).toBe(true);
+  });
+
+  it('given squares are printed, shot squares lit, and the target outlined', () => {
+    const b = lines();
+    expect(square(b, 3)).toMatchObject({ lit: false, label: { text: '3', style: 'ink' } });
+    expect(square(b, 13).lit).toBe(false);
+    expect(square(b, 23)).toMatchObject({ lit: true, label: { text: '23', style: 'ink' } });
+    expect(square(b, 33)).toMatchObject({ outlined: true, lit: false, label: null });
+    expect(square(b, 43)).toMatchObject({ outlined: false, lit: false, label: null });
+  });
+
+  it('a finished line lights every shot square and outlines none', () => {
+    const b = lines({ line: { ...line, index: 5 }, target: { ...lineTarget, number: 43 } });
+    expect([23, 33, 43].every((n) => square(b, n).lit)).toBe(true);
+    expect(b.squares.some((s) => s.outlined)).toBe(false);
+  });
+
+  it('the key changes when the line moves on', () => {
+    expect(boardKey(input({ mode: 'lines', line }))).not.toBe(boardKey(input({ mode: 'lines', line: { ...line, index: 4 } })));
   });
 });
