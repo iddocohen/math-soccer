@@ -17,7 +17,7 @@ export const HINT_STEP = 1;
 export const CHART_STEP = 2;
 export const ANSWER_STEP = 3;
 /** The adaptive step at which hints wait for a request (FR-040, FR-067: the top of core/progress/ladder.ts). */
-export { ON_REQUEST_STEP } from '../progress/ladder';
+export { ON_REQUEST_STEP };
 
 /** The way from a hint number to the target. `direction` is null when the hint is not a neighbor of the target. */
 export interface HelpHint {

@@ -16,7 +16,7 @@
  * - two empty squares: the first must touch a lit square, and the second must touch a lit square once the first is
  *   filled.
  */
-import { cellOf, layoutChart, numberAt, type ChartLayout } from '../chart/layout';
+import { cellOf, COLUMNS, layoutChart, numberAt, type ChartLayout } from '../chart/layout';
 import { DIRECTIONS, type Direction } from '../types';
 import { directionsOf } from './hints';
 
@@ -104,12 +104,9 @@ function pointing(n: number, lit: readonly number[]): number {
 /** Every placement of `shape` with `empties` empty squares on the chart; with `direction`, only those that train it. */
 export function shapePlacements(layout: ChartLayout, shape: ShapeId, empties: ShapeEmpties, direction?: Direction): ShapePlacement[] {
   const out: ShapePlacement[] = [];
-  for (const cells of shapeTurns(shape)) {
-    // The empty squares, their lit neighbors and their directions depend only on the turn, not on where it sits, so
-    // they are worked out once per turn on a model chart and moved to each place.
-    const model = modelPlacements(cells, empties);
+  for (const { cells, model } of modelTurns(shape, empties)) {
     for (let row = 0; row < layout.rows; row++) {
-      for (let col = 0; col < 10; col++) {
+      for (let col = 0; col < COLUMNS; col++) {
         const squares = cells.map(([r, c]) => numberAt(layout, row + r, col + c));
         if (squares.some((s) => s === null)) continue;
         const at = (i: number) => squares[i]!;
@@ -143,6 +140,22 @@ interface ModelPlacement {
 const MODEL = layoutChart(1, 100);
 const MODEL_ROW = 3;
 const MODEL_COL = 3;
+
+/**
+ * The turns of `shape` with their placements by square index. The empty squares, their lit neighbors and their
+ * directions depend only on the turn, not on where it sits, so they are worked out once per shape and number of empty
+ * squares on a model chart, and moved to each place.
+ */
+const modelCache = new Map<string, Array<{ cells: Cells; model: ModelPlacement[] }>>();
+function modelTurns(shape: ShapeId, empties: ShapeEmpties): Array<{ cells: Cells; model: ModelPlacement[] }> {
+  const key = `${shape}|${empties}`;
+  let turns = modelCache.get(key);
+  if (turns === undefined) {
+    turns = shapeTurns(shape).map((cells) => ({ cells, model: modelPlacements(cells, empties) }));
+    modelCache.set(key, turns);
+  }
+  return turns;
+}
 
 /** The placements of a turn by the rules in the file comment, by square index. */
 function modelPlacements(cells: ReadonlyArray<readonly [number, number]>, empties: ShapeEmpties): ModelPlacement[] {

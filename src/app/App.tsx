@@ -110,9 +110,8 @@ export function speedFromUrl(search: string): number | undefined {
   return Math.min(1000, Number(raw));
 }
 
-/** The factor play time runs at: 1, unless the page was opened with the test hook `?speed=`. */
-function playSpeed(): number {
-  const fromUrl = speedFromUrl(window.location.search);
+/** The factor play time runs at: 1, unless the page was opened with the test hook `?speed=` (`fromUrl`). */
+function playSpeed(fromUrl: number | undefined): number {
   if (fromUrl === undefined) return 1;
   const live = window.mathSoccerSpeed;
   return typeof live === 'number' && live >= 0 && Number.isFinite(live) ? live : fromUrl;
@@ -333,13 +332,15 @@ export function App() {
     closeTransfer();
   }, [transfer, persistence, closeTransfer, screen, controller]);
 
-  // Time played runs while the match shows and the tab is visible (FR-029); the controller stops it while paused.
+  // Time played runs while the match shows and the tab is visible (FR-029); the controller stops it while paused. It
+  // waits for the scene, so loading the game, the font and the images costs no time of a time challenge.
   useEffect(() => {
     if (screen !== 'match') return;
+    const fromUrl = speedFromUrl(window.location.search);
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      if (!document.hidden) controller.tick((now - last) * playSpeed());
+      if (!document.hidden && gameHandle.current !== null) controller.tick((now - last) * playSpeed(fromUrl));
       last = now;
     }, TICK_MS);
     return () => window.clearInterval(id);

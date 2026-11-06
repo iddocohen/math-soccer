@@ -17,6 +17,7 @@ import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, RANGE_PRES
 import type { RangePreset, Settings } from '../core/settings/schema';
 import { validateSettings } from '../core/settings/validate';
 import { PATTERNS } from '../core/targets/patterns';
+import { SHAPE_IDS } from '../core/targets/shapes';
 import { qrMatrix, qrPath, type QrMatrix } from '../core/transfer/qr';
 import { encodeTransfer, type EncodedTransfer } from '../core/transfer/transfer';
 import { DIRECTIONS, HINT_DISTANCES } from '../core/types';
@@ -26,8 +27,6 @@ import type { Persistence } from './persistence';
 
 const PRESETS: RangePreset[] = ['1-100', '0-1000', 'custom'];
 
-/** The seven shapes of "Formen" in settings order (amendment 06). */
-const SHAPE_KEYS = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'] as const satisfies ReadonlyArray<keyof Settings['shapes']>;
 
 interface Props {
   persistence: Persistence;
@@ -221,7 +220,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
         </Group>
 
         <Group title={S.groups.shapes} errors={errorsAt('shapes')}>
-          {SHAPE_KEYS.map((k) => (
+          {SHAPE_IDS.map((k) => (
             <Check key={k} label={O.shapes[k]} {...flag('shapes', k)} />
           ))}
         </Group>
