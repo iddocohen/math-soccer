@@ -4,8 +4,9 @@
  * for the current screen, or null when the key does nothing there.
  *
  * - Start screen (FR-068, FR-075): Enter or Space start "Spielen"; Z starts the "Zeit-Challenge" when the parent allows
- *   it; K opens the locker room when it is on. `?start=time` in tests makes Enter and Space start the time challenge
- *   when it is allowed. Start keys work only on the start screen, so digits always type during a round (plan
+ *   it; P starts the next cup match ("Pokal", amendment 13, FR-105); K opens the locker room when it is on.
+ *   `?start=time` in tests makes Enter and Space start the time challenge when it is allowed, `?start=cup` the next cup
+ *   match. Start keys work only on the start screen, so digits always type during a round (plan
  *   decision 7).
  * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause.
  * - Help chart open (help step 3): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
@@ -17,8 +18,8 @@
  */
 import type { Digit } from '../core/match/entry';
 
-/** What a start screen button starts: a normal round ("Spielen") or the time challenge ("Zeit-Challenge"). */
-export const START_KINDS = ['play', 'time'] as const;
+/** What a start screen button starts: a normal round ("Spielen"), the time challenge ("Zeit-Challenge") or the next cup match ("Pokal"). */
+export const START_KINDS = ['play', 'time', 'cup'] as const;
 export type StartKind = (typeof START_KINDS)[number];
 
 /** The fields of a KeyboardEvent the map reads. */
@@ -62,8 +63,10 @@ export function keyToAction(event: KeyLike, screen: KeyScreen, context: KeyConte
   switch (screen) {
     case 'start': {
       if (isEnter || isSpace) {
+        if (context.enterStart === 'cup') return { type: 'start', kind: 'cup' };
         return { type: 'start', kind: context.enterStart === 'time' && context.timeChallenge === true ? 'time' : 'play' };
       }
+      if (key === 'p' || key === 'P') return event.repeat ? null : { type: 'start', kind: 'cup' };
       if (key === 'z' || key === 'Z') {
         return !event.repeat && context.timeChallenge === true ? { type: 'start', kind: 'time' } : null;
       }

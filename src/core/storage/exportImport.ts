@@ -1,8 +1,8 @@
 // Adapted from math-tank src/core/storage/exportImport.ts.
 import type { Settings } from '../settings/schema';
 import { isRecord } from '../util';
-import type { LockerRoom, Progress, Records } from './schemas';
-import { LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from './storage';
+import { emptyCup, type Cup, type LockerRoom, type Progress, type Records } from './schemas';
+import { CUP, LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from './storage';
 
 /** Marks an export file as ours. */
 export const EXPORT_APP = 'math-soccer';
@@ -15,6 +15,7 @@ export type ImportFailure =
   | 'invalidProgress'
   | 'invalidRecords'
   | 'invalidLockerRoom'
+  | 'invalidCup'
   /** The file was fine, but the browser could not store it; nothing was changed. */
   | 'storeFailed'
   /** The browser stored part of the file and could not put the old data back. */
@@ -25,11 +26,13 @@ export interface SaveData {
   progress: Progress;
   records: Records;
   lockerRoom: LockerRoom;
+  /** The cup journey (amendment 13). */
+  cup: Cup;
 }
 
 export type ImportResult = ({ ok: true } & SaveData) | { ok: false; reason: ImportFailure };
 
-/** JSON text of `{ app, exportedAt, settings, progress, records, lockerRoom }` for the "Daten sichern" download (FR-041). */
+/** JSON text of `{ app, exportedAt, settings, progress, records, lockerRoom, cup }` for the "Daten sichern" download (FR-041). */
 export function exportData(data: SaveData, now: Date = new Date()): string {
   return JSON.stringify({ app: EXPORT_APP, exportedAt: now.toISOString(), ...data }, null, 2);
 }
@@ -56,6 +59,9 @@ export function importData(text: string): ImportResult {
   if (!records) return { ok: false, reason: 'invalidRecords' };
   const lockerRoom = LOCKER_ROOM.parse(raw.lockerRoom);
   if (!lockerRoom) return { ok: false, reason: 'invalidLockerRoom' };
+  // A file saved before the cup (amendment 13) has none: the cup starts at its first match.
+  const cup = raw.cup === undefined ? emptyCup() : CUP.parse(raw.cup);
+  if (!cup) return { ok: false, reason: 'invalidCup' };
 
-  return { ok: true, settings, progress, records, lockerRoom };
+  return { ok: true, settings, progress, records, lockerRoom, cup };
 }

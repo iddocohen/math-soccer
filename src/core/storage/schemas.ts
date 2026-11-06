@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { STARTER } from '../rewards/items';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from '../settings/defaults';
+import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from '../settings/defaults';
 import { PATTERNS } from '../targets/patterns';
 import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
@@ -137,6 +137,33 @@ export function emptyLockerRoom(): LockerRoom {
   };
 }
 
+/** The five matches of a cup (amendment 13, FR-106): two group games, quarter final, semi final, final. */
+export const CUP_MATCHES = 5;
+
+/**
+ * `mathsoccer.cup.v1`, version 1 (amendment 13, FR-106 to FR-112): the cup journey. `cup` is the number of the cup
+ * being played (1 for the first); `stage` the next match, 0 (Gruppenspiel 1) to 4 (Finale); `tries` the lost tries of
+ * that match; `scores` the results of the matches already won in this cup, one per stage before `stage`; `trophies` the
+ * won cups, oldest first.
+ */
+export const cupSchema = z
+  .object({
+    version: z.literal(1),
+    cup: z.number().int().min(1),
+    stage: z.number().int().min(0).max(CUP_MATCHES - 1),
+    tries: z.number().int().min(0),
+    /** The child's goals and the opponent's: the hearts lost in the match. */
+    scores: z.array(z.object({ goals: z.number().int().min(0), against: z.number().int().min(0).max(3) })),
+    trophies: z.array(z.object({ cup: z.number().int().min(1), at: z.string() })),
+  })
+  .refine((c) => c.scores.length === c.stage, { message: 'one score per won match', path: ['scores'] });
+export type Cup = z.infer<typeof cupSchema>;
+
+/** No cup played yet: the first cup at its first group game. */
+export function emptyCup(): Cup {
+  return { version: 1, cup: 1, stage: 0, tries: 0, scores: [], trophies: [] };
+}
+
 /** A goalkeeper target (data-model "Target"). */
 export const targetSchema = z.object({
   number: z.number().int(),
@@ -182,6 +209,11 @@ export const roundSchema = z
     targetMisses: z.number().int().min(0).default(0),
     /** Play times of the shots that missed the current target, for the guess rule (T043). */
     missTimes: z.array(z.number().min(0)).default([]),
+    /** A cup match (amendment 13): its level and the goals that win it; null for the other round types. */
+    cupMatch: z
+      .object({ level: z.literal(LEVELS), goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX) })
+      .nullable()
+      .default(null),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);
@@ -195,6 +227,7 @@ function roundRules(
     max: number;
     roundType: string;
     challengeMinutes: number | null;
+    cupMatch: unknown;
     target: { number: number; queue?: Array<{ number: number }> } | null;
   },
   ctx: z.RefinementCtx,
@@ -203,6 +236,7 @@ function roundRules(
   if (r.min >= r.max) issue('min must be below max', 'max');
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
   if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
+  if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number)] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

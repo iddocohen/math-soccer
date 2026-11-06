@@ -2,7 +2,8 @@
 /**
  * Settings page for parents (FR-035, FR-041, contracts/screens.md "Settings").
  *
- * The fields of data-model "Settings", grouped as Zahlenraum, Hinweise, Formen, Runde, Zeit-Challenge, Schwierigkeit,
+ * The fields of data-model "Settings", grouped as Zahlenraum, Hinweise, Formen, Runde, Zeit-Challenge, Pokal ("Tore pro
+ * Spiel", 3 to 10, amendment 13), Schwierigkeit,
  * Ton, Bedienung, Kabine and Daten (FR-069, FR-074, FR-076, FR-085). "Schwierigkeit" holds the shots per ball, the
  * adaptive switch, "Stufe am Anfang" and "Schwerste Stufe", with a small example drawing per level. The form is checked
  * with `validateSettings` on every change; errors appear next to their fields and "Speichern" stays disabled while any
@@ -14,7 +15,7 @@
  * again after "Speichern" and after "Daten laden".
  */
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS, RANGE_PRESETS, type ChallengeMinutes, type Level } from '../core/settings/defaults';
+import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS, RANGE_PRESETS, type ChallengeMinutes, type Level } from '../core/settings/defaults';
 import type { RangePreset, Settings } from '../core/settings/schema';
 import { validateSettings } from '../core/settings/validate';
 import { SHAPE_IDS } from '../core/targets/shapes';
@@ -254,6 +255,15 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             value={String(draft.timeChallenge.minutes)}
             options={CHALLENGE_MINUTES.map((n) => ({ value: String(n), label: O.challengeMinutes(n) }))}
             onChange={(v) => set('timeChallenge', { ...draft.timeChallenge, minutes: Number(v) as ChallengeMinutes })}
+          />
+        </Group>
+
+        <Group title={S.groups.cup}>
+          <Select
+            label={L.cupGoals}
+            value={String(draft.cupGoals)}
+            options={Array.from({ length: CUP_GOALS_MAX - CUP_GOALS_MIN + 1 }, (_, i) => String(CUP_GOALS_MIN + i)).map((v) => ({ value: v, label: v }))}
+            onChange={(v) => set('cupGoals', Number(v))}
           />
         </Group>
 

@@ -1,13 +1,14 @@
 // Adapted from math-tank src/core/transfer/transfer.test.ts: code version 2, and version 1 read from the published game.
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
-import { emptyLockerRoom, emptyProgress, emptyRecords } from '../storage/schemas';
+import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../storage/schemas';
 import type { SaveData } from './transfer';
 import {
   browserCodec,
   decodeTransfer,
   encodeTransfer,
   saveCodeFromHash,
+  toTransfer,
   TRANSFER_MAX_CODE_LENGTH,
   transferLink,
   transferSummary,
@@ -51,6 +52,7 @@ function saveData(): SaveData {
     progress,
     records,
     lockerRoom: { ...emptyLockerRoom(), stars: 31 },
+    cup: emptyCup(),
   };
 }
 
@@ -83,6 +85,20 @@ describe('transfer links (FR-041)', () => {
       const decoded = await decodeTransfer(r.code, { codec });
       expect(decoded).toEqual({ ok: true, data: expected(saveData()), summary: { stars: 31, record: 12, min: 200, max: 500 } });
     }
+  });
+
+  it('carries the cup (amendment 13); a code without one starts the cup at its first match', async () => {
+    const cup = { ...emptyCup(), cup: 3, stage: 2, tries: 1, scores: [{ goals: 5, against: 0 }, { goals: 5, against: 2 }], trophies: [{ cup: 1, at: 'a' }, { cup: 2, at: 'b' }] };
+    const r = await encodeTransfer({ ...saveData(), cup }, PAGE, { codec: null });
+    const decoded = await decodeTransfer(r.code, { codec: null });
+    expect(decoded.ok && decoded.data.cup).toEqual(cup);
+    const { cup: _cup, ...old } = toTransfer(saveData());
+    void _cup;
+    const oldCode = `v2.${btoa(JSON.stringify(old)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+    const fromOld = await decodeTransfer(oldCode, { codec: null });
+    expect(fromOld.ok && fromOld.data.cup).toEqual(emptyCup());
+    const badCode = `v2.${btoa(JSON.stringify({ ...old, cup: { ...cup, stage: 7 } })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+    expect(await decodeTransfer(badCode, { codec: null })).toEqual({ ok: false });
   });
 
   it('reads a code of version 1 from the published game: settings migrate, the highest ladder step becomes the level', async () => {

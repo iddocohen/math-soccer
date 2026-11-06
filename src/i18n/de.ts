@@ -41,6 +41,8 @@ export const de = {
   start: {
     play: 'Spielen',
     timeChallenge: 'Zeit-Challenge',
+    /** The cup journey (amendment 13, FR-105). */
+    cup: 'Pokal',
     lockerRoom: 'Kabine',
     stars: (n: number) => `★ ${n}`,
     starsLabel: starCount,
@@ -120,6 +122,30 @@ export const de = {
     back: 'Zurück',
   },
 
+  /** The cup journey (amendment 13, FR-106, FR-108). */
+  cup: {
+    stages: {
+      group1: 'Gruppenspiel 1',
+      group2: 'Gruppenspiel 2',
+      quarterFinal: 'Viertelfinale',
+      semiFinal: 'Halbfinale',
+      final: 'Finale',
+    },
+    /** "Weiter ins Halbfinale": where the next match of the cup is. */
+    onTo: {
+      group1: 'Weiter zum Gruppenspiel 1',
+      group2: 'Weiter zum Gruppenspiel 2',
+      quarterFinal: 'Weiter ins Viertelfinale',
+      semiFinal: 'Weiter ins Halbfinale',
+      final: 'Weiter ins Finale',
+    },
+    won: (onTo: string) => `Gewonnen! ${onTo}`,
+    cupWon: (n: number) => `Gewonnen! Pokal ${n} gehört dir!`,
+    lost: (team: string) => `Knapp! Noch mal gegen ${team}?`,
+    /** "3:1", the child's goals first. */
+    score: (goals: number, against: number) => `${goals}:${against}`,
+  },
+
   /** Locker room (contracts/screens.md "Locker room"). */
   lockerRoom: {
     title: 'Kabine',
@@ -188,7 +214,7 @@ export const de = {
     /** A save of several kinds failed, and the old data could not be put back (review H6). */
     savePartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
     /** The four kinds of stored data, for the notice on the settings page. */
-    dataNames: { settings: 'Einstellungen', progress: 'Fortschritt', records: 'Rekorde', lockerRoom: 'Sterne und Kabine' },
+    dataNames: { settings: 'Einstellungen', progress: 'Fortschritt', records: 'Rekorde', lockerRoom: 'Sterne und Kabine', cup: 'Pokal' },
     holdHint: 'Zahnrad 2 Sekunden gedrückt halten',
   },
 
@@ -206,6 +232,7 @@ export const de = {
       shapes: 'Formen',
       round: 'Runde',
       timeChallenge: 'Zeit-Challenge',
+      cup: 'Pokal',
       difficulty: 'Schwierigkeit',
       sound: 'Ton',
       controls: 'Bedienung',
@@ -236,6 +263,8 @@ export const de = {
       pointAfterFullHelp: 'Punkt nach voller Hilfe',
       /** The row scale beside the goal and the column scale above it (FR-093). */
       rowColumnHelper: 'Zeilen- und Spaltenhilfe',
+      /** Goals that win a cup match (amendment 13, FR-108). */
+      cupGoals: 'Tore pro Spiel',
       timeChallengeAllowed: 'Zeit-Challenge erlauben',
       timeChallengeMinutes: 'Dauer',
     },
@@ -254,7 +283,7 @@ export const de = {
       export: 'Daten sichern',
       import: 'Daten laden',
       qr: 'QR-Code',
-      exportHint: 'Speichert Einstellungen, Fortschritt, Rekorde und Sterne in einer Datei.',
+      exportHint: 'Speichert Einstellungen, Fortschritt, Rekorde, Sterne und Pokal in einer Datei.',
       imported: 'Daten geladen. Die Einstellungen gelten ab der nächsten Runde.',
       importFailed: {
         notJson: 'Diese Datei ist keine Sicherung von Mathe-Kicker.',
@@ -263,6 +292,7 @@ export const de = {
         invalidProgress: 'Der Fortschritt in dieser Datei ist ungültig. Es wurde nichts geändert.',
         invalidRecords: 'Die Rekorde in dieser Datei sind ungültig. Es wurde nichts geändert.',
         invalidLockerRoom: 'Die Sterne in dieser Datei sind ungültig. Es wurde nichts geändert.',
+        invalidCup: 'Der Pokal in dieser Datei ist ungültig. Es wurde nichts geändert.',
         storeFailed: 'Der Browser konnte die Daten nicht speichern. Es wurde nichts geändert.',
         storePartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
       },
@@ -336,7 +366,7 @@ export const de = {
     masteredYes: 'ja',
     masteredNo: 'noch nicht',
     noBests: 'Noch keine Rekorde.',
-    roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren', time: 'Zeit-Challenge' },
+    roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren', time: 'Zeit-Challenge', cup: 'Pokal' },
     range: (min: number, max: number) => `${min} bis ${max}`,
   },
 

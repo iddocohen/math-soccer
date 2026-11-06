@@ -71,6 +71,7 @@ describe('texts from contracts/screens.md', () => {
       'Formen',
       'Runde',
       'Zeit-Challenge',
+      'Pokal',
       'Schwierigkeit',
       'Ton',
       'Bedienung',

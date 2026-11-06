@@ -35,6 +35,11 @@
  *
  * "Zum Start" (amendment 14, FR-118): `abandon()` drops the round without a round end; see there.
  *
+ * Cup match (amendment 13, FR-108, FR-109): `startCup()` starts a round of type 'cup' with the level and the goals of the
+ * match (core/cup). Hearts work as in `untilHearts`. Every target uses the match level, whatever the child's current
+ * level is, so adaptive difficulty never changes the level inside the match. The round ends won at the match's goals
+ * (`cupMatchWon`), or lost when the hearts are gone. The app records the result in the cup.
+ *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
@@ -101,6 +106,8 @@ export interface MatchState {
   roundType: RoundType;
   /** The length of a time challenge in minutes (FR-076); null for the other round types. */
   challengeMinutes: ChallengeMinutes | null;
+  /** A cup match: the level of its targets and the goals that win it (FR-108, FR-109); null for the other round types. */
+  cupMatch: CupMatchSetup | null;
   seed: number;
   min: number;
   max: number;
@@ -204,6 +211,7 @@ const STORED_KEYS = [
   'seed',
   'roundType',
   'challengeMinutes',
+  'cupMatch',
   'min',
   'max',
   'goals',
@@ -237,6 +245,17 @@ const TARGET_RESET = {
 /** What `start` begins: a normal round ("Spielen") or a time challenge ("Zeit-Challenge"). */
 export type StartKind = 'play' | 'time';
 
+/** What a cup match needs (core/cup `nextMatch`): the level of its targets and the goals that win it. */
+export interface CupMatchSetup {
+  level: Level;
+  goals: number;
+}
+
+/** True when the cup match of `s` has ended won: its goals were scored before the hearts were gone (FR-108). */
+export function cupMatchWon(s: Pick<MatchState, 'roundType' | 'cupMatch' | 'goals'>): boolean {
+  return s.roundType === 'cup' && s.cupMatch !== null && s.goals >= s.cupMatch.goals;
+}
+
 /** The length of the time challenge of `s` in milliseconds, or null for another round type. */
 export function challengeMs(s: Pick<MatchState, 'challengeMinutes'>): number | null {
   return s.challengeMinutes === null ? null : s.challengeMinutes * 60_000;
@@ -253,11 +272,12 @@ function timeUp(s: MatchState): boolean {
   return remainingMs(s) === 0;
 }
 
-function freshState(s: Settings, seed: number, started: boolean, kind: StartKind = 'play'): MatchState {
+function freshState(s: Settings, seed: number, started: boolean, kind: StartKind = 'play', cupMatch: CupMatchSetup | null = null): MatchState {
   return {
     started,
-    roundType: kind === 'time' ? 'time' : s.roundType,
-    challengeMinutes: kind === 'time' ? s.timeChallenge.minutes : null,
+    roundType: cupMatch !== null ? 'cup' : kind === 'time' ? 'time' : s.roundType,
+    challengeMinutes: cupMatch === null && kind === 'time' ? s.timeChallenge.minutes : null,
+    cupMatch: cupMatch === null ? null : { ...cupMatch },
     seed,
     min: s.range.min,
     max: s.range.max,
@@ -385,6 +405,18 @@ export class MatchController {
   }
 
   /**
+   * Starts a cup match (amendment 13, FR-108): hearts as in "Bis die Bälle weg sind", every target at `match.level`, won
+   * at `match.goals` goals.
+   */
+  startCup(match: CupMatchSetup): void {
+    this.newTargetPending = false;
+    this.feedbackMs = 0;
+    this.roundSettings = this.options.settings();
+    const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
+    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, 'play', match)));
+  }
+
+  /**
    * Continues the stored round after a refresh. Returns false, and deletes the stored round, when there is none or it
    * no longer fits the settings: another range (FR-036a), or a time challenge the parent no longer allows (amendment 07).
    */
@@ -402,7 +434,7 @@ export class MatchController {
     this.feedbackMs = 0;
     // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
     // they were kept uses the current goals per round.
-    const roundType = stored.roundType === 'time' ? s.roundType : stored.roundType;
+    const roundType = stored.roundType === 'time' || stored.roundType === 'cup' ? s.roundType : stored.roundType;
     this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
     const state: MatchState = { ...freshState(this.roundSettings, stored.seed, true), ...storedFields(stored) };
     // A round saved during the celebration goes on as if the celebration had ended.
@@ -492,7 +524,7 @@ export class MatchController {
       lastGuess: number,
     };
     this.feedbackMs = SHOWN_MS;
-    const heartLost = s.roundType === 'untilHearts' && misses >= MISSES_PER_HEART[this.roundSettings.difficulty];
+    const heartLost = (s.roundType === 'untilHearts' || s.roundType === 'cup') && misses >= MISSES_PER_HEART[this.roundSettings.difficulty];
     if (heartLost) {
       // The target stays; help jumps to the answer and the child shoots it (FR-027, critique P7).
       const hearts = s.hearts - 1;
@@ -621,6 +653,8 @@ export class MatchController {
   private afterCelebration(s: MatchState): MatchState {
     const next: MatchState = { ...s, ...TARGET_RESET, ball: null, message: null };
     if (s.roundType === 'goalCount' && s.goals >= this.roundSettings.goalsPerRound) return { ...next, phase: 'roundOver' };
+    // A cup match is won at its goals (FR-108).
+    if (cupMatchWon(s)) return { ...next, phase: 'roundOver' };
     // The last goal of a time challenge was shot before zero and celebrated; now the round ends (FR-077).
     if (timeUp(s)) return { ...next, phase: 'roundOver' };
     return this.withNextTarget({ ...next, phase: 'aiming' });
@@ -638,12 +672,16 @@ export class MatchController {
     return { ...state, ...fresh, target };
   }
 
-  /** The next target from core/targets, with the round's seeded `Rng`. */
+  /**
+   * The next target from core/targets, with the round's seeded `Rng`. A cup match plays its own level (FR-109): the
+   * child's level and the X shape's two empty squares of adaptive difficulty do not apply.
+   */
   private defaultTarget(state: MatchState): Target | null {
+    const progress = this.options.progress?.() ?? NO_PROGRESS;
     return nextTarget({
       layout: layoutChart(state.min, state.max),
       settings: this.roundSettings,
-      progress: this.options.progress?.() ?? NO_PROGRESS,
+      progress: state.cupMatch === null ? progress : { ...progress, level: state.cupMatch.level, xTwoEmpties: false },
       rng: createRng(deriveSeed(state.seed, state.targetCount)),
       avoid: state.target?.number,
     });

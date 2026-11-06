@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import { memoryKeyValue, type KeyValue } from '../core/storage/keyValue';
-import { emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
-import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
+import { CUP_KEY, LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { createPersistence } from './persistence';
 
 /** A key-value store whose writes to `keys` fail, as when browser storage is full or blocked. */
@@ -160,7 +160,7 @@ describe('a save of several kinds that cannot be undone (review H6)', () => {
   });
 
   it('a transfer and an import say partial the same way', () => {
-    const data = { settings: defaultSettings(), progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom() };
+    const data = { settings: defaultSettings(), progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom(), cup: emptyCup() };
     const p = createPersistence(stuckRollback(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(defaultSettings()) }), LOCKER_ROOM_KEY, SETTINGS_KEY));
     expect(p.applyTransfer(data)).toEqual({ ok: false, partial: true });
     const text = createPersistence(memoryKeyValue()).exportText();
@@ -185,5 +185,75 @@ describe('resetReasons (FR-036, review H5)', () => {
       { kind: 'progress', reason: 'invalid' },
       { kind: 'lockerRoom', reason: 'newer' },
     ]);
+  });
+});
+
+describe('the cup journey in stored data (amendment 13)', () => {
+  const playedCup = () => ({ ...emptyCup(), cup: 2, stage: 1, scores: [{ goals: 5, against: 1 }], trophies: [{ cup: 1, at: '2026-11-06T12:00:00.000Z' }] });
+
+  it('saves the cup so a new instance loads it', () => {
+    const kv = memoryKeyValue();
+    expect(createPersistence(kv).saveCup(playedCup())).toEqual({ ok: true });
+    expect(createPersistence(kv).cup()).toEqual(playedCup());
+  });
+
+  it('"Alles zurücksetzen" starts the cup again and empties the trophy shelf', () => {
+    const kv = memoryKeyValue({ [CUP_KEY]: JSON.stringify(playedCup()) });
+    const p = createPersistence(kv);
+    expect(p.resetAll()).toEqual({ ok: true });
+    expect(p.cup()).toEqual(emptyCup());
+    expect(JSON.parse(kv.get(CUP_KEY)!)).toEqual(emptyCup());
+  });
+
+  it('is part of "Daten sichern", "Daten laden" and the transfer', () => {
+    const from = createPersistence(memoryKeyValue());
+    from.saveCup(playedCup());
+    expect(from.saveData().cup).toEqual(playedCup());
+    const to = createPersistence(memoryKeyValue());
+    expect(to.importText(from.exportText()).ok).toBe(true);
+    expect(to.cup()).toEqual(playedCup());
+    const other = createPersistence(memoryKeyValue());
+    expect(other.applyTransfer(from.saveData())).toEqual({ ok: true });
+    expect(other.cup()).toEqual(playedCup());
+  });
+
+  it('offers a kept copy of a damaged cup through "Kopie wiederherstellen"', () => {
+    // A damaged cup resets to the first cup and keeps its text; a kept copy this version can read is offered.
+    const damaged = createPersistence(memoryKeyValue({ [CUP_KEY]: '{' }));
+    expect(damaged.cup()).toEqual(emptyCup());
+    expect(damaged.resetReasons()).toEqual([{ kind: 'cup', reason: 'invalid' }]);
+    const kv = memoryKeyValue({ [CUP_KEY]: JSON.stringify(emptyCup()), [`${CUP_KEY}.unreadable`]: JSON.stringify(playedCup()) });
+    const p = createPersistence(kv);
+    expect(p.backups()).toEqual(['cup']);
+    expect(p.restoreBackups()).toEqual({ ok: true });
+    expect(p.cup()).toEqual(playedCup());
+  });
+
+  it('a cup attempt counts but keeps the child level (FR-109)', () => {
+    const p = createPersistence(memoryKeyValue());
+    const settings = defaultSettings();
+    const record = {
+      at: '2026-11-06T12:00:00.000Z',
+      mode: 'keeper' as const,
+      min: 1,
+      max: 100,
+      target: 46,
+      directions: ['right' as const],
+      hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
+      hintDisplay: 'always' as const,
+      level: 1 as const,
+      solved: true,
+      helpStep: 0,
+      misses: 0,
+      responseMs: 4000,
+      guess: false,
+    };
+    for (let i = 0; i < 3; i++) expect(p.recordAttempt(record, settings, { keepLevel: true }).levelUp).toBeNull();
+    expect(p.progress().level).toBeNull();
+    expect(p.progress().levels['1']).toMatchObject({ independent: 3 });
+    expect(p.progress().attempts).toHaveLength(3);
+    // The same attempts outside a cup raise the level after 3 solved alone.
+    const levelUps = [0, 1, 2].map(() => p.recordAttempt(record, settings).levelUp);
+    expect(levelUps).toEqual([null, null, 2]);
   });
 });

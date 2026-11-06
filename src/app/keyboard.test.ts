@@ -29,6 +29,14 @@ describe('keyToAction: start screen', () => {
     expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'play' })).toEqual({ type: 'start', kind: 'play' });
   });
 
+  it('P starts the next cup match, and Enter does with ?start=cup (FR-105)', () => {
+    expect(keyToAction(key('p'), 'start', ALL)).toEqual({ type: 'start', kind: 'cup' });
+    expect(keyToAction(key('P'), 'start', {})).toEqual({ type: 'start', kind: 'cup' });
+    expect(keyToAction(key('p', { repeat: true }), 'start', ALL)).toBeNull();
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'cup' })).toEqual({ type: 'start', kind: 'cup' });
+    for (const screen of ['match', 'paused', 'roundEnd'] as const) expect(keyToAction(key('p'), screen, ALL)).toBeNull();
+  });
+
   it('K opens the locker room only when it is on', () => {
     expect(keyToAction(key('k'), 'start', ALL)).toEqual({ type: 'lockerRoom' });
     expect(keyToAction(key('K'), 'start', ALL)).toEqual({ type: 'lockerRoom' });

@@ -6,6 +6,8 @@ import { isRecord } from '../util';
 import type { KeyValue } from './keyValue';
 import { isRemovedModeRound, migrate, parseSettings, type StoredKindName } from './migrate';
 import {
+  cupSchema,
+  emptyCup,
   emptyLockerRoom,
   emptyProgress,
   emptyRecords,
@@ -13,6 +15,7 @@ import {
   progressSchema,
   recordsSchema,
   roundSchema,
+  type Cup,
   type LockerRoom,
   type Progress,
   type Records,
@@ -25,6 +28,7 @@ export const PROGRESS_KEY = 'mathsoccer.progress.v1';
 export const LOCKER_ROOM_KEY = 'mathsoccer.lockerroom.v1';
 export const RECORDS_KEY = 'mathsoccer.records.v1';
 export const ROUND_KEY = 'mathsoccer.round.v1';
+export const CUP_KEY = 'mathsoccer.cup.v1';
 
 /**
  * Why loaded data was replaced by its defaults: 'invalid' for damaged or invalid data, 'newer' for data written by a
@@ -84,6 +88,15 @@ export const LOCKER_ROOM: StoredKind<LockerRoom> = {
     return locker && cleanLockerRoom(locker);
   },
   empty: emptyLockerRoom,
+};
+
+/** The cup journey (amendment 13); no stored cup is the first cup at its first match. */
+export const CUP: StoredKind<Cup> = {
+  name: 'cup',
+  key: CUP_KEY,
+  version: 1,
+  parse: schemaParser('cup', cupSchema),
+  empty: emptyCup,
 };
 
 /** A round is either stored or not; "empty" is no round to continue. A hole or line round is discarded (FR-070). */
@@ -176,6 +189,8 @@ export const loadRecords = (kv: KeyValue) => load(kv, RECORDS);
 export const saveRecords = (kv: KeyValue, r: Records) => save(kv, RECORDS, r);
 export const loadLockerRoom = (kv: KeyValue) => load(kv, LOCKER_ROOM);
 export const saveLockerRoom = (kv: KeyValue, l: LockerRoom) => save(kv, LOCKER_ROOM, l);
+export const loadCup = (kv: KeyValue) => load(kv, CUP);
+export const saveCup = (kv: KeyValue, c: Cup) => save(kv, CUP, c);
 export const loadRound = (kv: KeyValue) => load(kv, ROUND);
 export const saveRound = (kv: KeyValue, r: StoredRound) => save(kv, ROUND, r);
 export const clearRound = (kv: KeyValue) => clear(kv, ROUND);

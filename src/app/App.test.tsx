@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import type { MatchController } from '../core/match/MatchController';
-import { emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
+import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
 import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { encodeTransfer } from '../core/transfer/transfer';
 import { MatchController as Controller } from '../core/match/MatchController';
@@ -46,12 +46,12 @@ function scoreGoal(): void {
 afterEach(cleanup);
 
 describe('App', () => {
-  it('shows "Spielen" and "Zeit-Challenge" on the start screen, and no mode buttons (FR-068, FR-075)', () => {
+  it('shows "Spielen", "Zeit-Challenge" and "Pokal" on the start screen, and no mode buttons (FR-068, FR-075, FR-105)', () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), version: 1, modes: { holes: true, lines: false, keeper: true }, lineLength: 5 }));
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
     const buttons = Array.from(document.querySelectorAll('[data-start]')).map((b) => b.getAttribute('data-start'));
-    expect(buttons).toEqual(['play', 'time']);
+    expect(buttons).toEqual(['play', 'time', 'cup']);
     expect(document.querySelector('[data-start="play"]')!.textContent).toBe('SpielenEnter');
     // The key hint shows like "Z" on "Zeit-Challenge" (FR-101) and is hidden from screen readers.
     expect(document.querySelector('[data-start="play"] .start-key')!.getAttribute('aria-hidden')).toBe('true');
@@ -295,6 +295,7 @@ describe('App parent screens (T041 to T046)', () => {
       progress: emptyProgress(),
       records: emptyRecords(),
       lockerRoom: { ...emptyLockerRoom(), stars: 7 },
+      cup: emptyCup(),
     };
     const { code } = await encodeTransfer(data, 'http://localhost/');
     window.history.replaceState(null, '', `/#save=${code}`);
@@ -658,6 +659,7 @@ describe('App: review fixes', () => {
       progress: emptyProgress(),
       records: emptyRecords(),
       lockerRoom: emptyLockerRoom(),
+      cup: emptyCup(),
     };
     const { code } = await encodeTransfer(data, 'http://localhost/');
     window.history.replaceState(null, '', `/#save=${code}`);

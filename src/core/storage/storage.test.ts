@@ -4,9 +4,12 @@ import { defaultSettings } from '../settings/defaults';
 import { exportData, importData } from './exportImport';
 import { memoryKeyValue, type KeyValue } from './keyValue';
 import { migrate } from './migrate';
-import { emptyLockerRoom, emptyProgress, emptyRecords, type StoredRound } from './schemas';
+import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords, type StoredRound } from './schemas';
 import {
   clearRound,
+  CUP_KEY,
+  loadCup,
+  saveCup,
   LOCKER_ROOM_KEY,
   loadLockerRoom,
   loadProgress,
@@ -46,6 +49,7 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     targetStartMs: 0,
     targetMisses: 0,
     missTimes: [],
+    cupMatch: null,
     phase: 'aiming',
     ...over,
   };
@@ -342,9 +346,10 @@ describe('export and import', () => {
     progress: { ...emptyProgress(), directions: { 'holes|down': { masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
     records: emptyRecords(),
     lockerRoom: { ...emptyLockerRoom(), stars: 9 },
+    cup: emptyCup(),
   });
 
-  it('round-trips all four kinds and stamps the app and the time', () => {
+  it('round-trips all five kinds, the cup included, and stamps the app and the time', () => {
     const text = exportData(data(), new Date('2026-11-06T12:00:00.000Z'));
     const file = JSON.parse(text) as Record<string, unknown>;
     expect(file.app).toBe('math-soccer');
@@ -364,6 +369,47 @@ describe('export and import', () => {
       ok: false,
       reason: 'invalidLockerRoom',
     });
+    expect(importData(file({ cup: { ...emptyCup(), stage: 3 } }))).toEqual({ ok: false, reason: 'invalidCup' });
+  });
+
+  it('carries the cup, and a file saved before the cup starts it at its first match (amendment 13)', () => {
+    const cup = { ...emptyCup(), cup: 2, stage: 1, tries: 1, scores: [{ goals: 5, against: 2 }], trophies: [{ cup: 1, at: '2026-11-06T12:00:00.000Z' }] };
+    const r = importData(exportData({ ...data(), cup }));
+    expect(r.ok && r.cup).toEqual(cup);
+    const { cup: _cup, ...withoutCup } = data();
+    void _cup;
+    const old = importData(JSON.stringify({ app: 'math-soccer', ...withoutCup }));
+    expect(old.ok && old.cup).toEqual(emptyCup());
+  });
+});
+
+describe('stored cup (mathsoccer.cup.v1, amendment 13)', () => {
+  it('loads the first cup when nothing is stored, and what was saved', () => {
+    const kv = memoryKeyValue();
+    expect(loadCup(kv)).toEqual({ value: emptyCup(), resetReason: 'none' });
+    const cup = { ...emptyCup(), stage: 2, tries: 3, scores: [{ goals: 5, against: 0 }, { goals: 5, against: 3 }] };
+    expect(saveCup(kv, cup)).toEqual({ ok: true });
+    expect(CUP_KEY).toBe('mathsoccer.cup.v1');
+    expect(loadCup(kv)).toEqual({ value: cup, resetReason: 'none' });
+  });
+
+  it('resets a damaged or newer cup to the first cup and keeps the old text', () => {
+    const bad = memoryKeyValue({ [CUP_KEY]: JSON.stringify({ ...emptyCup(), stage: 9 }) });
+    expect(loadCup(bad)).toEqual({ value: emptyCup(), resetReason: 'invalid' });
+    expect(bad.get(unreadableKey(CUP_KEY))).not.toBeNull();
+    const newer = memoryKeyValue({ [CUP_KEY]: JSON.stringify({ ...emptyCup(), version: 2 }) });
+    expect(loadCup(newer).resetReason).toBe('newer');
+  });
+
+  it('a stored cup round needs its cup match, and only a cup round has one', () => {
+    const cupRound = storedRound({ roundType: 'cup', cupMatch: { level: 3, goals: 5 } });
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(cupRound) })).value).toEqual(cupRound);
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify({ ...cupRound, cupMatch: null }) })).resetReason).toBe('invalid');
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ cupMatch: { level: 3, goals: 5 } })) })).resetReason).toBe('invalid');
+    // A round stored before the cup has no field and loads as no cup match.
+    const old = storedRound() as Record<string, unknown>;
+    delete old.cupMatch;
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(old) })).value).toMatchObject({ cupMatch: null });
   });
 });
 

@@ -107,6 +107,14 @@ export function recordAttempt(p: Progress, a: AttemptRecord, settings: Settings)
 }
 
 /**
+ * Adds one finished target of a cup match to `p` (amendment 13, FR-109): its counts and directions go in as usual, but
+ * the child's current level and its row of outcomes stay, because a cup match plays the level of its stage.
+ */
+export function recordAttemptKeepingLevel(p: Progress, a: AttemptRecord, settings: Settings): Progress {
+  return { ...recordAttempt(p, a, settings), level: p.level, levelRecent: p.levelRecent, levelWins: p.levelWins };
+}
+
+/**
  * The level reached by an attempt (FR-088): the new level when `after` is higher than `before`, else null. A level
  * going down returns null, so it never shows.
  */

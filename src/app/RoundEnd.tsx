@@ -9,6 +9,8 @@
  * "Zurück" goes back to the start screen.
  * A time challenge (amendment 07, FR-080) shows "2 Tore in 1 Minute" and its record by goals ("Dein Rekord: 9"), per
  * range and challenge time.
+ * A cup match (amendment 13, FR-108) shows its outcome instead of a record (`data-testid="cup-result"`, `data-cup-won`):
+ * "Gewonnen! Weiter ins Halbfinale", or "Knapp! Noch mal gegen Adler 09?". "Nochmal" starts the cup's next match.
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
  * Amendment 12 (FR-103): when a new version waits, a short neutral line "Neue Version, startet gleich" shows
  * (`data-testid="update-note"`); "Zurück" and "Nochmal" then apply it (App.tsx, swUpdate.ts).
@@ -16,6 +18,12 @@
 import type { BestResult } from '../core/records/records';
 import { t } from '../i18n';
 import type { RoundType } from '../core/types';
+
+/** The outcome of a cup match for the round end; `line` is the German text. */
+export interface CupRoundResult {
+  won: boolean;
+  line: string;
+}
 
 export interface RoundRecord {
   newRecord: boolean;
@@ -32,13 +40,15 @@ interface Props {
   record: RoundRecord | null;
   /** Stars earned in the round, or null when the locker room is off (FR-044). */
   stars?: number | null;
+  /** The outcome of a cup match; null for the other round types. */
+  cup?: CupRoundResult | null;
   /** A new version waits and applies on "Zurück" or "Nochmal" (FR-103). */
   updateWaiting?: boolean;
   onAgain: () => void;
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, updateWaiting = false, onAgain, onBack }: Props) {
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, onAgain, onBack }: Props) {
   const text = t().roundEnd;
   return (
     <div className="round-end" data-testid="round-end" role="dialog" aria-modal="true" aria-label={text.cheer}>
@@ -46,12 +56,17 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
       <p className="round-result" data-testid="round-result">
         {challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs)}
       </p>
+      {cup && (
+        <p className="cup-result" data-testid="cup-result" data-cup-won={cup.won}>
+          {cup.line}
+        </p>
+      )}
       {stars !== null && (
         <p className="round-stars" data-testid="round-stars">
           {text.stars(stars)}
         </p>
       )}
-      {record?.newRecord ? (
+      {cup ? null : record?.newRecord ? (
         <p className="new-record" data-testid="new-record">
           {text.newRecord}
         </p>

@@ -143,7 +143,12 @@ export const MatchOverlay = memo(function MatchOverlay({
   const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
   const lit = litLabels(state);
-  const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
+  const goals =
+    state.roundType === 'goalCount'
+      ? text.match.goalsOf(state.goals, settings.goalsPerRound)
+      : state.cupMatch !== null
+        ? text.match.goalsOf(state.goals, state.cupMatch.goals)
+        : text.match.goals(state.goals);
   return (
     <div
       className="overlay"
@@ -157,6 +162,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-help-col={lit.col}
       data-scales={scalesShown(state.helpStep, targetSolved(state))}
       data-goals={state.goals}
+      data-misses={state.targetMisses}
       data-hearts={state.hearts}
       data-rows={layout.rows}
       data-ball={ball}
@@ -166,6 +172,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-level={state.target?.level ?? ''}
       data-hints={state.target?.hints.join(',') ?? ''}
       data-round-type={state.roundType}
+      data-cup-level={state.cupMatch?.level ?? ''}
       data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}
       data-keeper={keeper}
       data-number-pad={pad !== undefined}
@@ -175,7 +182,7 @@ export const MatchOverlay = memo(function MatchOverlay({
           <span className="goal-count" data-testid="goal-count">
             {goals}
           </span>
-          {state.roundType === 'untilHearts' && (
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />

@@ -5,7 +5,7 @@ import { validateSettings } from '../settings/validate';
 import { isRecord } from '../util';
 
 /** The stored kinds that carry a version (data-model.md). */
-export type StoredKindName = 'settings' | 'progress' | 'records' | 'lockerRoom' | 'round';
+export type StoredKindName = 'settings' | 'progress' | 'records' | 'lockerRoom' | 'round' | 'cup';
 
 /**
  * Settings version 1 to version 2 (amendment 05, FR-070; amendments 06 and 07): the game modes and the line length go,
@@ -188,6 +188,7 @@ const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Reco
   progress: [progressV1toV2, progressV2toV3, progressV3toV4],
   records: [],
   lockerRoom: [],
+  cup: [],
   round: [roundV1toV2, roundV2toV3, roundV3toV4],
 };
 

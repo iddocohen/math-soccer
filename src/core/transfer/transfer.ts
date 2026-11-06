@@ -9,6 +9,9 @@
  * browser's CompressionStream (or sent uncompressed when there is none), encoded as base64url and put into the link's
  * fragment as `#save=v2.<data>`. Browsers never send the fragment to the server.
  *
+ * The cup journey (amendment 13) rides along as `cup`; a version 2 code written before the cup has none, and the cup
+ * then starts at its first match.
+ *
  * Version 2 (amendment 09) drops the ladder step from each direction and adds the level. Codes of version 1, from the
  * game before the levels, are still read: their steps become a level through the same migration as stored progress.
  *
@@ -17,8 +20,8 @@
  */
 import { z } from 'zod';
 import type { SaveData } from '../storage/exportImport';
-import { emptyProgress, type Outcome } from '../storage/schemas';
-import { LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from '../storage/storage';
+import { emptyCup, emptyProgress, type Outcome } from '../storage/schemas';
+import { CUP, LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from '../storage/storage';
 
 export type { SaveData };
 
@@ -46,6 +49,8 @@ export interface TransferData {
   /** The current level, or null before the first target. */
   level: number | null;
   levels: Record<string, LevelTuple>;
+  /** The cup journey (amendment 13); missing in codes written before it. */
+  cup?: SaveData['cup'];
 }
 
 /** What the receive dialog shows. */
@@ -87,7 +92,7 @@ export function toTransfer(data: SaveData, windowLength = WINDOW_MAX): TransferD
   }
   const levels: Record<string, LevelTuple> = {};
   for (const [key, c] of Object.entries(data.progress.levels)) levels[key] = [c.independent, c.assisted, c.guesses];
-  return { v: 2, settings: data.settings, lockerRoom: data.lockerRoom, records: data.records.bests, directions, level: data.progress.level, levels };
+  return { v: 2, settings: data.settings, lockerRoom: data.lockerRoom, records: data.records.bests, directions, level: data.progress.level, levels, cup: data.cup };
 }
 
 async function pipe(bytes: Uint8Array, stream: TransformStream<Uint8Array, Uint8Array>): Promise<Uint8Array> {
@@ -202,6 +207,7 @@ const transferV2Schema = z.object({
   directions: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0(), intMin0(), windowSchema()])),
   level: z.number().int().nullable(),
   levels: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0()])),
+  cup: z.unknown().optional(),
 });
 
 /** The progress a transfer carries, before the stored progress schema and its migrations check it. */
@@ -263,9 +269,11 @@ export async function decodeTransfer(code: string, opts: { codec?: Codec | null 
   const lockerRoom = LOCKER_ROOM.parse(t.lockerRoom);
   const records = RECORDS.parse({ version: 1, bests: t.records });
   const progress = PROGRESS.parse(transferProgress(t));
-  if (!settings || !lockerRoom || !records || !progress) return { ok: false };
+  const rawCup = t.v === 2 ? t.cup : undefined;
+  const cup = rawCup === undefined ? emptyCup() : CUP.parse(rawCup);
+  if (!settings || !lockerRoom || !records || !progress || !cup) return { ok: false };
 
-  const data: SaveData = { settings, progress, records, lockerRoom };
+  const data: SaveData = { settings, progress, records, lockerRoom, cup };
   return { ok: true, data, summary: transferSummary(data) };
 }
 

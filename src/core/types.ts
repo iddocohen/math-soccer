@@ -21,11 +21,11 @@ export const EARLIER_MODES = ['holes', 'lines'] as const satisfies readonly Mode
 export type EarlierMode = (typeof EARLIER_MODES)[number];
 
 /**
- * The round types (FR-026, FR-077): until the hearts are gone, a fixed number of goals, or the time challenge, which
- * counts goals until its countdown ends. The parent chooses between the first two for "Spielen"; "Zeit-Challenge"
- * starts the third.
+ * The round types (FR-026, FR-077, FR-108): until the hearts are gone, a fixed number of goals, the time challenge,
+ * which counts goals until its countdown ends, or a cup match, won at "Tore pro Spiel" goals before the hearts are gone.
+ * The parent chooses between the first two for "Spielen"; "Zeit-Challenge" starts the third and "Pokal" the fourth.
  */
-export const ROUND_TYPES = ['untilHearts', 'goalCount', 'time'] as const;
+export const ROUND_TYPES = ['untilHearts', 'goalCount', 'time', 'cup'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 /** How far the hint numbers sit from the target. */

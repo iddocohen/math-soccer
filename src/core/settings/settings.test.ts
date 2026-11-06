@@ -240,7 +240,7 @@ describe('settings version 2 to version 4 (amendment 09)', () => {
     expect(s).not.toHaveProperty('patterns');
     const { version: _v, directions: _d, patterns: _p, ...kept } = storedV2();
     void [_v, _d, _p];
-    expect(s).toEqual({ ...kept, version: 4, levels: { start: 1, hardest: 5 }, rowColumnHelper: true });
+    expect(s).toEqual({ ...kept, version: 4, levels: { start: 1, hardest: 5 }, rowColumnHelper: true, cupGoals: 5 });
   });
 
   it('turns every shape off when the parent had turned the pattern "Formen" off, so levels 3 and 4 are skipped', () => {

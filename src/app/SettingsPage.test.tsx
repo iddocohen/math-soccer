@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import { exportData } from '../core/storage/exportImport';
 import { memoryKeyValue } from '../core/storage/keyValue';
-import { emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
+import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
 import { loadSettings } from '../core/storage/storage';
 import { t } from '../i18n';
 import { createPersistence } from './persistence';
@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 describe('SettingsPage (T044, FR-035)', () => {
-  it('shows the ten groups in order, without "Spielarten", "Hinweis-Muster" or "Richtungen" (FR-069, amendment 09)', () => {
+  it('shows the eleven groups in order, without "Spielarten", "Hinweis-Muster" or "Richtungen" (FR-069, amendment 09)', () => {
     setup();
     const legends = screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toEqual([
@@ -47,6 +47,7 @@ describe('SettingsPage (T044, FR-035)', () => {
       'Formen',
       'Runde',
       'Zeit-Challenge',
+      'Pokal',
       'Schwierigkeit',
       'Ton',
       'Bedienung',
@@ -169,6 +170,7 @@ describe('data group (T046, FR-041)', () => {
       progress: emptyProgress(),
       records: emptyRecords(),
       lockerRoom: { ...emptyLockerRoom(), stars: 5 },
+      cup: emptyCup(),
     });
     fireEvent.change(input, { target: { files: [new File([text], 'save.json')] } });
     await waitFor(() => expect(screen.getByText(S.data.imported)).toBeTruthy());

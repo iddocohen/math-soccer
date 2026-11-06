@@ -33,6 +33,12 @@
  * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
  * round continues (a round the child paused stays paused) and the chosen look shows at once.
  *
+ * Cup (amendment 13, T101): "Pokal" (P, or Enter with `?start=cup`) starts the cup's next match with its level and
+ * "Tore pro Spiel" (core/cup `nextMatch`, MatchController.startCup). Its attempts count without moving the child's level
+ * (FR-109). When the match ends, its result goes to the cup with the bonus stars (`settleCup`), and the round end says
+ * "Gewonnen! …" or "Knapp! Noch mal gegen …?"; "Nochmal" starts the next match. "Zum Start" leaves the cup unchanged
+ * (FR-118). The bracket screen and the team looks come with T102.
+ *
  * Pause and home (amendment 14, FR-116 to FR-118): while the child paused the round, PauseScreen offers "Weiter" and
  * "Zum Start"; the home button pauses and asks "Runde beenden?" with the same two buttons. "Zum Start" goes through
  * `abandonRound`: the controller drops the round (MatchController.abandon) and the start screen shows.
@@ -52,7 +58,8 @@ import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
-import { MatchController, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
+import { CUP_STAGES, nextMatch, recordMatch } from '../core/cup/cup';
+import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
@@ -74,7 +81,7 @@ import { ParentGate } from './ParentGate';
 import { PauseScreen } from './PauseScreen';
 import { createPersistence, type DataKind, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
-import { RoundEnd, type RoundRecord } from './RoundEnd';
+import { RoundEnd, type CupRoundResult, type RoundRecord } from './RoundEnd';
 import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
 import { canApplyUpdate, swUpdate } from './swUpdate';
@@ -192,7 +199,9 @@ function createApp() {
     // One record per finished target (T043, FR-037), with the settings the round uses (FR-052); a raised level goes
     // back to the controller for "Neue Stufe" (FR-088).
     onAttempt: (record): Level | null => {
-      const r = persistence.recordAttempt(record, controller.getRoundSettings());
+      // A cup match plays the level of its stage, so its attempts never move the child's level (FR-109).
+      const keepLevel = controller.getState().roundType === 'cup';
+      const r = persistence.recordAttempt(record, controller.getRoundSettings(), { keepLevel });
       saves.report(r);
       return r.levelUp;
     },
@@ -227,6 +236,27 @@ function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, s
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
 }
 
+/**
+ * Records a finished cup match in the cup (FR-108, FR-111, FR-112): the next match after a win, one more try after a
+ * loss, the trophy and the next cup after a won final. The bonus stars go to the locker room. Returns the round end's
+ * line and the bonus stars.
+ */
+function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): CupRoundResult & { bonus: number } {
+  const before = persistence.cup();
+  const match = nextMatch(before, persistence.settings());
+  const won = cupMatchWon(s);
+  const update = recordMatch(before, { won, goals: s.goals, against: START_HEARTS - s.hearts });
+  saves.report(persistence.saveCup(update.cup));
+  if (update.stars > 0) saves.report(persistence.awardStars(update.stars));
+  const text = t().cup;
+  const line = !won
+    ? text.lost(match.team.name)
+    : update.cupWon
+      ? text.cupWon(before.cup)
+      : text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
+  return { won, line, bonus: update.stars };
+}
+
 /** Which keys the game takes on `screen`. */
 function keyScreenOf(screen: Screen, roundOver: boolean, paused: boolean): KeyScreen {
   if (screen === 'start') return 'start';
@@ -254,6 +284,7 @@ export function App() {
   const gameParent = useRef<HTMLDivElement>(null);
   const timeChallenge = settings().timeChallenge.allowed;
   const [record, setRecord] = useState<RoundRecord | null>(null);
+  const [cupResult, setCupResult] = useState<(CupRoundResult & { bonus: number }) | null>(null);
   // The keeper's phase from the scene, shown as `data-keeper` (T054).
   const [keeper, setKeeper] = useState<KeeperPhase>('idle');
   // The locker room opened from the match, over the running round (FR-049).
@@ -299,7 +330,15 @@ export function App() {
     const before = lastPhase.current;
     lastPhase.current = state.phase;
     if (state.phase !== 'roundOver' || before === 'roundOver' || !state.started) return;
-    setRecord(recordRound(persistence, saves, controller.getState(), settings().showRecords));
+    const ended = controller.getState();
+    // A cup match goes to the cup, never to the personal bests (FR-108).
+    if (ended.roundType === 'cup') {
+      setRecord(null);
+      setCupResult(settleCup(persistence, saves, ended));
+      return;
+    }
+    setCupResult(null);
+    setRecord(recordRound(persistence, saves, ended, settings().showRecords));
   }, [state.phase, state.started, persistence, controller, settings, saves]);
 
   const lockerOn = settings().lockerRoom;
@@ -380,16 +419,23 @@ export function App() {
   const showPad = numberPadShown(settings().numberPad, finePointer);
 
   // What the last round started as, for "Nochmal"; a restored time challenge counts as one.
-  const lastStart = useRef<StartKind>(controller.getState().roundType === 'time' ? 'time' : 'play');
+  const restoredType = controller.getState().roundType;
+  const lastStart = useRef<StartKind>(restoredType === 'time' || restoredType === 'cup' ? restoredType : 'play');
   const startMatch = useCallback(
     (kind: StartKind) => {
       lastStart.current = kind;
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
       if (speech) speaker.prime();
-      controller.start(kind);
+      if (kind === 'cup') {
+        // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109).
+        const match = nextMatch(persistence.cup(), settings());
+        controller.startCup({ level: match.level, goals: match.goals });
+      } else {
+        controller.start(kind);
+      }
       setScreen('match');
     },
-    [controller, speech, speaker],
+    [controller, speech, speaker, persistence, settings],
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
@@ -503,8 +549,8 @@ export function App() {
   useEffect(() => {
     if (!state.paused) setQuitAsked(false);
   }, [state.paused]);
-  // "Zum Start" (FR-118): the one way a round ends without a round end. A later cup match hooks in here, so the match
-  // counts as neither won nor lost.
+  // "Zum Start" (FR-118): the one way a round ends without a round end. A cup match never reaches 'roundOver' this way,
+  // so `settleCup` does not run and the cup stays where it was.
   const abandonRound = useCallback(() => {
     controller.abandon();
     setQuitAsked(false);
@@ -529,6 +575,7 @@ export function App() {
           timeChallenge={timeChallenge}
           onPlay={startMatch}
           gear={gear}
+          cup={persistence.cup()}
           lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}
           notices={[
             ...(resetLines.length > 0 ? [{ id: 'reset', lines: resetLines, onDismiss: () => setResetLines([]) }] : []),
@@ -579,7 +626,8 @@ export function App() {
           roundType={state.roundType}
           challengeMinutes={state.challengeMinutes}
           record={record}
-          stars={lockerOn ? state.starsThisRound : null}
+          cup={state.roundType === 'cup' ? cupResult : null}
+          stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
           onAgain={playAgain}
           onBack={() => setScreen('start')}

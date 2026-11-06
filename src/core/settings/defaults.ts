@@ -13,6 +13,10 @@ export const GOALS_PER_ROUND_MIN = 1;
 export const LEVELS = [1, 2, 3, 4, 5] as const;
 export type Level = (typeof LEVELS)[number];
 export const GOALS_PER_ROUND_MAX = 20;
+/** "Tore pro Spiel" of a cup match (amendment 13, FR-108): 3 to 10, default 5. */
+export const CUP_GOALS_MIN = 3;
+export const CUP_GOALS_MAX = 10;
+export const CUP_GOALS_DEFAULT = 5;
 
 /** The fixed ranges behind each preset; `custom` takes min and max as set. */
 export const RANGE_PRESETS: Record<Exclude<RangePreset, 'custom'>, { min: number; max: number }> = {
@@ -35,6 +39,7 @@ export function defaultSettings(): Settings {
     timeChallenge: { allowed: true, minutes: 2 },
     roundType: 'untilHearts',
     goalsPerRound: 10,
+    cupGoals: CUP_GOALS_DEFAULT,
     difficulty: 'easy',
     adaptive: true,
     sound: { effects: true, crowd: true, ohh: true, speech: false },

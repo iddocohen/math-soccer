@@ -12,28 +12,33 @@
  *   `<key>.unreadable` could not be written (storage.ts keeps that copy when it loads).
  * - `backups()` names the kinds whose kept copy this version can read; `restoreBackups()` saves those copies as the
  *   current data, all or none, and removes the copies.
- * - `resetAll()` ("Alles zurücksetzen") saves empty progress, personal bests and locker room, all or none; the settings
- *   stay.
+ * - `resetAll()` ("Alles zurücksetzen") saves empty progress, personal bests, locker room and cup, all or none; the
+ *   settings stay.
+ * - The cup journey (amendment 13) is its own kind under `mathsoccer.cup.v1`, in the export file, the transfer, the
+ *   kept copies and "Alles zurücksetzen" like the others.
  * - When a save of several kinds fails and the old text cannot be written back either, the result says `partial: true`:
  *   part of the new data is stored, so the parent sees "Ein Teil wurde gespeichert" instead of "nichts geändert".
  * - `resetReasons()` names the kinds that were reset on load, for the notice on the start screen (FR-036).
  */
-import { recordAttempt as addAttempt, levelRaised } from '../core/progress/adaptive';
+import { recordAttempt as addAttempt, levelRaised, recordAttemptKeepingLevel } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import { award } from '../core/rewards/lockerRoom';
 import type { Settings } from '../core/settings/schema';
 import { exportData, importData, type ImportResult, type SaveData } from '../core/storage/exportImport';
 import type { KeyValue } from '../core/storage/keyValue';
 import {
+  emptyCup,
   emptyLockerRoom,
   emptyProgress,
   emptyRecords,
   type AttemptRecord,
+  type Cup,
   type LockerRoom,
   type Progress,
   type Records,
 } from '../core/storage/schemas';
 import {
+  CUP,
   load,
   LOCKER_ROOM,
   PROGRESS,
@@ -44,10 +49,10 @@ import {
   type StoredKind,
 } from '../core/storage/storage';
 
-/** The four kinds of stored data, each under its own `mathsoccer.` key. */
-export type DataKind = 'settings' | 'progress' | 'records' | 'lockerRoom';
+/** The kinds of stored data, each under its own `mathsoccer.` key; the running round is kept apart. */
+export type DataKind = 'settings' | 'progress' | 'records' | 'lockerRoom' | 'cup';
 
-const DATA_ORDER: DataKind[] = ['settings', 'progress', 'records', 'lockerRoom'];
+const DATA_ORDER: DataKind[] = ['settings', 'progress', 'records', 'lockerRoom', 'cup'];
 
 /**
  * The result of a save. `partial` is true when a save of several kinds failed and some keys still hold the new text,
@@ -59,9 +64,9 @@ export interface SaveResult {
 }
 
 /** The values of every kind of data, as the session holds them. */
-type Values = { settings: Settings; progress: Progress; records: Records; lockerRoom: LockerRoom };
+type Values = { settings: Settings; progress: Progress; records: Records; lockerRoom: LockerRoom; cup: Cup };
 
-const KINDS: { [K in DataKind]: StoredKind<Values[K]> } = { settings: SETTINGS, progress: PROGRESS, records: RECORDS, lockerRoom: LOCKER_ROOM };
+const KINDS: { [K in DataKind]: StoredKind<Values[K]> } = { settings: SETTINGS, progress: PROGRESS, records: RECORDS, lockerRoom: LOCKER_ROOM, cup: CUP };
 
 /**
  * The copies under `<key>.unreadable`, seen under the usual keys, so the usual loader reads them (as math-tank's
@@ -79,9 +84,16 @@ export interface Persistence {
   progress(): Progress;
   records(): Records;
   lockerRoom(): LockerRoom;
+  /** The cup journey (amendment 13). */
+  cup(): Cup;
+  /** The cup after a finished match. */
+  saveCup(c: Cup): { ok: boolean };
   saveSettings(s: Settings): { ok: boolean };
-  /** Adds one finished target to the progress, moving the level for the settings in use, and saves (T043); `levelUp` is a level it raised to. */
-  recordAttempt(record: AttemptRecord, settings: Settings): { ok: boolean; levelUp: Level | null };
+  /**
+   * Adds one finished target to the progress, moving the level for the settings in use, and saves (T043); `levelUp` is a
+   * level it raised to. With `keepLevel` (a cup match, FR-109) the child's level stays.
+   */
+  recordAttempt(record: AttemptRecord, settings: Settings, opts?: { keepLevel?: boolean }): { ok: boolean; levelUp: Level | null };
   /** Empties the progress; the stars and the personal bests stay. */
   resetProgress(): { ok: boolean };
   /** Adds stars earned in a round to the locker room and saves (FR-042). */
@@ -96,11 +108,11 @@ export interface Persistence {
   importText(text: string): ImportResult;
   /** The data a transfer link carries. */
   saveData(): SaveData;
-  /** Takes over a transferred save: all four kinds are stored, or the old ones are put back (`partial` when that failed). */
+  /** Takes over a transferred save: all five kinds are stored, or the old ones are put back (`partial` when that failed). */
   applyTransfer(data: SaveData): SaveResult;
   /**
-   * "Alles zurücksetzen" (FR-051): saves empty progress, personal bests and locker room (including the total ever
-   * earned), all or none; the settings stay.
+   * "Alles zurücksetzen" (FR-051): saves empty progress, personal bests, locker room (including the total ever earned)
+   * and cup, all or none; the settings stay.
    */
   resetAll(): SaveResult;
   /** The kinds of data with a kept copy under `<key>.unreadable` that this version can read, in the usual order (FR-050). */
@@ -120,12 +132,14 @@ export function createPersistence(kv: KeyValue): Persistence {
     progress: load(kv, PROGRESS),
     records: load(kv, RECORDS),
     lockerRoom: load(kv, LOCKER_ROOM),
+    cup: load(kv, CUP),
   };
   const values: Values = {
     settings: loaded.settings.value,
     progress: loaded.progress.value,
     records: loaded.records.value,
     lockerRoom: loaded.lockerRoom.value,
+    cup: loaded.cup.value,
   };
 
   // Kinds of data that are never saved over in this session: data from a newer version, and damaged data whose copy
@@ -207,10 +221,12 @@ export function createPersistence(kv: KeyValue): Persistence {
     progress: () => values.progress,
     records: () => values.records,
     lockerRoom: () => values.lockerRoom,
+    cup: () => values.cup,
+    saveCup: (c) => saveOne('cup', structuredClone(c)),
     saveSettings: (s) => saveOne('settings', structuredClone(s)),
-    recordAttempt(record, inUse) {
+    recordAttempt(record, inUse, opts = {}) {
       const before = values.progress;
-      const after = addAttempt(before, record, inUse);
+      const after = opts.keepLevel ? recordAttemptKeepingLevel(before, record, inUse) : addAttempt(before, record, inUse);
       return { ...saveOne('progress', after), levelUp: levelRaised(before, after, inUse) };
     },
     resetProgress: () => saveOne('progress', emptyProgress()),
@@ -221,15 +237,15 @@ export function createPersistence(kv: KeyValue): Persistence {
     importText(text) {
       const r = importData(text);
       if (!r.ok) return r;
-      const data: Values = { settings: r.settings, progress: r.progress, records: r.records, lockerRoom: r.lockerRoom };
+      const data: Values = { settings: r.settings, progress: r.progress, records: r.records, lockerRoom: r.lockerRoom, cup: r.cup };
       const saved = save(structuredClone(data));
       if (saved.ok) return r;
       return { ok: false, reason: saved.partial ? 'storePartial' : 'storeFailed' };
     },
     saveData,
     applyTransfer: (data) =>
-      save(structuredClone({ settings: data.settings, progress: data.progress, records: data.records, lockerRoom: data.lockerRoom })),
-    resetAll: () => save({ progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom() }),
+      save(structuredClone({ settings: data.settings, progress: data.progress, records: data.records, lockerRoom: data.lockerRoom, cup: data.cup })),
+    resetAll: () => save({ progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom(), cup: emptyCup() }),
     backups() {
       const copies = readableCopies();
       return DATA_ORDER.filter((kind) => copies[kind] !== undefined);

@@ -1,7 +1,8 @@
 // Structure adapted from math-tank src/app/StartScreen.tsx.
 /**
- * Start screen (contracts/screens.md "Start", FR-068, FR-075): one big "Spielen" button (Enter or Space) and, when the
- * parent allows it, a "Zeit-Challenge" button (Z). Each button shows its key in small muted text (FR-101). The keys, and `?start=` in tests, are handled by the app's keyboard
+ * Start screen (contracts/screens.md "Start", FR-068, FR-075, FR-105): one big "Spielen" button (Enter or Space), a
+ * "Zeit-Challenge" button (Z) when the parent allows it, and a "Pokal" button (P) that starts the next cup match. The
+ * bracket screen comes with T102; until then the button names the next match and carries the cup state as `data-cup-*`. Each button shows its key in small muted text (FR-101). The keys, and `?start=` in tests, are handled by the app's keyboard
  * listener (src/app/keyboard.ts).
  *
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a
@@ -31,13 +32,15 @@ interface Props {
   timeChallenge: boolean;
   onPlay: (kind: StartKind) => void;
   gear?: ReactNode;
+  /** The cup's next match: the cup number, its stage (0 to 4) and the lost tries of that match. */
+  cup?: { cup: number; stage: number; tries: number } | null;
   /** The star balance and how to open the locker room; null when the parent turned the locker room off. */
   lockerRoom?: { stars: number; onOpen: () => void } | null;
   /** Short notes for the parent, each a list of lines, closed with "OK"; nothing shows when empty. */
   notices?: ReadonlyArray<{ id: string; lines: readonly string[]; onDismiss: () => void }>;
 }
 
-export function StartScreen({ timeChallenge, onPlay, gear, lockerRoom = null, notices = [] }: Props) {
+export function StartScreen({ timeChallenge, onPlay, gear, cup = null, lockerRoom = null, notices = [] }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   return (
@@ -77,6 +80,23 @@ export function StartScreen({ timeChallenge, onPlay, gear, lockerRoom = null, no
             {text.start.timeChallenge}
             <span className="start-key" aria-hidden="true">
               Z
+            </span>
+          </button>
+        )}
+        {cup && (
+          <button
+            type="button"
+            className="start-button"
+            data-start="cup"
+            data-cup-number={cup.cup}
+            data-cup-stage={cup.stage}
+            data-cup-tries={cup.tries}
+            aria-keyshortcuts="P"
+            onClick={() => onPlay('cup')}
+          >
+            {text.start.cup}
+            <span className="start-key" aria-hidden="true">
+              P
             </span>
           </button>
         )}

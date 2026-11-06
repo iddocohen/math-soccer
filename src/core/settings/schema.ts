@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
+import { CHALLENGE_MINUTES, CUP_GOALS_DEFAULT, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
 
 /**
  * Structural schema of the stored settings, version 4 (stored under `mathsoccer.settings.v1`, data-model.md
@@ -33,6 +33,11 @@ export const settingsSchema = z.object({
   }),
   roundType: z.enum(['untilHearts', 'goalCount']),
   goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX),
+  /**
+   * "Tore pro Spiel" (amendment 13, FR-108): the goals that win a cup match. Settings stored before the cup have none
+   * and get the default, so the version stays 4 (design call, T101: an added field with a default needs no new version).
+   */
+  cupGoals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX).default(CUP_GOALS_DEFAULT),
   difficulty: z.enum(['easy', 'normal', 'challenging']),
   adaptive: z.boolean(),
   sound: z.object({ effects: z.boolean(), crowd: z.boolean(), ohh: z.boolean(), speech: z.boolean() }),
