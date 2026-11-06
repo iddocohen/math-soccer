@@ -1,0 +1,213 @@
+/* Base styles adapted from math-tank src/app/styles.css; colors from the prototype (an evening stadium). */
+:root {
+  --night: #0f1d2b;
+  --pitch: #2f7a3c;
+  --chalk: #f4f6ef;
+  --kit: #e8b923;
+  --miss: #d9733b;
+  --ink: #12202c;
+  --muted: #9fb3c2;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--chalk);
+  background: var(--night);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--night);
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* Touch targets: at least 48 by 48 CSS pixels. */
+button {
+  min-width: 48px;
+  min-height: 48px;
+  border: 2px solid var(--chalk);
+  border-radius: 12px;
+  padding: 8px 18px;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button.primary {
+  background: var(--kit);
+  border-color: var(--kit);
+  color: var(--ink);
+}
+
+button:focus-visible {
+  outline: 3px solid var(--kit);
+  outline-offset: 2px;
+}
+
+/* Start screen */
+.start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  height: 100%;
+  padding: 16px;
+}
+
+.start-title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  color: var(--kit);
+  letter-spacing: 0.02em;
+}
+
+.start-modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+.mode-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 160px;
+  padding: 20px 28px;
+  font-size: 1.6rem;
+}
+
+.mode-key {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Match: the Phaser canvas fills the screen, the React overlay lies on top. */
+.match {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.game-parent {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+    max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+
+.overlay button {
+  pointer-events: auto;
+}
+
+.overlay-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.goal-count {
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: rgb(15 29 43 / 80%);
+  color: var(--kit);
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+
+.overlay-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.entry {
+  min-width: 4ch;
+  min-height: 1.3em;
+  padding: 2px 16px;
+  border-radius: 10px;
+  background: var(--chalk);
+  color: var(--ink);
+  font-size: 2.4rem;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.message {
+  min-height: 1.4em;
+  margin: 0;
+  padding: 2px 12px;
+  border-radius: 8px;
+  background: rgb(15 29 43 / 70%);
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+
+.message:empty {
+  visibility: hidden;
+}
+
+/* Round end over the match */
+.round-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgb(15 29 43 / 85%);
+  text-align: center;
+}
+
+.round-end h2 {
+  margin: 0;
+  color: var(--kit);
+  font-size: 2.4rem;
+}
+
+.round-end p {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.round-end-buttons {
+  display: flex;
+  gap: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}

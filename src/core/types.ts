@@ -19,3 +19,18 @@ export interface Rect {
   width: number;
   height: number;
 }
+
+/** The current target (data-model "Target"). Hole and keeper targets come from core/targets (US1). */
+export interface Target {
+  mode: Mode;
+  /** The answer. */
+  number: number;
+  /** Visible hint numbers. */
+  hints: number[];
+  /** Decorative patched holes on the board; hole mode only, a shot there hits the patch. */
+  patchedHoles: number[];
+  /** Directions trained, from the hint offsets or the line's direction. */
+  directions: Direction[];
+  /** 0 to 3, from the adaptive ladder. */
+  difficultyStep: number;
+}
