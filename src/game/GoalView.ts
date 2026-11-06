@@ -123,6 +123,17 @@ export class GoalView {
       ctx.lineWidth = line;
       ctx.strokeRect(x + line / 2 + 1, y + line / 2 + 1, w - line - 2, h - line - 2);
     }
+    if (s.waiting && !s.shown) {
+      // The shape's next empty square: thinner and fainter than the target's outline, dashed (FR-072).
+      const line = clamp(h / 12, 1.5, 2.5);
+      const dash = Math.max(3, h / 8);
+      ctx.save();
+      ctx.setLineDash([dash, dash * 0.7]);
+      ctx.strokeStyle = css(COLOR.kit, 0.55);
+      ctx.lineWidth = line;
+      ctx.strokeRect(x + line / 2 + 2, y + line / 2 + 2, w - line - 4, h - line - 4);
+      ctx.restore();
+    }
   }
 
   private drawLabel(ctx: CanvasRenderingContext2D, s: Square, fontSize: number, numbersFit: boolean): void {

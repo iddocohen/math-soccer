@@ -3,7 +3,8 @@
  * No Phaser here, so the rules have unit tests.
  *
  * The goal is open: a faint grid of the chart over the net, the hint numbers lit in the kit color with dark numbers,
- * and the empty target square outlined. Hint numbers show when the parent chose "immer", or from help step 1 with
+ * and the empty target square outlined. In a shape with two empty squares, the one still to shoot after the target has
+ * a faint dashed outline and no number, so the whole shape stays visible (FR-072). Hint numbers show when the parent chose "immer", or from help step 1 with
  * "auf Wunsch". At help steps 1 and 2 an arrow points from the closest hint number to the target (`hintFrom`, from
  * core/match/help.ts). Help step 3 writes the answer in the target square. The square of a missed number is warm
  * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
@@ -41,6 +42,8 @@ export interface Square {
   rect: Rect;
   /** The target's outline in the kit color. */
   outlined: boolean;
+  /** A faint dashed kit-color outline: an empty square of the shape still to shoot after the target (FR-072). */
+  waiting: boolean;
   /** Filled in the kit color: a hint square. */
   lit: boolean;
   /** Filled warm orange: the shown square of a miss. */
@@ -60,7 +63,7 @@ export interface Board {
 /** Changes exactly when the drawn grid changes; GoalView compares it to skip redrawing (plan decision 9). */
 export function boardKey(input: BoardInput): string {
   const t = input.target;
-  const target = t ? `${t.number}:${t.hints.join(',')}` : '-';
+  const target = t ? `${t.number}:${t.hints.join(',')}:${(t.queue ?? []).map((q) => q.number).join(',')}` : '-';
   const { min, max } = input.layout;
   return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-'].join('|');
 }
@@ -71,6 +74,7 @@ export function buildBoard(input: BoardInput): Board {
   const numbersFit = showNumbers(layout, goal);
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;
   const hints = new Set(target && hintsVisible ? target.hints : []);
+  const waiting = new Set((target?.queue ?? []).map((q) => q.number));
   const squares: Square[] = [];
 
   for (let row = 0; row < layout.rows; row++) {
@@ -78,7 +82,7 @@ export function buildBoard(input: BoardInput): Board {
       const n = numberAt(layout, row, col);
       const rect = cellRectAt(layout, goal, row, col);
       if (n === null) {
-        squares.push({ n, rect, outlined: false, lit: false, shown: false, label: null });
+        squares.push({ n, rect, outlined: false, waiting: false, lit: false, shown: false, label: null });
         continue;
       }
       const isTarget = target?.number === n;
@@ -87,7 +91,8 @@ export function buildBoard(input: BoardInput): Board {
       if (hints.has(n)) label = { text: String(n), style: 'ink' };
       if (isTarget && helpStep >= 3) label = { text: String(n), style: 'answer' };
       if (isShown) label = { text: String(n), style: 'shown' };
-      squares.push({ n, rect, outlined: isTarget, lit: hints.has(n), shown: isShown, label });
+      const isWaiting = !isTarget && waiting.has(n);
+      squares.push({ n, rect, outlined: isTarget, waiting: isWaiting, lit: hints.has(n), shown: isShown, label });
     }
   }
   return { squares, fontSize, numbersFit, arrow: helpArrow(input) };

@@ -52,6 +52,25 @@ describe('buildBoard: the open goal (FR-013, FR-019)', () => {
   });
 });
 
+describe('buildBoard: a shape with two empty squares (FR-072)', () => {
+  const shape: Target = { number: 34, hints: [24, 35], directions: ['down'], difficultyStep: 7, pattern: 'shape', queue: [{ number: 25, directions: ['up'] }] };
+
+  it('marks the waiting empty square, without a number, apart from the target outline', () => {
+    const b = buildBoard(input({ target: shape }));
+    expect(b.squares.filter((s) => s.waiting).map((s) => s.n)).toEqual([25]);
+    expect(square(b, 25)).toMatchObject({ outlined: false, lit: false, label: null });
+    expect(b.squares.filter((s) => s.outlined).map((s) => s.n)).toEqual([34]);
+  });
+
+  it('marks no square waiting for a target without a queue', () => {
+    expect(buildBoard(input()).squares.some((s) => s.waiting)).toBe(false);
+  });
+
+  it('boardKey changes with the queue', () => {
+    expect(boardKey(input({ target: shape }))).not.toBe(boardKey(input({ target: { ...shape, queue: [] } })));
+  });
+});
+
 describe('boardKey (plan decision 9)', () => {
   it('changes with the target, the hints shown, the help step and the shown square, and only then', () => {
     const base = boardKey(input());

@@ -23,7 +23,7 @@ The names are design calls. The game shows shapes, not their names, so the names
 ## Behavior
 
 - **FR-071**: With "Formen", a target MUST be one square of a shape placed fully on the chart. The other squares of the shape light up as hints.
-- **FR-072**: At higher adaptive steps, a shape MAY have two empty squares. The child then shoots them one after the other. Each correct shot is a goal, and the shape stays until both are filled. The second empty square lights up as the next target after the first goal. Design call: one empty square at ladder step 6, two at step 7 and above.
+- **FR-072**: At higher adaptive steps, a shape MAY have two empty squares. The child then shoots them one after the other. Each correct shot is a goal, and the shape stays until both are filled. The second empty square lights up as the next target after the first goal. Design call: one empty square at ladder step 6, two at step 7 and above. The waiting empty square shows a faint dashed outline, so the whole shape stays visible; requested after viewing the shape screenshot.
 - **FR-073**: The directions a shape target trains come from its neighbors inside the shape. For example, in the L 34, 44, 54, 55, the square 44 trains down and up, and 55 trains across. The progress page counts them like any other target.
 - **FR-074**: The parent MAY turn single shapes off ("Formen" group in settings; all on by default).
 
