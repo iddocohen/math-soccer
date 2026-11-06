@@ -229,3 +229,41 @@ describe('export and import', () => {
     });
   });
 });
+
+describe('rules between the fields of a stored round (review H3)', () => {
+  const kvWith = (round: unknown) => memoryKeyValue({ [ROUND_KEY]: JSON.stringify(round) });
+  const line = { squares: [45, 46, 47, 48], direction: 'right' as const, given: 2, index: 2 };
+  const lineTarget = { ...storedRound().target!, mode: 'lines' as const, number: 47 };
+
+  it('keeps a consistent round in each mode', () => {
+    expect(loadRound(kvWith(storedRound())).resetReason).toBe('none');
+    expect(loadRound(kvWith(storedRound({ mode: 'lines', line, target: lineTarget }))).resetReason).toBe('none');
+    expect(loadRound(kvWith(storedRound({ goalsPerRound: 5 }))).value?.goalsPerRound).toBe(5);
+  });
+
+  it('discards a round whose min is not below its max', () => {
+    expect(loadRound(kvWith(storedRound({ min: 100, max: 100 })))).toEqual({ value: null, resetReason: 'invalid' });
+  });
+
+  it('discards a round whose target lies outside its range', () => {
+    expect(loadRound(kvWith(storedRound({ target: { ...storedRound().target!, number: 101 } }))).resetReason).toBe('invalid');
+  });
+
+  it('discards a line outside line mode and line mode without a line', () => {
+    expect(loadRound(kvWith(storedRound({ line }))).resetReason).toBe('invalid');
+    expect(loadRound(kvWith(storedRound({ mode: 'lines', target: lineTarget }))).resetReason).toBe('invalid');
+  });
+
+  it('discards a line that is too short or whose index lies outside it', () => {
+    const lines = (l: typeof line) => kvWith(storedRound({ mode: 'lines', line: l, target: lineTarget }));
+    expect(loadRound(lines({ ...line, squares: [45, 46], given: 1, index: 1 })).resetReason).toBe('invalid');
+    expect(loadRound(lines({ ...line, index: 1 })).resetReason).toBe('invalid');
+    expect(loadRound(lines({ ...line, index: 5 })).resetReason).toBe('invalid');
+    expect(loadRound(lines({ ...line, index: 4 })).resetReason).toBe('none');
+  });
+
+  it('discards goals per round outside 1 to 20', () => {
+    expect(loadRound(kvWith(storedRound({ goalsPerRound: 0 }))).resetReason).toBe('invalid');
+    expect(loadRound(kvWith(storedRound({ goalsPerRound: 21 }))).resetReason).toBe('invalid');
+  });
+});

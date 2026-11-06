@@ -25,7 +25,7 @@
  */
 import type { ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
-import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
+import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
@@ -57,7 +57,7 @@ export function messageText(message: MatchMessage | null): string {
 }
 
 /** The help line for the help step: the hint from step 1, the answer at step 3, or '' without help. */
-export function helpText(state: Pick<MatchState, 'helpStep' | 'target' | 'min' | 'max'>): string {
+export function helpText(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max'>): string {
   const h = t().help;
   const target = state.target;
   if (!target || state.helpStep < HINT_STEP) return '';
@@ -74,7 +74,7 @@ export function formatClock(ms: number): string {
 }
 
 interface Props {
-  state: MatchState;
+  state: MatchView;
   /** The keeper's phase from the scene; shown in goalkeeper mode only. */
   keeper?: KeeperPhase;
   /** The chosen ball design id from the locker room (`data-ball`). */

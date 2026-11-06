@@ -142,3 +142,17 @@ describe('settingsSchema', () => {
     expect(settingsSchema.safeParse({ ...defaultSettings(), version: 2 }).success).toBe(false);
   });
 });
+
+describe('settingsSchema limits (review M5)', () => {
+  it('accepts line length 3 to 10 and goals per round 1 to 20, and nothing outside', () => {
+    const parse = (change: (s: Settings) => void) => settingsSchema.safeParse(withChanges(change)).success;
+    expect(parse((s) => (s.lineLength = 3))).toBe(true);
+    expect(parse((s) => (s.lineLength = 10))).toBe(true);
+    expect(parse((s) => (s.lineLength = 2))).toBe(false);
+    expect(parse((s) => (s.lineLength = 11))).toBe(false);
+    expect(parse((s) => (s.goalsPerRound = 1))).toBe(true);
+    expect(parse((s) => (s.goalsPerRound = 20))).toBe(true);
+    expect(parse((s) => (s.goalsPerRound = 0))).toBe(false);
+    expect(parse((s) => (s.goalsPerRound = 21))).toBe(false);
+  });
+});

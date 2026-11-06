@@ -9,7 +9,7 @@
  */
 import { cellOf, type ChartLayout } from '../chart/layout';
 import type { Settings } from '../settings/schema';
-import type { Direction, Target } from '../types';
+import type { DeepReadonly, Direction, Target } from '../types';
 
 export const HINT_STEP = 1;
 export const CHART_STEP = 2;
@@ -62,7 +62,7 @@ export function targetHintDisplay(
  * difference), with the direction from it to the target when it is a neighbor. Null when the target has no hint number
  * inside the range.
  */
-export function helpHint(layout: ChartLayout, target: Target | null): HelpHint | null {
+export function helpHint(layout: ChartLayout, target: DeepReadonly<Target> | null): HelpHint | null {
   if (!target) return null;
   const to = cellOf(layout, target.number);
   let best: { hint: HelpHint; distance: number } | null = null;

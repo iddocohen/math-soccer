@@ -23,7 +23,7 @@ function clock(ms: number): string {
 }
 
 export const de = {
-  appName: 'Mathe-Fußball',
+  appName: 'Mathe-Kicker',
 
   /** Start screen (contracts/screens.md "Start"). */
   start: {
@@ -37,7 +37,10 @@ export const de = {
     /** Spoken once on the start tap, so tablet browsers allow speech later (FR-032). */
     greeting: "Los geht's!",
     updateReady: 'Eine neue Version ist bereit.',
-    saveFailed: 'Speichern klappt gerade nicht.',
+    /** Shown on the start screen when saving stars, progress or bests failed during play (review M6). */
+    saveFailed: 'Speichern klappt gerade nicht. Neue Sterne und Fortschritte gelten nur, bis der Browser geschlossen wird.',
+    /** Closes a notice on the start screen. */
+    dismiss: 'OK',
   },
 
   /** Match overlay (contracts/screens.md "Match"). */
@@ -150,10 +153,13 @@ export const de = {
   /** Shown on the start screen when stored data was reset on load (FR-036). */
   storage: {
     reset: {
-      invalid: 'Gespeicherte Daten waren beschädigt und wurden zurückgesetzt.',
-      newer: 'Gespeicherte Daten stammen von einer neueren Version und wurden zurückgesetzt.',
+      invalid:
+        'Gespeicherte Daten waren beschädigt und wurden zurückgesetzt. Eine Kopie ist aufbewahrt: Eltern holen sie in den Einstellungen mit „Kopie wiederherstellen“ zurück.',
+      newer: 'Gespeicherte Daten stammen von einer neueren Version. Sie bleiben als Kopie im Browser und werden hier nicht verwendet.',
       unavailable: 'Der Browser kann gerade nichts speichern.',
     },
+    /** Names the kinds of data a reset note is about. */
+    kinds: (names: string) => `Betrifft: ${names}.`,
   },
 
   /** Parent gate menu (contracts/screens.md "Parent gate"). */
@@ -168,6 +174,8 @@ export const de = {
       `Im Browser liegt eine Kopie älterer Daten (${names}). Wiederherstellen ersetzt die aktuellen Daten durch diese Kopie.`,
     restoreBackup: 'Kopie wiederherstellen',
     restoreFailed: 'Die Kopie konnte nicht gespeichert werden. Es wurde nichts geändert.',
+    /** A save of several kinds failed, and the old data could not be put back (review H6). */
+    savePartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
     /** The four kinds of stored data, for the notice on the settings page. */
     dataNames: { settings: 'Einstellungen', progress: 'Fortschritt', records: 'Rekorde', lockerRoom: 'Sterne und Kabine' },
     holdHint: 'Zahnrad 2 Sekunden gedrückt halten',
@@ -242,13 +250,14 @@ export const de = {
       exportHint: 'Speichert Einstellungen, Fortschritt, Rekorde und Sterne in einer Datei.',
       imported: 'Daten geladen. Die Einstellungen gelten ab der nächsten Runde.',
       importFailed: {
-        notJson: 'Diese Datei ist keine Sicherung von Mathe-Fußball.',
-        wrongApp: 'Diese Datei ist keine Sicherung von Mathe-Fußball.',
+        notJson: 'Diese Datei ist keine Sicherung von Mathe-Kicker.',
+        wrongApp: 'Diese Datei ist keine Sicherung von Mathe-Kicker.',
         invalidSettings: 'Die Einstellungen in dieser Datei sind ungültig. Es wurde nichts geändert.',
         invalidProgress: 'Der Fortschritt in dieser Datei ist ungültig. Es wurde nichts geändert.',
         invalidRecords: 'Die Rekorde in dieser Datei sind ungültig. Es wurde nichts geändert.',
         invalidLockerRoom: 'Die Sterne in dieser Datei sind ungültig. Es wurde nichts geändert.',
         storeFailed: 'Der Browser konnte die Daten nicht speichern. Es wurde nichts geändert.',
+        storePartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
       },
       readFailed: 'Die Datei konnte nicht gelesen werden.',
       exportFailed: 'Die Sicherung konnte nicht heruntergeladen werden.',
@@ -308,6 +317,7 @@ export const de = {
     resetAllYes: 'Ja, alles löschen',
     resetAllDone: 'Alles wurde zurückgesetzt.',
     resetAllFailed: 'Zurücksetzen hat nicht geklappt. Es wurde nichts geändert.',
+    resetAllPartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
     close: 'Schließen',
     stepOf: (step: number, count: number) => `${step} von ${count}`,
     toRaise: (n: number) => (n === 1 ? 'noch 1 Treffer allein bis zur nächsten Stufe' : `noch ${n} Treffer allein bis zur nächsten Stufe`),
@@ -333,6 +343,7 @@ export const de = {
       `${starCount(stars)}, Rekord ${goalCount(record)}, Zahlenraum ${min} bis ${max}`,
     holdHint: '„Übernehmen“ 2 Sekunden gedrückt halten.',
     saveFailed: 'Speichern hat nicht geklappt. Es wurde nichts geändert.',
+    savePartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
     receiveTitle: 'Spielstand übernehmen?',
     receiveHint: 'Der Spielstand aus dem Link ersetzt den Spielstand in diesem Browser.',
     accept: 'Übernehmen',

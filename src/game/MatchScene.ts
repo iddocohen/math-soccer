@@ -22,7 +22,7 @@
  */
 import Phaser from 'phaser';
 import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
-import type { MatchController, MatchState } from '../core/match/MatchController';
+import type { MatchController, MatchView } from '../core/match/MatchController';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -71,7 +71,7 @@ export class MatchScene extends Phaser.Scene {
   private keeper!: KeeperView;
   private player!: PlayerView;
   private ball!: BallView;
-  private prev: MatchState | null = null;
+  private prev: MatchView | null = null;
   /** True from the kick until the scene has called `ballLanded()`. */
   private flying = false;
   /** True while the ball of the last goal lies in the net. */
@@ -121,7 +121,7 @@ export class MatchScene extends Phaser.Scene {
     this.celebration = null;
   }
 
-  private draw(s: MatchState): void {
+  private draw(s: MatchView): void {
     const prev = this.prev;
     this.prev = s;
     if (!s.started) return;
@@ -181,7 +181,7 @@ export class MatchScene extends Phaser.Scene {
   }
 
   /** A round started again: from the start screen or with "Nochmal" (the seed can stay the same with `?seed=`). */
-  private isNewRound(prev: MatchState, s: MatchState): boolean {
+  private isNewRound(prev: MatchView, s: MatchView): boolean {
     return prev.seed !== s.seed || prev.mode !== s.mode || s.targetCount < prev.targetCount || (prev.phase === 'roundOver' && s.phase !== 'roundOver');
   }
 

@@ -29,16 +29,21 @@
  * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
  * round continues (a round the child paused stays paused) and the chosen look shows at once.
  *
+ * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
+ * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
+ * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
+ * load, the start screen shows a short note (M6, H5, FR-036); play is never interrupted.
+ *
  * Polish (T061, T062): the number pad shows by the parent's setting (automatic: only without a mouse or trackpad,
  * FR-031). With "Vorlesen" on (FR-032), each new target reads a short task aloud that never says the number, and each
  * new help line is read aloud; the speaker icon repeats the help line, or the task when there is none. The start tap
  * speaks a short greeting, since tablet browsers speak only after a user tap.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { createSpeaker } from '../audio/speaker';
-import { MatchController, type MatchState, type RoundStore } from '../core/match/MatchController';
+import { MatchController, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import { recordKey, submitResult } from '../core/records/records';
 import { lookOf, newStars } from '../core/rewards/lockerRoom';
@@ -48,14 +53,14 @@ import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfe
 import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
 import type { KeeperPhase } from '../game/KeeperView';
-import { t } from '../i18n';
+import { resetMessage, t } from '../i18n';
 import type { KeyAction, KeyScreen } from './keyboard';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
 import { helpText, MatchOverlay } from './MatchOverlay';
 import { numberPadShown, useFinePointer } from './NumberPad';
 import { ParentGate } from './ParentGate';
-import { createPersistence, type Persistence } from './persistence';
+import { createPersistence, type DataKind, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
 import { RoundEnd, type RoundRecord } from './RoundEnd';
 import { SettingsPage } from './SettingsPage';
@@ -96,8 +101,49 @@ export function modeFromUrl(search: string): Mode | undefined {
   return MODES.find((m) => m === raw);
 }
 
+/** Remembers that a save during play failed, so the start screen can say so (review M6). */
+function createSaveWatch() {
+  let failed = false;
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    for (const fn of listeners) fn();
+  };
+  return {
+    /** Takes the result of a save; a failure is remembered until the note is closed. */
+    report(result: { ok: boolean }): void {
+      if (result.ok || failed) return;
+      failed = true;
+      notify();
+    },
+    failed: () => failed,
+    dismiss(): void {
+      failed = false;
+      notify();
+    },
+    subscribe(fn: () => void): () => void {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+}
+
+type SaveWatch = ReturnType<typeof createSaveWatch>;
+
+/** The lines of the start screen note about data reset on load, one per reason with the kinds it concerns (FR-036). */
+function resetNoteLines(reasons: ReturnType<Persistence['resetReasons']>): string[] {
+  const lines: string[] = [];
+  for (const reason of ['invalid', 'newer', 'unavailable'] as const) {
+    const kinds: DataKind[] = reasons.filter((r) => r.reason === reason).map((r) => r.kind);
+    if (kinds.length === 0) continue;
+    const names = kinds.map((k) => t().parent.dataNames[k]).join(', ');
+    lines.push(`${resetMessage(reason)} ${t().storage.kinds(names)}`);
+  }
+  return lines;
+}
+
 function createApp() {
   const kv = localStorageKeyValue();
+  const saves = createSaveWatch();
   const persistence = createPersistence(kv);
   // Saved settings replace what persistence returns; the controller reads them on every start(), so they apply from
   // the next round.
@@ -114,8 +160,8 @@ function createApp() {
     newSeed: seed === undefined ? undefined : () => seed,
     // The adaptive steps and mastered directions of the mode steer target selection (FR-040).
     progress: (mode) => targetProgress(persistence.progress(), mode, settings()),
-    // One record per finished target (T043, FR-037).
-    onAttempt: (record) => void persistence.recordAttempt(record, settings()),
+    // One record per finished target (T043, FR-037), with the settings the round uses (FR-052).
+    onAttempt: (record) => saves.report(persistence.recordAttempt(record, controller.getRoundSettings())),
   });
   const sfx = createSfx({ sound: () => settings().sound });
   const speaker = createSpeaker();
@@ -127,16 +173,16 @@ function createApp() {
     const current = controller.getState().starsThisRound;
     const earned = newStars(seenStars, current);
     seenStars = current;
-    if (earned > 0) persistence.awardStars(earned);
+    if (earned > 0) saves.report(persistence.awardStars(earned));
   });
-  return { persistence, controller, sfx, speaker, settings, restored };
+  return { persistence, controller, sfx, speaker, settings, restored, saves };
 }
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
-function recordRound(persistence: Persistence, s: MatchState, showRecords: boolean): RoundRecord | null {
+function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
   const key = recordKey(s.min, s.max, s.mode, s.roundType);
   const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
-  if (outcome.newRecord) persistence.saveRecords(outcome.records);
+  if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
 }
 
@@ -147,7 +193,10 @@ function clearSaveHash(): void {
 }
 
 export function App() {
-  const [{ persistence, controller, sfx, speaker, settings, restored }] = useState(createApp);
+  const [{ persistence, controller, sfx, speaker, settings, restored, saves }] = useState(createApp);
+  const saveFailed = useSyncExternalStore(saves.subscribe, saves.failed);
+  // The note about data reset on load shows until the parent closes it (FR-036).
+  const [resetLines, setResetLines] = useState(() => resetNoteLines(persistence.resetReasons()));
   const [screen, setScreen] = useState<Screen>(restored ? 'match' : 'start');
   const [parent, setParent] = useState<ParentView>('closed');
   // Bumped after a save, an import or a transfer, so the start screen shows the new offered modes.
@@ -162,7 +211,9 @@ export function App() {
   // The locker room opened from the match, over the running round (FR-049).
   const [lockerOpen, setLockerOpen] = useState(false);
   const gameHandle = useRef<GameHandle | null>(null);
-  const lastPhase = useRef(state.phase);
+  // A restored round has no phase before it: one restored straight into 'roundOver' (a refresh during the final goal's
+  // celebration) still goes to the personal bests (review M2).
+  const lastPhase = useRef<Phase | null>(restored ? null : state.phase);
 
   // Sound starts after the first key or tap (spec edge case "Sound blocked by the browser").
   useEffect(() => sfx.installUnlock(document), [sfx]);
@@ -200,8 +251,8 @@ export function App() {
     const before = lastPhase.current;
     lastPhase.current = state.phase;
     if (state.phase !== 'roundOver' || before === 'roundOver' || !state.started) return;
-    setRecord(recordRound(persistence, controller.getState(), settings().showRecords));
-  }, [state.phase, state.started, persistence, controller, settings]);
+    setRecord(recordRound(persistence, saves, controller.getState(), settings().showRecords));
+  }, [state.phase, state.started, persistence, controller, settings, saves]);
 
   const lockerOn = settings().lockerRoom;
   const matchLocker = screen === 'match' && lockerOpen && lockerOn;
@@ -233,14 +284,17 @@ export function App() {
   }, []);
   const acceptTransfer = useCallback(() => {
     if (transfer?.kind !== 'ready' || !transfer.data) return closeTransfer();
-    if (!persistence.applyTransfer(transfer.data).ok) {
-      // Nothing was changed; `#save=` stays in the address, so a reload asks again.
-      setTransfer({ kind: 'failed' });
+    const r = persistence.applyTransfer(transfer.data);
+    if (!r.ok) {
+      // Nothing (or, with `partial`, only part) was changed; `#save=` stays in the address, so a reload asks again.
+      setTransfer({ kind: r.partial ? 'partial' : 'failed' });
       return;
     }
+    // The new settings reach a running round as a save on the settings page does (FR-052).
+    if (screen === 'match') controller.applySettings(persistence.settings());
     setDataVersion((n) => n + 1);
     closeTransfer();
-  }, [transfer, persistence, closeTransfer]);
+  }, [transfer, persistence, closeTransfer, screen, controller]);
 
   // Time played runs while the match shows and the tab is visible (FR-029); the controller stops it while paused.
   useEffect(() => {
@@ -320,7 +374,11 @@ export function App() {
       {parent === 'settings' && <SettingsPage persistence={persistence} onSaved={settingsSaved} onClose={closeParent} />}
       {parent === 'progress' && <ProgressPage persistence={persistence} onClose={closeParent} />}
       {transfer !== null && transfer.kind !== 'reading' && (
-        <TransferDialog state={transfer} onAccept={acceptTransfer} onCancel={transfer.kind === 'failed' ? () => setTransfer(null) : closeTransfer} />
+        <TransferDialog
+          state={transfer}
+          onAccept={acceptTransfer}
+          onCancel={transfer.kind === 'failed' || transfer.kind === 'partial' ? () => setTransfer(null) : closeTransfer}
+        />
       )}
     </>
   );
@@ -335,7 +393,7 @@ export function App() {
 
   const locker = persistence.lockerRoom();
   const saveLocker = (next: typeof locker) => {
-    persistence.saveLockerRoom(next);
+    saves.report(persistence.saveLockerRoom(next));
     setDataVersion((n) => n + 1);
   };
   const closeMatchLocker = () => {
@@ -362,6 +420,10 @@ export function App() {
           onPlay={startMatch}
           gear={gear}
           lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}
+          notices={[
+            ...(resetLines.length > 0 ? [{ id: 'reset', lines: resetLines, onDismiss: () => setResetLines([]) }] : []),
+            ...(saveFailed ? [{ id: 'save', lines: [t().start.saveFailed], onDismiss: saves.dismiss }] : []),
+          ]}
         />
         {parentScreens}
       </>

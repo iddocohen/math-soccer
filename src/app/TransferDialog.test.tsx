@@ -112,4 +112,13 @@ describe('TransferDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: m.transfer.close }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it('a take-over that stored only part of the save says so, not that nothing changed (review H6)', () => {
+    const { onCancel } = setup({ kind: 'partial' });
+    const text = screen.getByTestId('transfer-dialog').textContent!;
+    expect(text).toContain(m.transfer.savePartial);
+    expect(text).not.toContain('nichts geändert');
+    fireEvent.click(screen.getByRole('button', { name: m.transfer.close }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });

@@ -23,7 +23,7 @@ export function ProgressPage({ persistence, onClose }: Props) {
   const P = m.progressPage;
   const [progress, setProgress] = useState(() => persistence.progress());
   const [resetNote, setResetNote] = useState<'ok' | 'failed' | null>(null);
-  const [allNote, setAllNote] = useState<'ok' | 'failed' | null>(null);
+  const [allNote, setAllNote] = useState<'ok' | 'failed' | 'partial' | null>(null);
   const [records, setRecords] = useState(() => persistence.records());
   const settings = persistence.settings();
   const summary = useMemo(() => summarize(progress, records, settings), [progress, records, settings]);
@@ -35,10 +35,10 @@ export function ProgressPage({ persistence, onClose }: Props) {
   };
 
   const resetAll = () => {
-    const ok = persistence.resetAll().ok;
+    const r = persistence.resetAll();
     setProgress(persistence.progress());
     setRecords(persistence.records());
-    setAllNote(ok ? 'ok' : 'failed');
+    setAllNote(r.ok ? 'ok' : r.partial ? 'partial' : 'failed');
   };
 
   const askedReset = () => {
@@ -62,6 +62,7 @@ export function ProgressPage({ persistence, onClose }: Props) {
         {resetNote === 'failed' && <p className="notice warn">{P.resetFailed}</p>}
         {allNote === 'ok' && <p className="notice ok">{P.resetAllDone}</p>}
         {allNote === 'failed' && <p className="notice warn">{P.resetAllFailed}</p>}
+        {allNote === 'partial' && <p className="notice warn">{P.resetAllPartial}</p>}
       </div>
 
       <section className="progress-section">

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { STARTER } from '../rewards/items';
+import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
+import { LINE_MIN_LENGTH } from '../targets/lines';
 import { DIRECTIONS, MODES } from '../types';
 
 /**
@@ -137,13 +139,17 @@ export const lineSchema = z.object({
 
 /**
  * `mathsoccer.round.v1`: the running round, kept on refresh (data-model "Round"). No stored round means no round to
- * continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`.
+ * continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules between fields
+ * (`roundRules`) make a damaged round invalid, so it is discarded on load.
  */
-export const roundSchema = z.object({
+export const roundSchema = z
+  .object({
   version: z.literal(1),
   seed: z.number().int(),
   mode: modeSchema,
   roundType: z.enum(['untilHearts', 'goalCount']),
+  /** Goals per round at the round start (FR-052); missing in rounds stored before it was kept. */
+  goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX).optional(),
   min: z.number().int(),
   max: z.number().int(),
   goals: z.number().int().min(0),
@@ -164,5 +170,25 @@ export const roundSchema = z.object({
   /** Play times of the shots that missed the current target, for the guess rule (T043). */
   missTimes: z.array(z.number().min(0)).default([]),
   phase: z.enum(['aiming', 'celebrating']),
-});
+})
+  .superRefine(roundRules);
 export type StoredRound = z.infer<typeof roundSchema>;
+
+/**
+ * Rules between the fields of a stored round: the range goes up, the target lies in it, and a line exists exactly in
+ * line mode, has at least LINE_MIN_LENGTH squares and its index lies between its given squares and its end.
+ */
+function roundRules(
+  r: { mode: string; min: number; max: number; target: { number: number } | null; line: { squares: number[]; given: number; index: number } | null },
+  ctx: z.RefinementCtx,
+): void {
+  const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
+  if (r.min >= r.max) issue('min must be below max', 'max');
+  if (r.target && (r.target.number < r.min || r.target.number > r.max)) issue('target outside the range', 'target');
+  if ((r.mode === 'lines') !== (r.line !== null)) issue('a line exists exactly in line mode', 'line');
+  if (r.line) {
+    const { squares, given, index } = r.line;
+    if (squares.length < LINE_MIN_LENGTH) issue('line too short', 'line');
+    if (given > index || index > squares.length) issue('line index outside the line', 'line');
+  }
+}

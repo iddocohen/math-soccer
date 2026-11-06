@@ -509,3 +509,122 @@ describe('App: locker room from the match (amendment 01, FR-049)', () => {
     expect(screen.queryByRole('button', { name: 'Kabine' })).toBeNull();
   });
 });
+
+describe('App: review fixes', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, '', '/');
+  });
+
+  /** A stored hole round with one goal, saved during the celebration of that goal. */
+  function celebratingRound(over: Record<string, unknown> = {}) {
+    return {
+      version: 1,
+      seed: 5,
+      mode: 'holes',
+      roundType: 'goalCount',
+      goalsPerRound: 1,
+      min: 1,
+      max: 100,
+      goals: 1,
+      hearts: 3,
+      missesInRow: 0,
+      helpStep: 0,
+      target: { mode: 'holes', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 },
+      line: null,
+      targetCount: 1,
+      starsThisRound: 2,
+      elapsedMs: 9000,
+      targetStartMs: 0,
+      targetMisses: 0,
+      missTimes: [],
+      phase: 'celebrating',
+      ...over,
+    };
+  }
+
+  it('a refresh during the final goal\'s celebration shows the round end and saves the personal best once (M2)', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
+    localStorage.setItem(ROUND_KEY, JSON.stringify(celebratingRound()));
+    const first = render(<App />);
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    expect(screen.getByTestId('new-record').textContent).toBe('Neuer Rekord!');
+    const stored = JSON.parse(localStorage.getItem(RECORDS_KEY)!) as { bests: Record<string, { goals: number; timeMs: number }> };
+    expect(stored.bests['1-100|holes|goalCount']).toMatchObject({ goals: 1, timeMs: 9000 });
+    expect(localStorage.getItem(ROUND_KEY)).toBeNull();
+    first.unmount();
+    // A second refresh has no round to continue, so nothing is saved again.
+    render(<App />);
+    expect(screen.getByTestId('start')).toBeTruthy();
+  });
+
+  it('a refresh keeps the round-start goals per round after the parent changed it (H7)', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 5 }));
+    localStorage.setItem(ROUND_KEY, JSON.stringify(celebratingRound()));
+    render(<App />);
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+  });
+
+  it('accepting a transfer during a match gives the round a target on the transferred range (M3, FR-052)', async () => {
+    const first = render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    first.unmount();
+    const data = {
+      settings: { ...defaultSettings(), range: { preset: 'custom' as const, min: 1, max: 20 } },
+      progress: emptyProgress(),
+      records: emptyRecords(),
+      lockerRoom: emptyLockerRoom(),
+    };
+    const { code } = await encodeTransfer(data, 'http://localhost/');
+    window.history.replaceState(null, '', `/#save=${code}`);
+    render(<App />);
+    expect(screen.getByTestId('match')).toBeTruthy();
+    const accept = await screen.findByRole('button', { name: 'Übernehmen' });
+    vi.useFakeTimers();
+    fireEvent.pointerDown(accept, { pointerId: 1, button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    vi.useRealTimers();
+    expect(screen.queryByTestId('transfer-dialog')).toBeNull();
+    expect(Number(screen.getByTestId('match').getAttribute('data-target'))).toBeLessThanOrEqual(20);
+    expect((JSON.parse(localStorage.getItem(ROUND_KEY)!) as { max: number }).max).toBe(20);
+  });
+
+  it('a failed save during play shows one short note on the start screen, and "OK" closes it (M6)', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
+    const setItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
+      if (key === LOCKER_ROOM_KEY) throw new DOMException('quota', 'QuotaExceededError');
+      setItem.call(this, key, value);
+    });
+    render(<App />);
+    expect(screen.queryByTestId('start-notice-save')).toBeNull();
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    // Play goes on: the round end shows as usual.
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    fireEvent.click(screen.getByText('Zurück'));
+    expect(screen.getByTestId('start-notice-save').textContent).toContain(t().start.saveFailed);
+    fireEvent.click(screen.getByRole('button', { name: t().start.dismiss }));
+    expect(screen.queryByTestId('start-notice-save')).toBeNull();
+  });
+
+  it('data reset on load shows a note on the start screen naming the kind and "Kopie wiederherstellen" (H5, FR-036)', () => {
+    localStorage.setItem(PROGRESS_KEY, '{broken');
+    render(<App />);
+    const note = screen.getByTestId('start-notice-reset').textContent!;
+    expect(note).toContain(t().storage.reset.invalid);
+    expect(note).toContain('Fortschritt');
+    expect(note).toContain('Kopie wiederherstellen');
+    fireEvent.click(screen.getByRole('button', { name: t().start.dismiss }));
+    expect(screen.queryByTestId('start-notice-reset')).toBeNull();
+  });
+
+  it('shows no note when the stored data loads cleanly', () => {
+    render(<App />);
+    expect(screen.queryByTestId('start-notice-reset')).toBeNull();
+    expect(screen.queryByTestId('start-notice-save')).toBeNull();
+  });
+});

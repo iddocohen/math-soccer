@@ -123,6 +123,16 @@ describe('data group (T046, FR-041)', () => {
     expect(loadSettings(kv).value.showClock).toBe(true);
   });
 
+  it('"Daten laden" that stored only part of the file says so, not that nothing changed (review H6)', async () => {
+    const real = createPersistence(memoryKeyValue());
+    const persistence = { ...real, importText: () => ({ ok: false as const, reason: 'storePartial' as const }) };
+    render(<SettingsPage persistence={persistence} onSaved={() => {}} onClose={() => {}} />);
+    const input = screen.getByTestId('import-file') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File([real.exportText()], 'save.json')] } });
+    await waitFor(() => expect(screen.getByText(S.data.importFailed.storePartial)).toBeTruthy());
+    expect(screen.queryByText(S.data.importFailed.storeFailed)).toBeNull();
+  });
+
   it('"Daten sichern" downloads a dated file', () => {
     setup();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -130,7 +140,7 @@ describe('data group (T046, FR-041)', () => {
     URL.revokeObjectURL = vi.fn();
     fireEvent.click(screen.getByRole('button', { name: S.data.export }));
     expect(click).toHaveBeenCalledTimes(1);
-    expect((click.mock.instances[0] as unknown as HTMLAnchorElement).download).toBe('mathe-fussball-2026-11-06.json');
+    expect((click.mock.instances[0] as unknown as HTMLAnchorElement).download).toBe('mathe-kicker-2026-11-06.json');
   });
 
   it('shows a transfer link with #save= and a QR code', async () => {

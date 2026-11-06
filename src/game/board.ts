@@ -17,14 +17,14 @@
  */
 import { cellRect, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
 import type { Line } from '../core/targets/lines';
-import type { Mode, Rect, Target } from '../core/types';
+import type { DeepReadonly, Mode, Rect, Target } from '../core/types';
 
 /** The inputs of the board. GoalView redraws the cached board texture only when `boardKey` of these changes. */
 export interface BoardInput {
   layout: ChartLayout;
   goal: Rect;
   mode: Mode;
-  target: Target | null;
+  target: DeepReadonly<Target> | null;
   /** Hint numbers are printed ("immer", or help step 1 and later with "auf Wunsch"). */
   hintsVisible: boolean;
   helpStep: number;
@@ -33,7 +33,7 @@ export interface BoardInput {
   /** The hint number the help arrow starts at (help steps 1 and 2), or null for no arrow. */
   hintFrom: number | null;
   /** The line in line mode, or null. */
-  line: Pick<Line, 'squares' | 'given' | 'index'> | null;
+  line: DeepReadonly<Pick<Line, 'squares' | 'given' | 'index'>> | null;
 }
 
 /** The help arrow in world pixels, from the center of the hint square to the center of the target square. */

@@ -1,13 +1,13 @@
 /** The match overlay's locker room icon (amendment 01, FR-049). */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MatchController, type MatchState } from '../core/match/MatchController';
+import { MatchController, type MatchView } from '../core/match/MatchController';
 import { defaultSettings } from '../core/settings/defaults';
 import { MatchOverlay } from './MatchOverlay';
 
 afterEach(cleanup);
 
-function running(): MatchState {
+function running(): MatchView {
   const c = new MatchController({ settings: defaultSettings, newSeed: () => 3 });
   c.start('holes');
   return c.getState();

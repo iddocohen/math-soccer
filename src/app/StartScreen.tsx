@@ -9,6 +9,9 @@
  *
  * With the locker room on (FR-044), a "Kabine" button (K) and the star total (`data-testid="star-total"`) show below
  * the modes; with it off, both are hidden.
+ *
+ * Notices (FR-036, review H5 and M6): when stored data was reset on load, or a save failed during play, a short note
+ * shows below the title with "OK" to close it. It never blocks the mode buttons or their keys.
  */
 import type { ReactNode } from 'react';
 import { MODES, type Mode } from '../core/types';
@@ -35,9 +38,11 @@ interface Props {
   gear?: ReactNode;
   /** The star balance and how to open the locker room; null when the parent turned the locker room off. */
   lockerRoom?: { stars: number; onOpen: () => void } | null;
+  /** Short notes for the parent, each a list of lines, closed with "OK"; nothing shows when empty. */
+  notices?: ReadonlyArray<{ id: string; lines: readonly string[]; onDismiss: () => void }>;
 }
 
-export function StartScreen({ modes, onPlay, gear, lockerRoom = null }: Props) {
+export function StartScreen({ modes, onPlay, gear, lockerRoom = null, notices = [] }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   return (
@@ -51,6 +56,20 @@ export function StartScreen({ modes, onPlay, gear, lockerRoom = null }: Props) {
         )}
       </div>
       <h1 className="start-title">{text.appName}</h1>
+      {notices.length > 0 && (
+        <div className="start-notices" role="status" aria-live="polite">
+          {notices.map((n) => (
+            <div key={n.id} className="notice warn" data-testid={`start-notice-${n.id}`}>
+              {n.lines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <button type="button" className="secondary-button" onClick={n.onDismiss}>
+                {text.start.dismiss}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="start-modes">
         {modes.map((mode) => (
           <button

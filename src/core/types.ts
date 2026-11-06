@@ -34,3 +34,10 @@ export interface Target {
   /** 0 to 3, from the adaptive ladder. */
   difficultyStep: number;
 }
+
+/** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */
+export type DeepReadonly<T> = T extends (infer U)[]
+  ? ReadonlyArray<DeepReadonly<U>>
+  : T extends object
+    ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+    : T;

@@ -16,7 +16,9 @@ export type ImportFailure =
   | 'invalidRecords'
   | 'invalidLockerRoom'
   /** The file was fine, but the browser could not store it; nothing was changed. */
-  | 'storeFailed';
+  | 'storeFailed'
+  /** The browser stored part of the file and could not put the old data back. */
+  | 'storePartial';
 
 export interface SaveData {
   settings: Settings;

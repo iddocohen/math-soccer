@@ -105,4 +105,13 @@ describe('ProgressPage (T045)', () => {
     expect(screen.getByText(P.empty)).toBeTruthy();
     expect(screen.getByText(P.noBests)).toBeTruthy();
   });
+
+  it('"Alles zurücksetzen" that stored only part says so, not that nothing changed (review H6)', () => {
+    const persistence = { ...createPersistence(memoryKeyValue()), resetAll: () => ({ ok: false, partial: true }) };
+    render(<ProgressPage persistence={persistence} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: P.resetAll }));
+    fireEvent.click(screen.getByRole('button', { name: P.resetAllYes }));
+    expect(screen.getByText(P.resetAllPartial)).toBeTruthy();
+    expect(screen.queryByText(P.resetAllFailed)).toBeNull();
+  });
 });

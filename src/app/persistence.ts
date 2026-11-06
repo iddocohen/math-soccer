@@ -14,6 +14,9 @@
  *   current data, all or none, and removes the copies.
  * - `resetAll()` ("Alles zurücksetzen") saves empty progress, personal bests and locker room, all or none; the settings
  *   stay.
+ * - When a save of several kinds fails and the old text cannot be written back either, the result says `partial: true`:
+ *   part of the new data is stored, so the parent sees "Ein Teil wurde gespeichert" instead of "nichts geändert".
+ * - `resetReasons()` names the kinds that were reset on load, for the notice on the start screen (FR-036).
  */
 import { recordAttempt as addAttempt } from '../core/progress/adaptive';
 import { award } from '../core/rewards/lockerRoom';
@@ -40,6 +43,7 @@ import {
   SETTINGS,
   SETTINGS_KEY,
   unreadableKey,
+  type ResetReason,
   type StoredKind,
 } from '../core/storage/storage';
 
@@ -49,6 +53,15 @@ export type DataKind = 'settings' | 'progress' | 'records' | 'lockerRoom';
 const DATA_ORDER: DataKind[] = ['settings', 'progress', 'records', 'lockerRoom'];
 
 const KEYS: Record<DataKind, string> = { settings: SETTINGS_KEY, progress: PROGRESS_KEY, records: RECORDS_KEY, lockerRoom: LOCKER_ROOM_KEY };
+
+/**
+ * The result of a save. `partial` is true when a save of several kinds failed and some keys still hold the new text,
+ * because writing back the old text failed too.
+ */
+export interface SaveResult {
+  ok: boolean;
+  partial?: boolean;
+}
 
 /** The values of every kind of data, as the session holds them. */
 type Values = { settings: Settings; progress: Progress; records: Records; lockerRoom: LockerRoom };
@@ -88,20 +101,22 @@ export interface Persistence {
   importText(text: string): ImportResult;
   /** The data a transfer link carries. */
   saveData(): SaveData;
-  /** Takes over a transferred save: all four kinds are stored, or the old ones are put back. */
-  applyTransfer(data: SaveData): { ok: boolean };
+  /** Takes over a transferred save: all four kinds are stored, or the old ones are put back (`partial` when that failed). */
+  applyTransfer(data: SaveData): SaveResult;
   /**
    * "Alles zurücksetzen" (FR-051): saves empty progress, personal bests and locker room (including the total ever
    * earned), all or none; the settings stay.
    */
-  resetAll(): { ok: boolean };
+  resetAll(): SaveResult;
   /** The kinds of data with a kept copy under `<key>.unreadable` that this version can read, in the usual order (FR-050). */
   backups(): DataKind[];
   /**
    * "Kopie wiederherstellen" (FR-050): saves the copies of `backups()` as the current data, all or none, and removes the
    * copies. `ok: false` when there is nothing to restore or the save fails; then nothing changes.
    */
-  restoreBackups(): { ok: boolean };
+  restoreBackups(): SaveResult;
+  /** The kinds of data that were reset on load and why, in the usual order (FR-036); empty when none was. */
+  resetReasons(): Array<{ kind: DataKind; reason: Exclude<ResetReason, 'none'> }>;
 }
 
 export function createPersistence(kv: KeyValue): Persistence {
@@ -136,7 +151,7 @@ export function createPersistence(kv: KeyValue): Persistence {
    * Saves the given kinds of data, all or none. On success the session takes the new values; when any write fails or
    * a kind is kept, the keys written so far get their old text back and nothing changes.
    */
-  function save(next: Partial<Values>): { ok: boolean } {
+  function save(next: Partial<Values>): SaveResult {
     const kinds = DATA_ORDER.filter((kind) => next[kind] !== undefined);
     if (kinds.some((kind) => kept.has(kind))) return { ok: false };
     const written: Array<{ key: string; old: string | null }> = [];
@@ -148,15 +163,17 @@ export function createPersistence(kv: KeyValue): Persistence {
         written.push({ key, old });
       }
     } catch {
+      let partial = false;
       for (const { key, old } of written.reverse()) {
         try {
           if (old === null) kv.remove(key);
           else kv.set(key, old);
         } catch {
-          // Storage refuses even the old text; the session keeps its old values and reports the failure.
+          // Storage refuses even the old text: this key keeps the new text. The session keeps its old values.
+          partial = true;
         }
       }
-      return { ok: false };
+      return partial ? { ok: false, partial: true } : { ok: false };
     }
     Object.assign(values, next);
     return { ok: true };
@@ -206,7 +223,9 @@ export function createPersistence(kv: KeyValue): Persistence {
       const r = importData(text);
       if (!r.ok) return r;
       const data: Values = { settings: r.settings, progress: r.progress, records: r.records, lockerRoom: r.lockerRoom };
-      return save(structuredClone(data)).ok ? r : { ok: false, reason: 'storeFailed' };
+      const saved = save(structuredClone(data));
+      if (saved.ok) return r;
+      return { ok: false, reason: saved.partial ? 'storePartial' : 'storeFailed' };
     },
     saveData,
     applyTransfer: (data) =>
@@ -228,5 +247,10 @@ export function createPersistence(kv: KeyValue): Persistence {
       }
       return r;
     },
+    resetReasons: () =>
+      DATA_ORDER.flatMap((kind) => {
+        const reason = loaded[kind].resetReason;
+        return reason === 'none' ? [] : [{ kind, reason }];
+      }),
   };
 }

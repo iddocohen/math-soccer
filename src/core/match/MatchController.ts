@@ -33,7 +33,12 @@
  * into the running round. Round type and goals per round keep their round-start values. When a target-shaping setting
  * changed (TARGET_KEYS), the round gets a new target (or a new line) on the board of the new range; goals, hearts, stars,
  * time and the paused state stay, and the dropped target records no attempt. While the ball flies or the goal is
- * celebrated, the new target waits until the round is back in 'aiming'.
+ * celebrated, the new target waits until the round is back in 'aiming' and the landing feedback has finished: after a
+ * miss or a lit line square that is SHOWN_MS of play time, so the scene still reads the landed ball, the message and
+ * the shown square right after `ballLanded`.
+ *
+ * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
+ * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
@@ -44,11 +49,11 @@ import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { makeLine, type Line } from '../targets/lines';
 import { NO_PROGRESS, nextTarget, pickDirection, type TargetProgress } from '../targets/nextTarget';
-import { DIRECTIONS, type Mode, type Target } from '../types';
+import { DIRECTIONS, type DeepReadonly, type Mode, type Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
-export const PHASES = ['aiming', 'ballInFlight', 'landed', 'celebrating', 'roundOver'] as const;
+export const PHASES = ['aiming', 'ballInFlight', 'celebrating', 'roundOver'] as const;
 export type Phase = (typeof PHASES)[number];
 
 /** The highest help step: step 3 shows the answer. */
@@ -138,6 +143,28 @@ export interface MatchState {
   targetMisses: number;
   /** Play times of the newest misses on the current target, for the guess rule (T043). */
   missTimes: number[];
+}
+
+/** The match state as React and Phaser read it from `getState()`: they cannot change it. */
+export type MatchView = DeepReadonly<MatchState>;
+
+/**
+ * The rules between fields of the flat state record (review H4), as messages; an empty list means the state is
+ * consistent:
+ * - a ball without an outcome flies: it exists exactly in 'ballInFlight';
+ * - 'celebrating' follows a goal, so its ball has the outcome 'goal';
+ * - no missed square shows after the round ended;
+ * - a line exists only in line mode, and a running line round always has one.
+ */
+export function matchInvariantErrors(s: MatchState): string[] {
+  const errors: string[] = [];
+  const flying = s.ball !== null && s.ball.outcome === null;
+  if ((s.phase === 'ballInFlight') !== flying) errors.push(`ball ${JSON.stringify(s.ball)} in phase ${s.phase}`);
+  if (s.phase === 'celebrating' && s.ball?.outcome !== 'goal') errors.push('celebrating without a goal');
+  if (s.phase === 'roundOver' && s.shown !== null) errors.push('shown square after the round ended');
+  if (s.line !== null && s.mode !== 'lines') errors.push(`line in ${s.mode} mode`);
+  if (s.mode === 'lines' && s.started && s.phase !== 'roundOver' && s.line === null) errors.push('line mode without a line');
+  return errors;
 }
 
 /** Where the running round is kept (`mathsoccer.round.v1`); the app connects browser storage. */
@@ -242,6 +269,8 @@ export class MatchController {
   private roundSettings: Settings;
   /** True while saved target-shaping settings wait for the round to be back in 'aiming' (FR-052). */
   private newTargetPending = false;
+  /** Play time left of the landing feedback of the last miss or line square; a pending new target waits for it. */
+  private feedbackMs = 0;
 
   constructor(options: MatchControllerOptions) {
     this.options = options;
@@ -249,7 +278,7 @@ export class MatchController {
     this.state = freshState(this.roundSettings, 'holes', 0, false);
   }
 
-  getState(): MatchState {
+  getState(): MatchView {
     return this.state;
   }
 
@@ -272,7 +301,8 @@ export class MatchController {
     const rebuild = changesTargets(this.roundSettings, merged);
     this.roundSettings = merged;
     if (rebuild) this.newTargetPending = true;
-    this.set(this.newTargetPending && s.phase === 'aiming' ? this.withNewSettings(s) : { ...s });
+    // set() gives the new target when the round aims and no landing feedback runs.
+    this.set({ ...s });
   }
 
   /**
@@ -307,6 +337,7 @@ export class MatchController {
   /** Starts a new round in `mode` with the current settings. */
   start(mode: Mode): void {
     this.newTargetPending = false;
+    this.feedbackMs = 0;
     this.roundSettings = this.options.settings();
     const seed = (this.options.newSeed ?? (() => Date.now() % 2_147_483_647))();
     this.set(this.withNextTarget(freshState(this.roundSettings, mode, seed, true)));
@@ -326,9 +357,12 @@ export class MatchController {
       return false;
     }
     this.newTargetPending = false;
-    this.roundSettings = s;
-    const { phase, ...rest } = stored;
-    const state: MatchState = { ...freshState(s, stored.mode, stored.seed, true), ...withoutVersion(rest) };
+    this.feedbackMs = 0;
+    // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
+    // they were kept uses the current goals per round.
+    const { phase, goalsPerRound, ...rest } = stored;
+    this.roundSettings = { ...s, roundType: stored.roundType, goalsPerRound: goalsPerRound ?? s.goalsPerRound };
+    const state: MatchState = { ...freshState(this.roundSettings, stored.mode, stored.seed, true), ...withoutVersion(rest) };
     // A round saved during the celebration goes on as if the celebration had ended.
     if (phase === 'celebrating') this.set(this.afterCelebration({ ...state, phase: 'celebrating' }));
     else this.set(state);
@@ -425,7 +459,8 @@ export class MatchController {
         ...s,
         ...missed,
         ball,
-        shown,
+        // After the last heart the round ends; no square shows under the round end.
+        shown: hearts <= 0 ? null : shown,
         hearts,
         missesInRow: 0,
         helpStep: MAX_HELP_STEP,
@@ -434,11 +469,13 @@ export class MatchController {
         phase: hearts <= 0 ? 'roundOver' : 'aiming',
         message: { kind: 'heartLost', number },
       };
+      this.feedbackMs = SHOWN_MS;
       this.set(next);
       // The round ends on this target: it counts as not solved (FR-037).
       if (next.phase === 'roundOver') this.recordAttempt(next, { solved: false, endedAt: next.elapsedMs });
       return;
     }
+    this.feedbackMs = SHOWN_MS;
     this.set({
       ...s,
       ...missed,
@@ -470,6 +507,7 @@ export class MatchController {
       message: { kind: 'correctSquare' },
       phase: 'aiming',
     };
+    this.feedbackMs = SHOWN_MS;
     this.set(this.withNextTarget(next));
   }
 
@@ -514,6 +552,7 @@ export class MatchController {
     const remaining = s.shown ? s.shown.remainingMs - ms : 0;
     const shown = s.shown && remaining > 0 ? { ...s.shown, remainingMs: remaining } : null;
     const save = Math.floor(elapsedMs / SAVE_TIME_EVERY_MS) !== Math.floor(s.elapsedMs / SAVE_TIME_EVERY_MS);
+    this.feedbackMs = Math.max(0, this.feedbackMs - ms);
     this.set({ ...s, elapsedMs, shown }, { save });
   }
 
@@ -596,13 +635,18 @@ export class MatchController {
   }
 
   private set(next: MatchState, { save = true }: { save?: boolean } = {}): void {
-    // Settings saved while the ball flew or the goal was celebrated give their new target once the round aims again.
+    // Settings saved while the ball flew or the goal was celebrated give their new target once the round aims again and
+    // the landing feedback has finished (review M1).
     if (this.newTargetPending) {
       if (next.phase === 'roundOver') this.newTargetPending = false;
-      else if (next.phase === 'aiming' && next.started) {
+      else if (next.phase === 'aiming' && next.started && this.feedbackMs <= 0) {
         next = this.withNewSettings(next);
         save = true;
       }
+    }
+    if (import.meta.env.DEV) {
+      const errors = matchInvariantErrors(next);
+      if (errors.length > 0) throw new Error(`MatchController: inconsistent state: ${errors.join('; ')}`);
     }
     this.state = next;
     if (save) this.persist();
@@ -625,6 +669,7 @@ export class MatchController {
       seed: s.seed,
       mode: s.mode,
       roundType: s.roundType,
+      goalsPerRound: this.roundSettings.goalsPerRound,
       min: s.min,
       max: s.max,
       goals: s.goals,

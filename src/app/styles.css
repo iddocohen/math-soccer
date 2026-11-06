@@ -702,6 +702,15 @@ button:focus-visible {
 }
 
 /* Stars on the start screen and the round end (US6) */
+.start-notices {
+  max-width: min(640px, calc(100% - 32px));
+  text-align: center;
+}
+
+.start-notices p {
+  margin: 0 0 8px;
+}
+
 .start-locker {
   display: flex;
   align-items: center;

@@ -62,10 +62,11 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
   const m = t();
   // Amendment 01 (FR-050): data kept as a copy that this version can read again.
   const [backups] = useState(() => persistence.backups());
-  const [restoreFailed, setRestoreFailed] = useState(false);
+  const [restoreFailed, setRestoreFailed] = useState<'failed' | 'partial' | null>(null);
   const restore = () => {
-    if (persistence.restoreBackups().ok) onRestored();
-    else setRestoreFailed(true);
+    const r = persistence.restoreBackups();
+    if (r.ok) onRestored();
+    else setRestoreFailed(r.partial ? 'partial' : 'failed');
   };
   const S = m.settings;
   const L = S.labels;
@@ -110,7 +111,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
       const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `mathe-fussball-${today(now())}.json`;
+      a.download = `mathe-kicker-${today(now())}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
     } catch {
@@ -169,7 +170,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             </button>
           </div>
         )}
-        {restoreFailed && <p className="notice warn">{m.parent.restoreFailed}</p>}
+        {restoreFailed && <p className="notice warn">{restoreFailed === 'partial' ? m.parent.savePartial : m.parent.restoreFailed}</p>}
       </div>
 
       <div className="settings-groups">

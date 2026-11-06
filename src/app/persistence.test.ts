@@ -131,3 +131,59 @@ describe('resetAll (FR-051)', () => {
     expect(JSON.parse(inner.get(LOCKER_ROOM_KEY)!).stars).toBe(5);
   });
 });
+
+/** A store whose writes to `keys` fail, and whose writes of old text back to `stuck` fail too. */
+function stuckRollback(kv: KeyValue, failing: string, stuck: string): KeyValue {
+  const written = new Set<string>();
+  return {
+    get: (key) => kv.get(key),
+    set: (key, value) => {
+      if (key === failing) throw new DOMException('quota', 'QuotaExceededError');
+      if (key === stuck && written.has(key)) throw new DOMException('quota', 'QuotaExceededError');
+      written.add(key);
+      kv.set(key, value);
+    },
+    remove: (key) => kv.remove(key),
+  };
+}
+
+describe('a save of several kinds that cannot be undone (review H6)', () => {
+  it('resetAll says partial when the old text cannot be written back', () => {
+    const inner = memoryKeyValue({
+      [PROGRESS_KEY]: JSON.stringify(emptyProgress()),
+      [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), stars: 5, totalEarned: 9 }),
+    });
+    const p = createPersistence(stuckRollback(inner, LOCKER_ROOM_KEY, PROGRESS_KEY));
+    expect(p.resetAll()).toEqual({ ok: false, partial: true });
+    // The session keeps its old values.
+    expect(p.lockerRoom().stars).toBe(5);
+  });
+
+  it('a transfer and an import say partial the same way', () => {
+    const data = { settings: defaultSettings(), progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom() };
+    const p = createPersistence(stuckRollback(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(defaultSettings()) }), LOCKER_ROOM_KEY, SETTINGS_KEY));
+    expect(p.applyTransfer(data)).toEqual({ ok: false, partial: true });
+    const text = createPersistence(memoryKeyValue()).exportText();
+    const q = createPersistence(stuckRollback(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(defaultSettings()) }), LOCKER_ROOM_KEY, SETTINGS_KEY));
+    expect(q.importText(text)).toEqual({ ok: false, reason: 'storePartial' });
+  });
+
+  it('a failed save whose old text goes back stays a plain failure', () => {
+    const p = createPersistence(failingKeys(memoryKeyValue(), new Set([RECORDS_KEY])));
+    expect(p.resetAll()).toEqual({ ok: false });
+  });
+});
+
+describe('resetReasons (FR-036, review H5)', () => {
+  it('names the kinds reset on load and why, and nothing for clean data', () => {
+    expect(createPersistence(memoryKeyValue()).resetReasons()).toEqual([]);
+    const kv = memoryKeyValue({
+      [PROGRESS_KEY]: '{broken',
+      [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), version: 9 }),
+    });
+    expect(createPersistence(kv).resetReasons()).toEqual([
+      { kind: 'progress', reason: 'invalid' },
+      { kind: 'lockerRoom', reason: 'newer' },
+    ]);
+  });
+});
