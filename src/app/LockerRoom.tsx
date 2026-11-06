@@ -15,7 +15,8 @@
  * `data-locked` and `data-chosen`.
  */
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
-import { ballDesign, ITEMS, ITEM_KINDS, type BallDesign, type ItemKind, type LockerItem } from '../core/rewards/items';
+import { COLOR, css } from '../game/palette';
+import { BALL_COLORS, ballDesign, ITEMS, ITEM_KINDS, type BallDesign, type ItemKind, type LockerItem } from '../core/rewards/items';
 import {
   buy,
   canBuy,
@@ -41,20 +42,6 @@ interface Props {
 
 const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans'> = { ball: 'ball', shirt: 'shirt', scarf: 'fans' };
 
-/** Colors of the ball designs for the small pictures; the scene draws the full designs (src/game/ballArt.ts). */
-const BALL_COLORS: Record<BallDesign, { fill: string; mark: string }> = {
-  classic: { fill: '#ffffff', mark: '#12202c' },
-  blue: { fill: '#3e8fd8', mark: '#ffffff' },
-  stars: { fill: '#1b2f6b', mark: '#ffe066' },
-  gold: { fill: '#d4a017', mark: '#8a6510' },
-  flames: { fill: '#12202c', mark: '#f08a24' },
-  rainbow: { fill: '', mark: '#ffffff' },
-};
-
-function hex(color: number): string {
-  return `#${color.toString(16).padStart(6, '0')}`;
-}
-
 /** True for colors where dark text reads better than light text. */
 function isLight(color: number): boolean {
   const r = (color >> 16) & 0xff;
@@ -64,7 +51,8 @@ function isLight(color: number): boolean {
 }
 
 export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: number }): ReactElement {
-  const c = BALL_COLORS[design];
+  const fill = css(BALL_COLORS[design].fill);
+  const mark = css(BALL_COLORS[design].mark);
   const gradient = `ball-gradient${useId().replace(/[^\w-]/g, '')}`;
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
@@ -78,15 +66,15 @@ export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: num
           <stop offset="100%" stopColor="#e74c3c" />
         </radialGradient>
       </defs>
-      <circle cx="20" cy="20" r="19" fill={design === 'rainbow' ? `url(#${gradient})` : c.fill} stroke="rgb(0 0 0 / 30%)" />
+      <circle cx="20" cy="20" r="19" fill={design === 'rainbow' ? `url(#${gradient})` : fill} stroke="rgb(0 0 0 / 30%)" />
       {design === 'stars' ? (
-        <text x="20" y="27" textAnchor="middle" fontSize="20" fill={c.mark}>
+        <text x="20" y="27" textAnchor="middle" fontSize="20" fill={mark}>
           ★
         </text>
       ) : design === 'flames' ? (
-        <path d="M8 34 L14 18 L18 28 L20 12 L24 28 L28 18 L32 34 Z" fill={c.mark} />
+        <path d="M8 34 L14 18 L18 28 L20 12 L24 28 L28 18 L32 34 Z" fill={mark} />
       ) : design === 'rainbow' ? null : (
-        <circle cx="20" cy="20" r="7" fill={c.mark} />
+        <circle cx="20" cy="20" r="7" fill={mark} />
       )}
     </svg>
   );
@@ -94,12 +82,12 @@ export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: num
 
 /** The player from behind with the shirt color, the name and the number, and the ball at his feet. */
 function Preview({ look, label }: { look: Look; label: string }): ReactElement {
-  const shirt = hex(look.shirtColor);
-  const ink = isLight(look.shirtColor) ? '#12202c' : '#f4f6ef';
+  const shirt = css(look.shirtColor);
+  const ink = isLight(look.shirtColor) ? css(COLOR.ink) : css(COLOR.chalk);
   return (
     <figure className="locker-preview" data-testid="locker-preview" data-ball={`ball.${look.ball}`} aria-label={label}>
       <svg width="160" height="200" viewBox="0 0 160 200" aria-hidden="true">
-        <circle cx="70" cy="34" r="24" fill="#5b3b26" />
+        <circle cx="70" cy="34" r="24" fill={css(COLOR.hair)} />
         <rect x="30" y="60" width="80" height="80" rx="12" fill={shirt} />
         <rect x="20" y="64" width="14" height="30" fill={shirt} />
         <rect x="106" y="64" width="14" height="30" fill={shirt} />
@@ -109,10 +97,10 @@ function Preview({ look, label }: { look: Look; label: string }): ReactElement {
         <text x="70" y="122" textAnchor="middle" fontSize="38" fontWeight="800" fill={ink} data-testid="preview-number">
           {look.shirtNumber}
         </text>
-        <rect x="36" y="140" width="30" height="30" fill="#f4f6ef" />
-        <rect x="74" y="140" width="30" height="30" fill="#f4f6ef" />
-        <rect x="40" y="170" width="22" height="26" fill="#e9c4a0" />
-        <rect x="78" y="170" width="22" height="26" fill="#e9c4a0" />
+        <rect x="36" y="140" width="30" height="30" fill={css(COLOR.chalk)} />
+        <rect x="74" y="140" width="30" height="30" fill={css(COLOR.chalk)} />
+        <rect x="40" y="170" width="22" height="26" fill={css(COLOR.skin)} />
+        <rect x="78" y="170" width="22" height="26" fill={css(COLOR.skin)} />
       </svg>
       <BallIcon design={look.ball} size={48} />
     </figure>
@@ -121,7 +109,7 @@ function Preview({ look, label }: { look: Look; label: string }): ReactElement {
 
 function ItemPicture({ item }: { item: LockerItem }): ReactElement {
   if (item.kind === 'ball') return <BallIcon design={ballDesign(item.id)} />;
-  return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: hex(item.color ?? 0) }} aria-hidden="true" />;
+  return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
 export function LockerRoom({ locker, onChange, onBack }: Props): ReactElement {

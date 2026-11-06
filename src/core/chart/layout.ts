@@ -60,9 +60,19 @@ export function numberAt(layout: ChartLayout, row: number, col: number): number 
 /** World rectangle of the square of `n` inside the goal rectangle. */
 export function cellRect(layout: ChartLayout, goal: Rect, n: number): Rect {
   const { row, col } = cellOf(layout, n);
+  return cellRectAt(layout, goal, row, col);
+}
+
+/** World rectangle of the square at `row`, `col` inside the goal rectangle, also for squares outside the range. */
+export function cellRectAt(layout: ChartLayout, goal: Rect, row: number, col: number): Rect {
   const width = goal.width / COLUMNS;
   const height = goal.height / layout.rows;
   return { x: goal.x + col * width, y: goal.y + row * height, width, height };
+}
+
+/** The middle of `r`. */
+export function center(r: Rect): { x: number; y: number } {
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 }
 
 /** Soccer ball up to 10 rows, tennis ball up to 30 rows, ping-pong ball above (research R4). */

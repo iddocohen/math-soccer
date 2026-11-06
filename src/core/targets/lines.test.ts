@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { cellOf, layoutChart, numberAt } from '../chart/layout';
 import { createRng } from '../rng';
 import { DIRECTIONS, type Direction } from '../types';
-import { DIRECTION_STEP, LINE_GIVEN, LINE_MIN_LENGTH, makeLine } from './lines';
+import { MOVE } from './hints';
+import { LINE_GIVEN, LINE_MIN_LENGTH, makeLine } from './lines';
 
 const hundred = layoutChart(1, 100);
 
@@ -13,7 +14,7 @@ describe('makeLine', () => {
         for (let seed = 0; seed < 30; seed++) {
           const line = makeLine(layout, direction, 5, createRng(seed));
           expect(line.squares).toHaveLength(5);
-          const [dRow, dCol] = DIRECTION_STEP[line.direction];
+          const [dRow, dCol] = MOVE[line.direction];
           line.squares.forEach((n, i) => {
             expect(n).toBeGreaterThanOrEqual(layout.min);
             expect(n).toBeLessThanOrEqual(layout.max);

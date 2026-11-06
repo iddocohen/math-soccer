@@ -7,7 +7,7 @@
 import Phaser from 'phaser';
 import { KICK_SPOT } from '../core/match/world';
 import type { Look } from '../core/rewards/lockerRoom';
-import { COLOR } from './palette';
+import { COLOR, css } from './palette';
 
 export const PLAYER_DEPTH = 6;
 
@@ -43,10 +43,10 @@ export class PlayerView {
 
     this.shirt = scene.add.graphics();
     this.number = scene.add
-      .text(0, -72 - SHIRT.height / 2 + 4, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '38px', color: '#12202c' })
+      .text(0, -72 - SHIRT.height / 2 + 4, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '38px', color: css(COLOR.ink) })
       .setOrigin(0.5, 0.5);
     this.name = scene.add
-      .text(0, -72 - SHIRT.height + 14, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '13px', color: '#12202c' })
+      .text(0, -72 - SHIRT.height + 14, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '13px', color: css(COLOR.ink) })
       .setOrigin(0.5, 0.5);
 
     const head = scene.add.graphics();
@@ -73,7 +73,7 @@ export class PlayerView {
     this.name.setScale(Math.min(1, (SHIRT.width - 8) / Math.max(1, this.name.width)), 1);
     // A dark number and name on light shirts, light ones on dark shirts.
     const c = Phaser.Display.Color.IntegerToColor(look.shirtColor);
-    const ink = c.v > 0.6 && c.s < 0.9 ? '#12202c' : '#f4f6ef';
+    const ink = c.v > 0.6 && c.s < 0.9 ? css(COLOR.ink) : css(COLOR.chalk);
     this.number.setColor(ink);
     this.name.setColor(ink);
   }

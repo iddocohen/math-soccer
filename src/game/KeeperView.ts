@@ -37,7 +37,7 @@ const RETURN_MS = 450;
 const ARC = 60;
 
 const JERSEY = 0x3e6fb0;
-const GLOVE = 0xe8b923;
+const GLOVE = COLOR.kit;
 /** The arms' swing from the ready stance (gloves out low) to over the head, left arm; the right arm mirrors it. */
 const ARM_READY = 0.9;
 const ARM_UP = Math.PI + 0.3;

@@ -9,24 +9,13 @@
 import { COLUMNS, numberAt, type ChartLayout } from '../chart/layout';
 import type { Rng } from '../rng';
 import type { Direction } from '../types';
+import { MOVE } from './hints';
 
 /** The squares printed at the start of a line; the next square is the first target. */
 export const LINE_GIVEN = 2;
 
 /** The shortest line: the given squares and one target. */
 export const LINE_MIN_LENGTH = 3;
-
-/** Row and column step of each direction; down is one row further on the chart. */
-export const DIRECTION_STEP: Record<Direction, readonly [number, number]> = {
-  right: [0, 1],
-  left: [0, -1],
-  down: [1, 0],
-  up: [-1, 0],
-  downRight: [1, 1],
-  upLeft: [-1, -1],
-  downLeft: [1, -1],
-  upRight: [-1, 1],
-};
 
 export interface Line {
   /** The numbers of the line in order. */
@@ -40,7 +29,7 @@ export interface Line {
 
 /** Every line of `length` squares in `direction` that lies fully on the chart, by start number. */
 function linesFitting(layout: ChartLayout, direction: Direction, length: number): number[][] {
-  const [dRow, dCol] = DIRECTION_STEP[direction];
+  const [dRow, dCol] = MOVE[direction];
   const out: number[][] = [];
   for (let row = 0; row < layout.rows; row++) {
     for (let col = 0; col < COLUMNS; col++) {

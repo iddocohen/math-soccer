@@ -7,6 +7,7 @@
  * screen `helpChart`), and that Enter does not shoot.
  */
 import { COLUMNS, layoutChart, numberAt } from '../core/chart/layout';
+import { COLOR, css } from '../game/palette';
 import { t } from '../i18n';
 
 interface Props {
@@ -22,8 +23,8 @@ interface Props {
 function BallIcon() {
   return (
     <svg className="help-chart-ball" viewBox="0 0 20 20" aria-hidden="true">
-      <circle cx="10" cy="10" r="9" fill="#fff" stroke="#12202c" strokeWidth="1.5" />
-      <polygon points="10,6 13.8,8.8 12.4,13.2 7.6,13.2 6.2,8.8" fill="#12202c" />
+      <circle cx="10" cy="10" r="9" fill="#fff" stroke={css(COLOR.ink)} strokeWidth="1.5" />
+      <polygon points="10,6 13.8,8.8 12.4,13.2 7.6,13.2 6.2,8.8" fill={css(COLOR.ink)} />
     </svg>
   );
 }

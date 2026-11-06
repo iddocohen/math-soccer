@@ -9,7 +9,8 @@
  */
 import { cellOf, type ChartLayout } from '../chart/layout';
 import type { Settings } from '../settings/schema';
-import type { DeepReadonly, Direction, Target } from '../types';
+import { MOVE } from '../targets/hints';
+import { DIRECTIONS, type DeepReadonly, type Direction, type Target } from '../types';
 
 export const HINT_STEP = 1;
 export const CHART_STEP = 2;
@@ -24,18 +25,6 @@ export interface HelpHint {
   offset: number;
   direction: Direction | null;
 }
-
-/** Row and column steps of each direction; down is a row further on the chart. */
-const DIRECTION_STEPS: ReadonlyArray<readonly [Direction, number, number]> = [
-  ['right', 0, 1],
-  ['left', 0, -1],
-  ['down', 1, 0],
-  ['up', -1, 0],
-  ['downRight', 1, 1],
-  ['upLeft', -1, -1],
-  ['downLeft', 1, -1],
-  ['upRight', -1, 1],
-];
 
 /** True when hint numbers show on the board: always with "immer", from help step 1 with "auf Wunsch" (FR-013). */
 export function hintsVisible(hintDisplay: Settings['hintDisplay'], helpStep: number): boolean {
@@ -75,7 +64,7 @@ export function helpHint(layout: ChartLayout, target: DeepReadonly<Target> | nul
     const offset = target.number - from;
     const better = !best || distance < best.distance || (distance === best.distance && Math.abs(offset) < Math.abs(best.hint.offset));
     if (!better) continue;
-    const direction = DIRECTION_STEPS.find(([, r, c]) => r === dRow && c === dCol)?.[0] ?? null;
+    const direction = DIRECTIONS.find((d) => MOVE[d][0] === dRow && MOVE[d][1] === dCol) ?? null;
     best = { hint: { from, offset, direction }, distance };
   }
   return best?.hint ?? null;

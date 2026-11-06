@@ -6,10 +6,11 @@
  * valid only when at least one hint remains on the chart, two for `direct`. All randomness comes from the given `Rng`,
  * so the same seed gives the same target.
  */
-import { numberAt, type ChartLayout } from '../chart/layout';
+import { COLUMNS, numberAt, type ChartLayout } from '../chart/layout';
 import type { Rng } from '../rng';
 import type { Settings } from '../settings/schema';
 import { HINT_DISTANCES, type Direction, type HintDistance, type Mode, type Target } from '../types';
+import { clamp } from '../util';
 import { directionsOf, hintsFor } from './hints';
 
 /** What the generator needs to know about the child's progress; the progress module (T042) fills it. */
@@ -132,7 +133,7 @@ export function nextTarget(input: NextTargetInput): Target {
   const candidates = [...usable.keys()];
   const direction = pickDirection(candidates, progress.mastered, rng);
   const byDistance = usable.get(direction)!;
-  const step = settings.adaptive ? Math.min(MAX_STEP, Math.max(0, progress.steps[direction] ?? 0)) : null;
+  const step = settings.adaptive ? clamp(progress.steps[direction] ?? 0, 0, MAX_STEP) : null;
   const choices = step === null ? [...byDistance.keys()] : distancesForStep(step, [...byDistance.keys()], direction);
   const distance = rng.pick(choices.length > 0 ? choices : [...byDistance.keys()]);
 
@@ -157,7 +158,7 @@ function patchedHoles(layout: ChartLayout, target: number, hints: readonly numbe
   const out: number[] = [];
   for (let tries = 0; out.length < count && tries < 50; tries++) {
     const row = rng.int(0, layout.rows - 1);
-    const col = rng.int(0, 9);
+    const col = rng.int(0, COLUMNS - 1);
     const n = numberAt(layout, row, col);
     if (n === null || n === target || hints.includes(n) || out.includes(n)) continue;
     out.push(n);

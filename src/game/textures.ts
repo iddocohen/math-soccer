@@ -5,6 +5,7 @@
  */
 import Phaser from 'phaser';
 import type { BallKind } from '../core/chart/layout';
+import { COLOR } from './palette';
 
 export const TEX = {
   ball: { soccer: 'ball-soccer', tennis: 'ball-tennis', pingpong: 'ball-pingpong' } satisfies Record<BallKind, string>,
@@ -25,9 +26,6 @@ export const FAN_HEAD_SIZE = 12;
 export const FAN_ARMS_SIZE = { width: 26, height: 18 } as const;
 export const SCARF_SIZE = { width: 32, height: 6 } as const;
 
-const INK = 0x12202c;
-const SKIN = 0xe9c4a0;
-const HAIR = 0x5b3b26;
 const WHITE = 0xffffff;
 
 /** Creates any texture that does not exist yet; safe to call from every scene start. */
@@ -44,7 +42,7 @@ export function ensureTextures(scene: Phaser.Scene): void {
     const r = BALL_SIZE.soccer / 2;
     g.fillStyle(WHITE, 1);
     g.fillCircle(r, r, r);
-    g.fillStyle(INK, 1);
+    g.fillStyle(COLOR.ink, 1);
     g.fillCircle(r, r, r * 0.35);
     for (let i = 0; i < 5; i++) {
       const a = (i * 2 * Math.PI) / 5 - Math.PI / 2;
@@ -76,7 +74,7 @@ export function ensureTextures(scene: Phaser.Scene): void {
   // The player from behind: head, white shirt (tinted), white shorts and legs. The number is drawn by the view.
   make(TEX.player, PLAYER_SIZE.width, PLAYER_SIZE.height, (g) => {
     const cx = PLAYER_SIZE.width / 2;
-    g.fillStyle(HAIR, 1);
+    g.fillStyle(COLOR.hair, 1);
     g.fillCircle(cx, 18, 17);
     g.fillStyle(WHITE, 1);
     g.fillRoundedRect(cx - 26, 34, 52, 50, 8);
@@ -88,16 +86,16 @@ export function ensureTextures(scene: Phaser.Scene): void {
   // The keeper facing the player: head, white jersey (tinted), dark shorts, yellow gloves out to the sides.
   make(TEX.keeper, KEEPER_SIZE.width, KEEPER_SIZE.height, (g) => {
     const cx = KEEPER_SIZE.width / 2;
-    g.fillStyle(SKIN, 1);
+    g.fillStyle(COLOR.skin, 1);
     g.fillCircle(cx, 16, 15);
     g.fillStyle(WHITE, 1);
     g.fillRect(cx - 22, 31, 44, 48);
     g.fillRect(cx - 44, 36, 22, 10);
     g.fillRect(cx + 22, 36, 22, 10);
-    g.fillStyle(INK, 1);
+    g.fillStyle(COLOR.ink, 1);
     g.fillRect(cx - 20, 79, 16, 30);
     g.fillRect(cx + 4, 79, 16, 30);
-    g.fillStyle(0xe8b923, 1);
+    g.fillStyle(COLOR.kit, 1);
     g.fillRect(cx - 58, 32, 16, 16);
     g.fillRect(cx + 42, 32, 16, 16);
   });
@@ -110,7 +108,7 @@ export function ensureTextures(scene: Phaser.Scene): void {
   });
 
   make(TEX.fanHead, FAN_HEAD_SIZE, FAN_HEAD_SIZE, (g) => {
-    g.fillStyle(SKIN, 1);
+    g.fillStyle(COLOR.skin, 1);
     g.fillCircle(FAN_HEAD_SIZE / 2, FAN_HEAD_SIZE / 2, FAN_HEAD_SIZE / 2);
   });
 

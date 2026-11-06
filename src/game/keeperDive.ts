@@ -13,7 +13,9 @@
  *   is so close to him that any dive toward it would reach it, he guesses the other side and dives that way.
  * - Fallen: after a beaten dive he lands on the grass, lying on his side, before he gets up.
  */
+import { center } from '../core/chart/layout';
 import { CHART_RECT, GOAL_FRAME } from '../core/match/world';
+import { clamp } from '../core/util';
 import type { Rect } from '../core/types';
 
 export interface Point {
@@ -68,13 +70,9 @@ export function glovesOf(pose: KeeperPose): Point {
 export function reachingFor(glove: Point, home: KeeperPose = HOME_POSE): KeeperPose {
   const dx = glove.x - home.x;
   const dy = glove.y - home.y;
-  const rotation = Math.max(-MAX_TILT, Math.min(MAX_TILT, Math.atan2(dx, -dy)));
+  const rotation = clamp(Math.atan2(dx, -dy), -MAX_TILT, MAX_TILT);
   const r = REACH * DIVE_SCALE;
   return { x: glove.x - Math.sin(rotation) * r, y: glove.y + Math.cos(rotation) * r, rotation, scale: DIVE_SCALE, arms: 1 };
-}
-
-function center(r: Rect): Point {
-  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 }
 
 /** The end of the dive at the ball that flies to `square`: on the ball when the keeper catches it, short when beaten. */

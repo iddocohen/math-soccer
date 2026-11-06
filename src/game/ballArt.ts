@@ -8,11 +8,10 @@
  */
 import Phaser from 'phaser';
 import type { BallKind } from '../core/chart/layout';
-import type { BallDesign } from '../core/rewards/items';
+import { BALL_COLORS, type BallDesign } from '../core/rewards/items';
 import { BALL_SIZE, TEX } from './textures';
 
 const WHITE = 0xffffff;
-const INK = 0x12202c;
 
 /** The texture key of a ball design in a ball kind; the texture is drawn the first time it is asked for. */
 export function ballTexture(scene: Phaser.Scene, design: BallDesign, kind: BallKind): string {
@@ -51,14 +50,14 @@ function star(g: Phaser.GameObjects.Graphics, x: number, y: number, outer: numbe
 function drawDesign(g: Phaser.GameObjects.Graphics, design: Exclude<BallDesign, 'classic'>, r: number): void {
   switch (design) {
     case 'blue':
-      g.fillStyle(0x3e8fd8, 1);
+      g.fillStyle(BALL_COLORS.blue.fill, 1);
       g.fillCircle(r, r, r);
-      patches(g, r, WHITE);
+      patches(g, r, BALL_COLORS.blue.mark);
       return;
     case 'stars':
-      g.fillStyle(0x1b2f6b, 1);
+      g.fillStyle(BALL_COLORS.stars.fill, 1);
       g.fillCircle(r, r, r);
-      g.fillStyle(0xffe066, 1);
+      g.fillStyle(BALL_COLORS.stars.mark, 1);
       star(g, r, r, r * 0.42);
       for (let i = 0; i < 5; i++) {
         const a = (i * 2 * Math.PI) / 5 - Math.PI / 2 + Math.PI / 5;
@@ -66,21 +65,21 @@ function drawDesign(g: Phaser.GameObjects.Graphics, design: Exclude<BallDesign, 
       }
       return;
     case 'gold':
-      g.fillStyle(0xd4a017, 1);
+      g.fillStyle(BALL_COLORS.gold.fill, 1);
       g.fillCircle(r, r, r);
       g.fillStyle(0xf7d560, 1);
       g.fillCircle(r * 0.85, r * 0.85, r * 0.7);
-      patches(g, r, 0x8a6510);
+      patches(g, r, BALL_COLORS.gold.mark);
       g.fillStyle(WHITE, 0.7);
       g.fillCircle(r * 0.6, r * 0.55, r * 0.15);
       return;
     case 'flames':
-      g.fillStyle(INK, 1);
+      g.fillStyle(BALL_COLORS.flames.fill, 1);
       g.fillCircle(r, r, r);
       // Three flame tongues from the bottom, red outside, orange and yellow inside.
       for (const [color, scale] of [
         [0xd8432b, 1],
-        [0xf08a24, 0.7],
+        [BALL_COLORS.flames.mark, 0.7],
         [0xffd23f, 0.42],
       ] as const) {
         g.fillStyle(color, 1);
@@ -91,7 +90,7 @@ function drawDesign(g: Phaser.GameObjects.Graphics, design: Exclude<BallDesign, 
       }
       return;
     case 'rainbow': {
-      const bands = [0xe74c3c, 0xf39c12, 0xf1c40f, 0x2ecc71, 0x3498db, 0x9b59b6];
+      const bands = [BALL_COLORS.rainbow.fill, 0xf39c12, 0xf1c40f, 0x2ecc71, 0x3498db, 0x9b59b6];
       bands.forEach((color, i) => {
         g.fillStyle(color, 1);
         g.fillCircle(r, r, r * (1 - i / bands.length));

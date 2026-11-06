@@ -16,8 +16,10 @@
  * - The posts and the crossbar are drawn once, in front of the board.
  */
 import Phaser from 'phaser';
+import { center } from '../core/chart/layout';
 import { CHART_RECT, GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import type { Rect } from '../core/types';
+import { clamp } from '../core/util';
 import { boardKey, buildBoard, type Arrow, type BoardInput, type Square } from './board';
 import { COLOR, css } from './palette';
 
@@ -159,7 +161,7 @@ export class GoalView {
       ctx.fillRect(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
     }
     if (s.outlined) {
-      const line = Math.max(2, Math.min(5, h / 6));
+      const line = clamp(h / 6, 2, 5);
       ctx.strokeStyle = css(COLOR.kit);
       ctx.lineWidth = line;
       ctx.strokeRect(x + line / 2 + 1, y + line / 2 + 1, w - line - 2, h - line - 2);
@@ -168,8 +170,7 @@ export class GoalView {
 
   private drawLabel(ctx: CanvasRenderingContext2D, s: Square, fontSize: number, numbersFit: boolean): void {
     if (!s.label) return;
-    const cx = s.rect.x + s.rect.width / 2;
-    const cy = s.rect.y + s.rect.height / 2;
+    const { x: cx, y: cy } = center(s.rect);
     if (!numbersFit) {
       // Squares are too small for a number: the label sits on a badge larger than the square.
       const w = ctx.measureText(s.label.text).width + 8;
@@ -193,7 +194,7 @@ export class GoalView {
     if (length === 0) return;
     const ux = dx / length;
     const uy = dy / length;
-    const width = Math.max(3, Math.min(9, cellHeight / 6));
+    const width = clamp(cellHeight / 6, 3, 9);
     const head = width * 3;
     // Start beside the hint's number and end at the hole's edge, so neither number is covered.
     const start = Math.min(length / 3, cellHeight * 0.35);

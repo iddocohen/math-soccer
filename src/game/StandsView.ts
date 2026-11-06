@@ -13,6 +13,7 @@
  */
 import Phaser from 'phaser';
 import { WORLD_WIDTH } from '../core/match/world';
+import { itemById } from '../core/rewards/items';
 import { FAN_ARMS_SIZE, FAN_HEAD_SIZE, FAN_SIZE, SCARF_SIZE, TEX } from './textures';
 
 /** How long the cheer, the slump and the clapping last, in milliseconds of game time. */
@@ -25,7 +26,8 @@ const ROW_TOP = 60;
 const ROW_GAP = 48;
 const FAN_GAP = 34;
 const SCALE = 1.6;
-const SHIRTS = [0xc94f4f, 0x3e6fb0, 0xe8b923, 0xf4f6ef, 0x4f9c5f] as const;
+/** Fan shirts in the locker room's shirt colors. */
+const SHIRTS = ['shirt.red', 'shirt.blue', 'shirt.yellow', 'shirt.white', 'shirt.green'].map((id) => itemById(id)!.color!);
 
 interface Fan {
   x: number;

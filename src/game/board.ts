@@ -15,7 +15,7 @@
  * the child already shot are lit in the kit color with their number, and the next square is outlined as the target.
  * Once the line is finished every square of it is lit and none is outlined.
  */
-import { cellRect, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
+import { cellRect, cellRectAt, center, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
 import type { Line } from '../core/targets/lines';
 import type { DeepReadonly, Mode, Rect, Target } from '../core/types';
 
@@ -100,10 +100,7 @@ export function buildBoard(input: BoardInput): Board {
   for (let row = 0; row < layout.rows; row++) {
     for (let col = 0; col < COLUMNS; col++) {
       const n = numberAt(layout, row, col);
-      const rect: Rect =
-        n === null
-          ? { x: goal.x + (col * goal.width) / COLUMNS, y: goal.y + row * cellHeight, width: goal.width / COLUMNS, height: cellHeight }
-          : cellRect(layout, goal, n);
+      const rect = cellRectAt(layout, goal, row, col);
       if (n === null) {
         squares.push({ n, rect, kind: mode === 'keeper' ? 'open' : 'empty', outlined: false, lit: false, shown: false, label: null });
         continue;
@@ -128,10 +125,6 @@ export function buildBoard(input: BoardInput): Board {
     }
   }
   return { squares, fontSize, numbersFit, arrow: helpArrow(input) };
-}
-
-function center(r: Rect): { x: number; y: number } {
-  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 }
 
 function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {

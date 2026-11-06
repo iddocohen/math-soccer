@@ -13,7 +13,7 @@
  * All motion uses scene tweens, so pausing the scene's tweens pauses the ball.
  */
 import Phaser from 'phaser';
-import type { BallKind } from '../core/chart/layout';
+import { center, type BallKind } from '../core/chart/layout';
 import type { BallDesign } from '../core/rewards/items';
 import { GOAL_FRAME, KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
@@ -72,8 +72,7 @@ export class BallView {
     const endScale = Math.min(FAR_SCALE, (to.height * 0.85) / size, (to.width * 0.85) / size);
     const x0 = KICK_SPOT.x;
     const y0 = KICK_SPOT.y;
-    const x1 = to.x + to.width / 2;
-    const y1 = to.y + to.height / 2;
+    const { x: x1, y: y1 } = center(to);
     this.tween = this.scene.tweens.addCounter({
       from: 0,
       to: 1,

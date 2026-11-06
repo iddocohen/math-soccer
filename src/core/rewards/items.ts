@@ -15,6 +15,20 @@ export type ItemKind = 'ball' | 'shirt' | 'scarf';
 export const BALL_DESIGNS = ['classic', 'blue', 'stars', 'gold', 'flames', 'rainbow'] as const;
 export type BallDesign = (typeof BALL_DESIGNS)[number];
 
+/**
+ * The two main colors of each ball design as 0xRRGGBB: the ball's `fill` and its `mark` (patches, stars or flames).
+ * src/game/ballArt.ts draws the designs with them, the locker room's small pictures use them too. The rainbow ball's
+ * fill is its outer band.
+ */
+export const BALL_COLORS: Record<BallDesign, { fill: number; mark: number }> = {
+  classic: { fill: 0xffffff, mark: 0x12202c },
+  blue: { fill: 0x3e8fd8, mark: 0xffffff },
+  stars: { fill: 0x1b2f6b, mark: 0xffe066 },
+  gold: { fill: 0xd4a017, mark: 0x8a6510 },
+  flames: { fill: 0x12202c, mark: 0xf08a24 },
+  rainbow: { fill: 0xe74c3c, mark: 0xffffff },
+};
+
 export interface LockerItem {
   /** `<kind>.<name>`, for example `ball.gold`. */
   id: string;
