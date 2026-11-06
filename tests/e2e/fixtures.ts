@@ -7,6 +7,7 @@
  * All e2e specs import `test` and `expect` from here instead of @playwright/test.
  */
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import { BASELINE, BASELINE_KEY } from '../../src/core/storage/storage';
 import { GAME_WAIT } from './gameWait';
 
 export function silenceAudio(): void {
@@ -39,7 +40,8 @@ function toPairs(entries: Record<string, unknown>): Array<[string, string]> {
 
 /**
  * Stores each entry as JSON in localStorage before the page's scripts run. By default this happens on every load.
- * With `once`, it happens only on the first load in the tab, so a reload keeps what the game stored.
+ * With `once`, it happens only on the first load in the tab, so a reload keeps what the game stored. The stored data
+ * baseline marker (T106) is written too, so the game reads the entries instead of clearing them as older data.
  */
 export async function seedStorage(page: Page, entries: Record<string, unknown>, { once = false }: { once?: boolean } = {}): Promise<void> {
   await page.addInitScript(
@@ -50,7 +52,7 @@ export async function seedStorage(page: Page, entries: Record<string, unknown>, 
       }
       for (const [k, v] of pairs) window.localStorage.setItem(k, v);
     },
-    [toPairs(entries), once] as const,
+    [[...toPairs(entries), [BASELINE_KEY, BASELINE] as [string, string]], once] as const,
   );
 }
 

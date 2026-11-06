@@ -4,7 +4,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { isRecord } from '../util';
 import type { KeyValue } from './keyValue';
-import { isRemovedModeRound, migrate, parseSettings, type StoredKindName } from './migrate';
+import { migrate, parseSettings, type StoredKindName } from './migrate';
 import {
   cupSchema,
   emptyCup,
@@ -30,6 +30,18 @@ export const RECORDS_KEY = 'mathsoccer.records.v1';
 export const ROUND_KEY = 'mathsoccer.round.v1';
 export const CUP_KEY = 'mathsoccer.cup.v1';
 
+/** Every key that holds stored game data; each can have a kept copy under `unreadableKey`. */
+export const DATA_KEYS = [SETTINGS_KEY, PROGRESS_KEY, LOCKER_ROOM_KEY, RECORDS_KEY, ROUND_KEY, CUP_KEY] as const;
+
+/**
+ * The stored data baseline (T106, data-model.md "Stored data baseline"). During development the stored kinds went
+ * through versions 2 to 4 under the same keys; the baseline made every kind version 1 again. A browser whose
+ * `BASELINE_KEY` does not hold `BASELINE` may still hold that older data, so `applyBaseline` clears it once. Changing
+ * `BASELINE` clears every player's data again; a normal shape change uses a migration step (migrate.ts) instead.
+ */
+export const BASELINE_KEY = 'mathsoccer.baseline';
+export const BASELINE = '1';
+
 /**
  * Why loaded data was replaced by its defaults: 'invalid' for damaged or invalid data, 'newer' for data written by a
  * newer version of the game, 'unavailable' when storage cannot be read. The parent sees a short message (FR-036).
@@ -43,8 +55,6 @@ export interface StoredKind<T> {
   version: number;
   /** The value after migration and validation, or null when it is not usable. */
   parse(raw: unknown): T | null;
-  /** True for stored data that is valid but no longer used; it loads as empty without a reset note (FR-070). */
-  retired?(raw: unknown): boolean;
   empty(): T;
 }
 
@@ -58,7 +68,7 @@ function schemaParser<T>(name: StoredKindName, schema: { safeParse(v: unknown): 
 export const SETTINGS: StoredKind<Settings> = {
   name: 'settings',
   key: SETTINGS_KEY,
-  version: 4,
+  version: 1,
   parse: parseSettings,
   empty: defaultSettings,
 };
@@ -66,7 +76,7 @@ export const SETTINGS: StoredKind<Settings> = {
 export const PROGRESS: StoredKind<Progress> = {
   name: 'progress',
   key: PROGRESS_KEY,
-  version: 4,
+  version: 1,
   parse: schemaParser('progress', progressSchema),
   empty: emptyProgress,
 };
@@ -82,7 +92,7 @@ export const RECORDS: StoredKind<Records> = {
 export const LOCKER_ROOM: StoredKind<LockerRoom> = {
   name: 'lockerRoom',
   key: LOCKER_ROOM_KEY,
-  version: 2,
+  version: 1,
   parse: (raw) => {
     const locker = schemaParser('lockerRoom', lockerRoomSchema)(raw);
     return locker && cleanLockerRoom(locker);
@@ -99,13 +109,12 @@ export const CUP: StoredKind<Cup> = {
   empty: emptyCup,
 };
 
-/** A round is either stored or not; "empty" is no round to continue. A hole or line round is discarded (FR-070). */
+/** A round is either stored or not; "empty" is no round to continue. */
 export const ROUND: StoredKind<StoredRound | null> = {
   name: 'round',
   key: ROUND_KEY,
-  version: 4,
+  version: 1,
   parse: schemaParser('round', roundSchema),
-  retired: isRemovedModeRound,
   empty: () => null,
 };
 
@@ -152,13 +161,35 @@ export function load<T>(kv: KeyValue, kind: StoredKind<T>): { value: T; resetRea
     keepUnreadable(kv, kind.key, text);
     return { value: kind.empty(), resetReason: 'newer' };
   }
-  if (kind.retired?.(raw)) return { value: kind.empty(), resetReason: 'none' };
   const value = kind.parse(raw);
   if (value === null) {
     keepUnreadable(kv, kind.key, text);
     return { value: kind.empty(), resetReason: 'invalid' };
   }
   return { value, resetReason: 'none' };
+}
+
+/**
+ * Clears stored data from before the baseline once: when `BASELINE_KEY` does not hold `BASELINE`, every data key and
+ * its kept copy is removed and the marker is written. Runs before anything is loaded. `cleared` is true when it removed
+ * data. When storage cannot be read or written, the loaders report it as usual and the next start tries again.
+ */
+export function applyBaseline(kv: KeyValue): { cleared: boolean } {
+  let cleared = false;
+  try {
+    if (kv.get(BASELINE_KEY) === BASELINE) return { cleared };
+    for (const key of DATA_KEYS) {
+      for (const k of [key, unreadableKey(key)]) {
+        if (kv.get(k) === null) continue;
+        kv.remove(k);
+        cleared = true;
+      }
+    }
+    kv.set(BASELINE_KEY, BASELINE);
+  } catch {
+    // Storage is blocked or full: what was removed stays removed, and the next start tries again.
+  }
+  return { cleared };
 }
 
 /** Saves one stored kind; `ok` is false when storage is full or blocked, and the game keeps going. */

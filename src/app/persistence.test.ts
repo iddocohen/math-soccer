@@ -114,7 +114,7 @@ describe('resetAll (FR-051)', () => {
     const settings = JSON.stringify({ ...defaultSettings(), showClock: true });
     const kv = memoryKeyValue({ [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), stars: 5, totalEarned: 9 }) });
     const p = createPersistence(kv);
-    p.saveRecords({ ...emptyRecords(), bests: { '1-100|holes|goalCount': { goals: 3, timeMs: 1000, at: '2026-11-06T00:00:00.000Z' } } });
+    p.saveRecords({ ...emptyRecords(), bests: { '1-100|keeper|goalCount': { goals: 3, timeMs: 1000, at: '2026-11-06T00:00:00.000Z' } } });
     expect(p.resetAll()).toEqual({ ok: true });
     expect(p.lockerRoom()).toEqual(emptyLockerRoom());
     expect(p.records()).toEqual(emptyRecords());

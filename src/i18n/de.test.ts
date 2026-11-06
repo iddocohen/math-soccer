@@ -80,7 +80,6 @@ describe('texts from contracts/screens.md', () => {
     ]);
     expect([de.settings.data.export, de.settings.data.import]).toEqual(['Daten sichern', 'Daten laden']);
     expect(de.progressPage.columns.mastered).toBe('gemeistert');
-    expect(de.progressPage.columns.earlier).toBe('früher');
     expect(Object.values(de.levels.names)).toEqual(['Gerade Linien', 'Schräge Linien', 'Formen', 'Formen mit 2 Lücken', 'X-Form']);
     expect(de.feedback.levelUp(de.levels.names[2])).toBe('Neue Stufe: Schräge Linien!');
     expect(Object.values(de.settings.options.shapes)).toEqual(['Stab', 'Quadrat', 'T', 'L', 'J', 'S', 'Z']);

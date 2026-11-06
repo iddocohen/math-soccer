@@ -121,3 +121,4 @@ Five reviewers ran in parallel: code-reviewer, pr-test-analyzer, silent-failure-
 3. Done: public repository https://github.com/iddocohen/math-soccer, Pages from GitHub Actions; the first run (42250225321) passed lint, typecheck, unit tests and build, and https://iddocohen.github.io/math-soccer/ serves the game.
 4. Walk through the quickstart on a real iPad, including offline play.
 5. Optionally address the deferred low findings, especially the remaining test gaps.
+6. Stored data baseline (T106): every stored kind, the export file and the transfer code are at version 1, and the dev-time migrations are gone. On the first start after this build, each browser clears its older game data once (marker `mathsoccer.baseline`), so the published game starts fresh for the parent. From now on, a change to a stored shape needs a migration step in src/core/storage/migrate.ts, not a reset (data-model.md "Stored data baseline").

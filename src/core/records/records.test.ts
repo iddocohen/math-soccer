@@ -8,13 +8,11 @@ describe('recordKey (data-model "PersonalBest")', () => {
     expect(recordKey(0, 1000, 'goalCount')).toBe('0-1000|keeper|goalCount');
   });
 
-  it('differs when any part differs, and never matches a best of the removed hole or line mode (FR-070)', () => {
+  it('differs when any part differs', () => {
     const base = recordKey(1, 100, 'untilHearts');
     expect(recordKey(1, 101, 'untilHearts')).not.toBe(base);
     expect(recordKey(0, 100, 'untilHearts')).not.toBe(base);
     expect(recordKey(1, 100, 'goalCount')).not.toBe(base);
-    expect(base).not.toBe('1-100|holes|untilHearts');
-    expect(base).not.toBe('1-100|lines|untilHearts');
   });
 });
 

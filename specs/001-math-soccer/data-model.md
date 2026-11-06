@@ -1,18 +1,27 @@
 # Data Model: Math Soccer
 
-All stored entities are validated with Zod on load and carry a `version`. Damaged or older data is migrated or reset with a short message (FR-036), as math-tank.
+All stored entities are validated with Zod on load and carry a `version`. Damaged data, and data from a newer version of the game, is reset with a short message (FR-036), as math-tank; older data is migrated (see "Stored data baseline").
 
-## Settings (`mathsoccer.settings.v1`, version 4)
+## Stored data baseline (T106)
 
-Version 4 follows amendments 05 to 07, 09 and 10. Migrations (src/core/storage/migrate.ts):
+Every stored kind is at version 1 with the shape described below: settings, progress, records, locker room, round and cup. The storage keys keep their names (`mathsoccer.<kind>.v1`).
 
-- Version 1 to 2 (FR-070): `modes` and `lineLength` are dropped, `lineDirections` becomes `directions`, all `patterns` and `shapes` are turned on, and `timeChallenge` gets its defaults.
-- Version 2 to 3 (amendment 09): `levels` replaces `directions` ("Richtungen") and `patterns` ("Hinweis-Muster"), with levels 1 to 5. A parent who had turned the pattern "Formen" off gets every shape off, so levels 3 and 4 are skipped (T095).
-- Version 3 to 4 (amendment 10): `rowColumnHelper` is new and starts on.
+During development the kinds went through versions 2 to 4 under the same keys (settings and progress up to 4, round up to 4, locker room up to 2), with migration steps between them. The baseline removed those steps, the old-version mapping (ladder steps to levels, three-step help to four-step help, hole and line rounds and the "früher" totals on the progress page) and the readers of older transfer codes and export files.
+
+Because older data sits under the same keys, a one-time marker keeps it from being read as the new version 1:
+
+- `mathsoccer.baseline` holds the build constant `BASELINE` (`'1'`, src/core/storage/storage.ts).
+- On start, before anything loads, `applyBaseline` checks the marker. When it is missing or holds another value, it removes every data key (`DATA_KEYS`: settings, progress, locker room, records, round, cup) and its kept copy under `<key>.unreadable`, then writes the marker. Other keys stay.
+- The cleared data loads as the defaults with no reset message. A new browser has no data, so it only gets the marker.
+- When storage is blocked, nothing changes and the next start tries again.
+
+Future shape changes use the migration mechanism instead of a new baseline: raise the kind's `version` in its schema and in its `StoredKind` (storage.ts), and add a step from the old version to the new one in `STEPS` (src/core/storage/migrate.ts). `load` runs the steps before the schema check, so older data keeps working. The test "example: how a future step from version 1 to version 2 runs" (src/core/storage/storage.test.ts) shows a step. Changing `BASELINE` clears every player's data again and is only for a change that cannot be migrated.
+
+## Settings (`mathsoccer.settings.v1`, version 1)
 
 | Field | Type | Default | Rule |
 |-------|------|---------|------|
-| `version` | `4` | 4 | |
+| `version` | `1` | 1 | |
 | `range` | `{ preset: '1-100' \| '0-1000' \| 'custom', min, max }` | `1-100`, 1, 100 | integers, `0 <= min < max <= 1000`, `max - min >= 9` |
 | `hintDisplay` | `'always' \| 'onRequest'` | `'always'` | `onRequest` hides the hint numbers until help step 1 |
 | `hintDistance` | `{ direct, vertical, diagonal, far: boolean }` | all true | at least one true; the distances of the Nachbarn pattern |
@@ -21,6 +30,7 @@ Version 4 follows amendments 05 to 07, 09 and 10. Migrations (src/core/storage/m
 | `timeChallenge` | `{ allowed: boolean, minutes: 1 \| 2 \| 3 \| 5 }` | true, 2 | FR-075, FR-076 |
 | `roundType` | `'untilHearts' \| 'goalCount'` | `'untilHearts'` | the round type of "Spielen" |
 | `goalsPerRound` | integer | 10 | 1 to 20 |
+| `cupGoals` | integer | 5 | "Tore pro Spiel" of a cup match (FR-108), 3 to 10 |
 | `difficulty` | `'easy' \| 'normal' \| 'challenging'` | `'easy'` | misses per heart: 5, 4, 3 |
 | `adaptive` | boolean | true | |
 | `sound` | `{ effects, crowd, ohh, speech: boolean }` | true, true, true, false | `ohh` off plays clapping alone |
@@ -63,10 +73,11 @@ Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of am
 | Field | Meaning |
 |-------|---------|
 | `seed` | round seed for `Rng` |
-| `version` | 4 (version 1 had a mode and a line, and hole and line rounds are discarded on load, FR-070; version 3 stores the target's level instead of its ladder step; version 4 stores the help step of the four-step help) |
-| `roundType` | `untilHearts` or `goalCount` from the settings for "Spielen", `time` for "Zeit-Challenge" |
+| `version` | 1 |
+| `roundType` | `untilHearts` or `goalCount` from the settings for "Spielen", `time` for "Zeit-Challenge", `cup` for a cup match |
 | `challengeMinutes` | the challenge time of a `time` round (1, 2, 3 or 5), null otherwise; the settings change it only from the next round |
-| `goalsPerRound` | goals per round at the round start; a refresh keeps it and the round-start `roundType` (FR-052). Missing in rounds stored before it was kept, then the current setting applies |
+| `goalsPerRound` | goals per round at the round start; a refresh keeps it and the round-start `roundType` (FR-052) |
+| `cupMatch` | `{ level, goals }` of a `cup` round (its fixed level and the goals that win it), null otherwise |
 | `min`, `max` | the round's range; `min` is below `max` |
 | `goals` | goals scored |
 | `hearts` | 3 down to 0 (`untilHearts` only) |
@@ -78,7 +89,7 @@ Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of am
 | `elapsedMs` | time played, paused when hidden or paused; in a time challenge the countdown is `challengeMinutes` minus this, so a refresh continues it |
 | `phase` | `aiming`, `ballInFlight`, `celebrating`, `roundOver` |
 
-A stored round is saved between shots, so its phase is `aiming` or `celebrating`. It is discarded on load when a rule between fields fails: `min` is not below `max`, an aiming round has no target, the target or a queued shape square lies outside `min..max`, or `challengeMinutes` is set for a round that is not a time challenge (or missing for one).
+A stored round is saved between shots, so its phase is `aiming` or `celebrating`. It is discarded on load when a rule between fields fails: `min` is not below `max`, an aiming round has no target, the target or a queued shape square lies outside `min..max`, `challengeMinutes` is set for a round that is not a time challenge (or missing for one), or `cupMatch` is set for a round that is not a cup match (or missing for one).
 
 State transitions: `aiming --shoot(n in range)--> ballInFlight`; when the ball lands, a goal goes to `celebrating --> aiming (the next empty square of the same shape, else a new target) or roundOver`, and a miss goes to `aiming` (help step +1, misses +1; with `untilHearts`, at the difficulty limit hearts −1 and help jumps to the answer); `roundOver` when hearts reach 0, goals reach `goalsPerRound`, or the countdown of a time challenge reaches 0. At 0 a round that aims ends at once; a ball in flight still lands, a goal is still celebrated, and then the round ends (FR-077). There is no separate landed phase: the landing result is the ball's `outcome`.
 
@@ -86,11 +97,11 @@ A round ended with "Zum Start" (amendment 14, FR-118) has no round end: the stor
 
 ## AttemptRecord (`mathsoccer.progress.v1`)
 
-`{ at, mode, min, max, target, directions[], hintDistance, hintDisplay, level, solved, helpStep, misses, responseMs, guess }`. `level` is 1 to 5; older attempts get theirs from the ladder step (steps 0 to 2 level 1, 3 and 4 level 2, 5 level 3, 6 and 7 level 4). `helpStep` is 0 to 4; older attempts of the three-step help move 2 to 3 and 3 to 4. Kept as a capped list (last 2000 attempts), as math-tank. New attempts have `mode: 'keeper'`; `holes` and `lines` attempts from earlier versions are kept and count as "früher" (FR-070).
+`{ at, mode, min, max, target, directions[], hintDistance, hintDisplay, level, solved, helpStep, misses, responseMs, guess }`. `mode` is always `'keeper'`. `level` is 1 to 5. `helpStep` is 0 to 4. Kept as a capped list (last 2000 attempts), as math-tank.
 
-## Progress (`mathsoccer.progress.v1`, version 4)
+## Progress (`mathsoccer.progress.v1`, version 1)
 
-Version 3 (amendment 09) keeps one current level for the child instead of a ladder step per direction; version 4 (amendment 10) has help steps 0 to 4.
+Every field is required.
 
 | Field | Meaning |
 |-------|---------|
@@ -109,9 +120,9 @@ Per `mode|direction`: `masteryWindow`, `attempts`, `independent`, `assisted`, `g
 
 ## PersonalBest (`mathsoccer.records.v1`)
 
-Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|minutes` for time challenges, so a time challenge compares only with the same range and challenge time (FR-080). Value: `{ goals, timeMs, at }`. Keys with `holes` or `lines` are bests of the removed modes, kept under "früher" and no longer compared (FR-070).
+Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|minutes` for time challenges, so a time challenge compares only with the same range and challenge time (FR-080). Value: `{ goals, timeMs, at }`. Stored as `{ version: 1, bests }`. The progress page skips keys it cannot read.
 
-## LockerRoom (`mathsoccer.lockerroom.v1`)
+## LockerRoom (`mathsoccer.lockerroom.v1`, version 1)
 
 | Field | Meaning |
 |-------|---------|
@@ -127,7 +138,24 @@ Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|mi
 
 Stars: 2 per goal, also each goal of a two-empty shape and each goal in a time challenge. Items cost 5 to 40 stars; the starter ball, white shirt and yellow scarves are free. Decision (T057): the yellow shirt in the game's kit color is free too and is the shirt a new player wears; `owned` lists bought items only. Item ids are `ball.<design>`, `shirt.<color>`, `scarf.<color>` and `celebration.<name>` (src/core/rewards/items.ts).
 
-Version 2 (T103) adds `celebration`. The celebrations are `armsUp` ("Arme hoch", free), `slide` ("Rutschen", 10), `dance` ("Tanz", 15), `airplane` ("Flugzeug", 15), `heart` ("Herz", 20) and `backflip` ("Salto", 30). Decision (parent): no migration for now; stored version 1 data is not read and loads as the defaults, like any unreadable data. A migration is a separate final step.
+The celebrations are `armsUp` ("Arme hoch", free), `slide` ("Rutschen", 10), `dance` ("Tanz", 15), `airplane` ("Flugzeug", 15), `heart` ("Herz", 20) and `backflip` ("Salto", 30). Loading drops unknown and free items from `owned` and puts the starter item back where a chosen item is not owned.
+
+## Cup (`mathsoccer.cup.v1`, version 1)
+
+The cup journey (amendment 13, FR-106 to FR-112). No stored cup is the first cup at its first match.
+
+| Field | Meaning |
+|-------|---------|
+| `cup` | the number of the cup being played, 1 for the first |
+| `stage` | the next match, 0 (Gruppenspiel 1) to 4 (Finale) |
+| `tries` | lost tries of that match |
+| `scores` | `{ goals, against }` of each match already won in this cup, one per stage before `stage` |
+| `trophies` | `{ cup, at }` of each won cup, oldest first |
+
+## Export file and transfer code (format version 1)
+
+- Export file ("Daten sichern", FR-041): JSON `{ app: 'math-soccer', exportedAt, settings, progress, records, lockerRoom, cup }`. Each part carries its own `version` and is read with the same migrations and schemas as storage. A file with a missing or invalid part is refused as a whole.
+- Transfer code (link or QR code, FR-041): `#save=v1.<data>`, where `<data>` is the base64url of `{ v: 1, settings, lockerRoom, records, directions, level, levels, cup }`, compressed with `deflate-raw` when the browser can. Codes of any other version are refused. A later change to the format raises the code version and reads the older format next to the new one.
 
 ## Not stored: update state (amendment 12)
 

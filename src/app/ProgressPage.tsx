@@ -3,8 +3,8 @@
  * Parent progress page (FR-039, contracts/screens.md "Progress"). Opened from the parent menu, so it sits behind the
  * same gate as the settings. It shows the child's current difficulty level (with how many more targets alone raise it)
  * and per level the targets solved alone and with help (FR-090). Then per direction the attempts, the targets solved
- * alone and with help in separate columns and whether the direction is mastered, all from the goalkeeper game, and in a "früher" column the attempts of the removed hole and line modes (amendment 05,
- * FR-070). Then the personal bests as a plain list, and the bests of the removed modes under "Früher". "Fortschritt zurücksetzen" asks first and then empties the
+ * alone and with help in separate columns and whether the direction is mastered. Then the personal bests as a plain
+ * list. "Fortschritt zurücksetzen" asks first and then empties the
  * progress; the personal bests and the stars stay. "Alles zurücksetzen" (amendment 01, FR-051, as math-tank amendment 24)
  * asks first, reminding the parent to save the data before, then clears progress, personal bests, stars and the locker
  * room together or not at all; the settings stay.
@@ -105,7 +105,6 @@ export function ProgressPage({ persistence, onClose }: Props) {
                 <th scope="col">{P.columns.alone}</th>
                 <th scope="col">{P.columns.withHelp}</th>
                 <th scope="col">{P.columns.mastered}</th>
-                <th scope="col">{P.columns.earlier}</th>
               </tr>
             </thead>
             <tbody>
@@ -116,7 +115,6 @@ export function ProgressPage({ persistence, onClose }: Props) {
                   <td>{r.independent}</td>
                   <td>{r.withHelp}</td>
                   <td>{r.mastered ? P.masteredYes : P.masteredNo}</td>
-                  <td data-testid="progress-earlier">{r.earlier}</td>
                 </tr>
               ))}
             </tbody>
@@ -137,18 +135,6 @@ export function ProgressPage({ persistence, onClose }: Props) {
               </li>
             ))}
           </ul>
-        )}
-        {summary.earlierBests.length > 0 && (
-          <>
-            <h4>{P.earlierBests}</h4>
-            <ul className="progress-bests" data-testid="progress-earlier-bests">
-              {summary.earlierBests.map((b) => (
-                <li key={`${b.min}-${b.max}|${b.mode}|${b.roundType}`}>
-                  {P.range(b.min, b.max)}, {P.earlierModes[b.mode]}, {P.roundTypes[b.roundType]}: {P.bestLine(b.goals, b.timeMs)}
-                </li>
-              ))}
-            </ul>
-          </>
         )}
       </section>
 

@@ -1,12 +1,10 @@
 import { z } from 'zod';
-import { CHALLENGE_MINUTES, CUP_GOALS_DEFAULT, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
+import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
 
 /**
- * Structural schema of the stored settings, version 4 (stored under `mathsoccer.settings.v1`, data-model.md
- * "Settings"; amendments 05 to 07, 09 and 10). Version 1 had game modes, line directions and a line length; version 2
- * had "Richtungen" and "Hinweis-Muster", which the difficulty levels replace; version 3 had no row and column helper
- * switch. migrate.ts turns each into version 4. Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of
- * goals per round and the challenge minutes are checked here too, so stored settings outside them are invalid on load.
+ * Structural schema of the stored settings, version 1 (stored under `mathsoccer.settings.v1`, data-model.md
+ * "Settings"). Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of goals
+ * per round and the challenge minutes are checked here too, so stored settings outside them are invalid on load.
  */
 
 export const rangePresetSchema = z.enum(['1-100', '0-1000', 'custom']);
@@ -18,7 +16,7 @@ export const rangeSchema = z.object({
 });
 
 export const settingsSchema = z.object({
-  version: z.literal(4),
+  version: z.literal(1),
   range: rangeSchema,
   hintDisplay: z.enum(['always', 'onRequest']),
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
@@ -33,11 +31,8 @@ export const settingsSchema = z.object({
   }),
   roundType: z.enum(['untilHearts', 'goalCount']),
   goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX),
-  /**
-   * "Tore pro Spiel" (amendment 13, FR-108): the goals that win a cup match. Settings stored before the cup have none
-   * and get the default, so the version stays 4 (design call, T101: an added field with a default needs no new version).
-   */
-  cupGoals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX).default(CUP_GOALS_DEFAULT),
+  /** "Tore pro Spiel" (amendment 13, FR-108): the goals that win a cup match. */
+  cupGoals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX),
   difficulty: z.enum(['easy', 'normal', 'challenging']),
   adaptive: z.boolean(),
   sound: z.object({ effects: z.boolean(), crowd: z.boolean(), ohh: z.boolean(), speech: z.boolean() }),

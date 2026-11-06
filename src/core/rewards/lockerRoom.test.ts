@@ -192,12 +192,11 @@ describe('celebrations (amendment 13, FR-113)', () => {
     expect(celebrationOf('ball.gold')).toBe('armsUp');
   });
 
-  it('stores the celebration in version 2; version 1 data is not read (no migration)', () => {
+  it('stores the celebration; a locker room without one is not read', () => {
     const stored = { ...emptyLockerRoom(), stars: 3, owned: ['celebration.dance'], celebration: 'celebration.dance' };
-    expect(LOCKER_ROOM.version).toBe(2);
     expect(LOCKER_ROOM.parse(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
-    const v1: Record<string, unknown> = { ...stored, version: 1 };
-    delete v1.celebration;
-    expect(LOCKER_ROOM.parse(v1)).toBeNull();
+    const noCelebration: Record<string, unknown> = { ...stored };
+    delete noCelebration.celebration;
+    expect(LOCKER_ROOM.parse(noCelebration)).toBeNull();
   });
 });

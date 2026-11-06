@@ -1,7 +1,7 @@
 // Adapted from math-tank src/core/storage/exportImport.ts.
 import type { Settings } from '../settings/schema';
 import { isRecord } from '../util';
-import { emptyCup, type Cup, type LockerRoom, type Progress, type Records } from './schemas';
+import { type Cup, type LockerRoom, type Progress, type Records } from './schemas';
 import { CUP, LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from './storage';
 
 /** Marks an export file as ours. */
@@ -59,8 +59,7 @@ export function importData(text: string): ImportResult {
   if (!records) return { ok: false, reason: 'invalidRecords' };
   const lockerRoom = LOCKER_ROOM.parse(raw.lockerRoom);
   if (!lockerRoom) return { ok: false, reason: 'invalidLockerRoom' };
-  // A file saved before the cup (amendment 13) has none: the cup starts at its first match.
-  const cup = raw.cup === undefined ? emptyCup() : CUP.parse(raw.cup);
+  const cup = CUP.parse(raw.cup);
   if (!cup) return { ok: false, reason: 'invalidCup' };
 
   return { ok: true, settings, progress, records, lockerRoom, cup };

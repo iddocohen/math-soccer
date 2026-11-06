@@ -22,7 +22,7 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
 
   it('has the listed values', () => {
     const s = defaultSettings();
-    expect(s.version).toBe(4);
+    expect(s.version).toBe(1);
     expect(s.range).toEqual({ preset: '1-100', min: 1, max: 100 });
     expect(s).not.toHaveProperty('modes');
     expect(s).not.toHaveProperty('lineLength');
@@ -134,9 +134,7 @@ describe('settingsSchema', () => {
     const { pointAfterFullHelp: _dropped, ...rest } = defaultSettings();
     void _dropped;
     expect(settingsSchema.safeParse(rest).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 2 }).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 3 }).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 5 }).success).toBe(false);
+    for (const version of [0, 2, 3, 4]) expect(settingsSchema.safeParse({ ...defaultSettings(), version }).success).toBe(false);
   });
 });
 
@@ -152,122 +150,21 @@ describe('settingsSchema limits (review M5)', () => {
   });
 });
 
-/** Settings as the published game (version 1) stored them, with every field set away from its default. */
-function storedV1(): Record<string, unknown> {
-  return {
-    version: 1,
-    range: { preset: 'custom', min: 200, max: 500 },
-    modes: { holes: false, lines: true, keeper: true },
-    hintDisplay: 'onRequest',
-    hintDistance: { direct: true, vertical: false, diagonal: true, far: false },
-    lineDirections: { right: false, down: true, downRight: false, downLeft: true, left: true, up: false, upLeft: false, upRight: false },
-    lineLength: 7,
-    roundType: 'goalCount',
-    goalsPerRound: 12,
-    difficulty: 'normal',
-    adaptive: false,
-    sound: { effects: false, crowd: true, ohh: false, speech: true },
-    numberPad: 'always',
-    showClock: true,
-    showRecords: false,
-    lockerRoom: false,
-    pointAfterFullHelp: false,
-  };
-}
-
-/** Settings as the published game (version 2, amendments 05 to 07) stored them, with fields away from their defaults. */
-function storedV2(): Record<string, unknown> {
-  return {
-    version: 2,
-    range: { preset: '1-100', min: 1, max: 100 },
-    hintDisplay: 'onRequest',
-    hintDistance: { direct: true, vertical: false, diagonal: true, far: true },
-    directions: { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false },
-    patterns: { neighbors: true, middle: false, row: true, shape: true },
-    shapes: { I: true, O: false, T: true, L: true, J: true, S: false, Z: true },
-    timeChallenge: { allowed: false, minutes: 3 },
-    roundType: 'untilHearts',
-    goalsPerRound: 10,
-    difficulty: 'challenging',
-    adaptive: true,
-    sound: { effects: true, crowd: false, ohh: true, speech: false },
-    numberPad: 'auto',
-    showClock: false,
-    showRecords: true,
-    lockerRoom: true,
-    pointAfterFullHelp: true,
-  };
-}
-
-describe('settings version 1 to version 4 (FR-070, amendment 09)', () => {
-  it('drops modes, line length and line directions, sets levels 1 to 5, turns every shape on', () => {
-    const s = parseSettings(storedV1());
-    expect(s).not.toBeNull();
-    for (const gone of ['modes', 'lineLength', 'lineDirections', 'directions', 'patterns']) expect(s).not.toHaveProperty(gone);
-    expect(s!.version).toBe(4);
-    expect(s!.levels).toEqual({ start: 1, hardest: 5 });
-    expect(s!.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
-    expect(s!.timeChallenge).toEqual({ allowed: true, minutes: 2 });
+describe('parseSettings (stored settings, version 1)', () => {
+  it('reads stored settings as they are', () => {
+    const stored = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.levels = { start: 2, hardest: 4 }), (s.rowColumnHelper = false)));
+    expect(parseSettings(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
   });
 
-  it('keeps every other field as the parent set it', () => {
-    const s = parseSettings(storedV1())!;
-    const { version: _v, modes: _m, lineDirections: _d, lineLength: _l, ...kept } = storedV1();
-    void [_v, _m, _d, _l];
-    expect(s).toMatchObject(kept);
+  it('refuses settings that break a rule, miss a field or come from before the baseline (T106)', () => {
+    expect(parseSettings({ ...defaultSettings(), difficulty: 'hard' })).toBeNull();
+    const { cupGoals: _c, ...noCupGoals } = defaultSettings();
+    void _c;
+    expect(parseSettings(noCupGoals)).toBeNull();
+    expect(parseSettings({ ...defaultSettings(), version: 4 })).toBeNull();
   });
 
-  it('reads version 1 settings with the old defaults, also with a line length out of bounds', () => {
-    const v1: Record<string, unknown> = { ...defaultSettings(), version: 1, modes: { holes: true, lines: true, keeper: true }, lineLength: 5 };
-    delete v1.levels;
-    delete v1.shapes;
-    delete v1.timeChallenge;
-    v1.lineDirections = { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false };
-    expect(parseSettings(v1)).toEqual(defaultSettings());
-    expect(parseSettings({ ...v1, lineLength: 99 })).toEqual(defaultSettings());
-  });
-
-  it('refuses version 1 settings that break a rule that still exists', () => {
-    expect(parseSettings({ ...storedV1(), difficulty: 'hard' })).toBeNull();
-  });
-});
-
-describe('settings version 2 to version 4 (amendment 09)', () => {
-  it('replaces "Richtungen" and "Hinweis-Muster" with levels 1 to 5, and keeps the hint display and the shape switches', () => {
-    const s = parseSettings(storedV2())!;
-    expect(s).not.toBeNull();
-    expect(s).not.toHaveProperty('directions');
-    expect(s).not.toHaveProperty('patterns');
-    const { version: _v, directions: _d, patterns: _p, ...kept } = storedV2();
-    void [_v, _d, _p];
-    expect(s).toEqual({ ...kept, version: 4, levels: { start: 1, hardest: 5 }, rowColumnHelper: true, cupGoals: 5 });
-  });
-
-  it('turns every shape off when the parent had turned the pattern "Formen" off, so levels 3 and 4 are skipped', () => {
-    const s = parseSettings({ ...storedV2(), patterns: { neighbors: true, middle: true, row: true, shape: false } })!;
-    expect(Object.values(s.shapes).some(Boolean)).toBe(false);
-    expect(s.levels).toEqual({ start: 1, hardest: 5 });
-  });
-
-  it('reads version 2 settings whose directions or patterns were all off (rules that no longer exist)', () => {
-    const none = { right: false, down: false, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false };
-    expect(parseSettings({ ...storedV2(), directions: none })).not.toBeNull();
-  });
-
-  it('reads version 4 settings as they are', () => {
-    const v4 = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.levels = { start: 2, hardest: 4 }), (s.rowColumnHelper = false)));
-    expect(parseSettings(JSON.parse(JSON.stringify(v4)))).toEqual(v4);
-  });
-});
-
-describe('settings version 3 to version 4 (amendment 10)', () => {
-  it('adds "Zeilen- und Spaltenhilfe", on, and keeps every other field', () => {
-    const v3: Record<string, unknown> = { ...withChanges((s) => ((s.hintDisplay = 'onRequest'), (s.levels = { start: 2, hardest: 3 }))), version: 3 };
-    delete v3.rowColumnHelper;
-    expect(parseSettings(v3)).toEqual({ ...v3, version: 4, rowColumnHelper: true });
-  });
-
-  it('defaults to the helper on (FR-093)', () => {
+  it('defaults to the row and column helper on (FR-093)', () => {
     expect(defaultSettings().rowColumnHelper).toBe(true);
   });
 });

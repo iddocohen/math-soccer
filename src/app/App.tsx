@@ -79,7 +79,7 @@ import { recordKey, submitResult } from '../core/records/records';
 import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
-import { clearRound, loadRound, saveRound } from '../core/storage/storage';
+import { applyBaseline, clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import type { Digit } from '../core/match/entry';
 import type { GameHandle } from '../game/createGame';
@@ -203,6 +203,8 @@ function resetNoteLines(reasons: ReturnType<Persistence['resetReasons']>): strin
 
 function createApp() {
   const kv = localStorageKeyValue();
+  // Stored data from before the baseline (T106) is cleared once, before anything loads.
+  applyBaseline(kv);
   const saves = createSaveWatch();
   const persistence = createPersistence(kv);
   // Saved settings replace what persistence returns; the controller reads them on every start(), so they apply from

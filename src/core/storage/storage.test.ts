@@ -3,11 +3,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
 import { exportData, importData } from './exportImport';
 import { memoryKeyValue, type KeyValue } from './keyValue';
-import { migrate } from './migrate';
+import { migrate, migrateWith, type MigrationStep } from './migrate';
 import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords, type StoredRound } from './schemas';
 import {
+  applyBaseline,
+  BASELINE,
+  BASELINE_KEY,
   clearRound,
+  CUP,
   CUP_KEY,
+  DATA_KEYS,
+  LOCKER_ROOM,
+  PROGRESS,
+  RECORDS,
+  ROUND,
+  SETTINGS,
   loadCup,
   saveCup,
   LOCKER_ROOM_KEY,
@@ -32,10 +42,11 @@ import {
 /** A full stored round; `over` replaces fields. */
 function storedRound(over: Partial<StoredRound> = {}): StoredRound {
   return {
-    version: 4,
+    version: 1,
     seed: 1,
     roundType: 'untilHearts',
     challengeMinutes: null,
+    goalsPerRound: 10,
     min: 1,
     max: 100,
     goals: 0,
@@ -88,7 +99,7 @@ describe('round trip', () => {
   it('keeps every kind unchanged', () => {
     const kv = memoryKeyValue();
     const settings = { ...defaultSettings(), timeChallenge: { allowed: false, minutes: 3 as const }, difficulty: 'normal' as const };
-    const records = { version: 1 as const, bests: { '1-100|holes|untilHearts': { goals: 8, timeMs: 340000, at: '2026-11-06T10:00:00.000Z' } } };
+    const records = { version: 1 as const, bests: { '1-100|keeper|untilHearts': { goals: 8, timeMs: 340000, at: '2026-11-06T10:00:00.000Z' } } };
     const locker = { ...emptyLockerRoom(), stars: 12, totalEarned: 20, shirtName: 'MIA' };
     const round = storedRound({ seed: 42, roundType: 'goalCount', goals: 3, hearts: 2, elapsedMs: 61_500 });
     saveSettings(kv, settings);
@@ -144,141 +155,14 @@ describe('damaged data resets with a reason (FR-036)', () => {
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'invalid' });
   });
 
-  it('settings stored by the first published game (version 1) load as version 4 without a reset (FR-070)', () => {
-    const v1 = {
-      ...defaultSettings(),
-      version: 1,
-      modes: { holes: true, lines: false, keeper: true },
-      lineLength: 6,
-      lineDirections: { right: true, down: true, downRight: true, downLeft: true, left: false, up: true, upLeft: false, upRight: false },
-      difficulty: 'challenging',
-    } as Record<string, unknown>;
-    for (const key of ['levels', 'shapes', 'timeChallenge']) delete v1[key];
-    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v1) });
-    const { value, resetReason } = loadSettings(kv);
-    expect(resetReason).toBe('none');
-    expect(value).toEqual({ ...defaultSettings(), difficulty: 'challenging' });
+  it('progress loads as it is', () => {
+    const counters = { masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 };
+    const progress = { ...emptyProgress(), level: 2 as const, levelWins: 1, directions: { 'keeper|down': counters } };
+    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(progress) }))).toEqual({ value: progress, resetReason: 'none' });
   });
 
-  it('settings stored by the published game (version 2) load as version 4 without a reset (amendment 09)', () => {
-    const v2 = {
-      ...defaultSettings(),
-      version: 2,
-      hintDisplay: 'onRequest',
-      directions: { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false },
-      patterns: { neighbors: true, middle: true, row: true, shape: true },
-    } as Record<string, unknown>;
-    delete v2.levels;
-    const { value, resetReason } = loadSettings(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v2) }));
-    expect(resetReason).toBe('none');
-    expect(value).toEqual({ ...defaultSettings(), hintDisplay: 'onRequest' });
-  });
-
-  const ds = (step: number) => ({ step, recent: ['independent' as const], masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 });
-  const counters = { masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 };
-
-  it('progress of version 1 moves old keeper steps 0 to 3 to 0, 2, 6 and 7, then to levels: the highest, 7, is level 4', () => {
-    const v1 = {
-      version: 1,
-      attempts: [],
-      directions: { 'keeper|right': ds(0), 'keeper|left': ds(1), 'keeper|down': ds(2), 'keeper|up': ds(3), 'holes|down': ds(2) },
-    };
-    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v1) }));
-    expect(resetReason).toBe('none');
-    expect(value.version).toBe(4);
-    expect(value.level).toBe(4);
-    expect(value.directions).toEqual({
-      'keeper|right': counters,
-      'keeper|left': counters,
-      'keeper|down': counters,
-      'keeper|up': counters,
-      'holes|down': counters,
-    });
-  });
-
-  it('progress of version 2 (the published game) maps its highest keeper step to one level: 0 to 2 level 1, 3 to 4 level 2, 5 level 3, 6 to 7 level 4', () => {
-    const expected: Record<number, number> = { 0: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4 };
-    for (const [step, level] of Object.entries(expected)) {
-      const v2 = { version: 2, attempts: [], directions: { 'keeper|down': ds(0), 'keeper|right': ds(Number(step)), 'holes|up': ds(7) } };
-      const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }));
-      expect(resetReason).toBe('none');
-      expect(value.level).toBe(level);
-      expect(value.levelRecent).toEqual([]);
-      expect(value.directions['keeper|right']).toEqual(counters);
-    }
-  });
-
-  it('progress of version 2 without goalkeeper steps starts at the start level, and its attempts get levels and per-level counts', () => {
-    const attempt = (difficultyStep: number, extra: Record<string, unknown> = {}) => ({
-      at: '2026-11-06T12:00:00.000Z',
-      mode: 'keeper',
-      min: 1,
-      max: 100,
-      target: 46,
-      directions: ['down'],
-      hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
-      hintDisplay: 'always',
-      difficultyStep,
-      solved: true,
-      helpStep: 0,
-      misses: 0,
-      responseMs: 4000,
-      guess: false,
-      ...extra,
-    });
-    const v2 = { version: 2, attempts: [attempt(0), attempt(4, { helpStep: 1 }), attempt(6), attempt(7, { guess: true }), attempt(2, { mode: 'holes' })], directions: {} };
-    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }));
-    expect(resetReason).toBe('none');
-    expect(value.level).toBeNull();
-    expect(value.attempts.map((a) => a.level)).toEqual([1, 2, 4, 4, 1]);
-    expect(value.attempts[0]).not.toHaveProperty('difficultyStep');
-    expect(value.levels).toEqual({
-      '1': { independent: 1, assisted: 0, guesses: 0 },
-      '2': { independent: 0, assisted: 1, guesses: 0 },
-      '4': { independent: 1, assisted: 0, guesses: 1 },
-    });
-  });
-
-  it('progress of version 4 loads as it is', () => {
-    const v4 = { ...emptyProgress(), level: 2 as const, levelWins: 1, directions: { 'keeper|down': counters } };
-    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v4) }))).toEqual({ value: v4, resetReason: 'none' });
-  });
-
-  it('progress of version 3 moves each attempt to the four-step help: 0 and 1 stay, 2 becomes 3, 3 becomes 4 (amendment 10)', () => {
-    const attempt = (helpStep: number) => ({
-      at: '2026-11-06T12:00:00.000Z',
-      mode: 'keeper',
-      min: 1,
-      max: 100,
-      target: 46,
-      directions: ['down'],
-      hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
-      hintDisplay: 'always',
-      level: 1,
-      solved: helpStep < 3,
-      helpStep,
-      misses: helpStep,
-      responseMs: 4000,
-      guess: false,
-    });
-    const v3 = { ...emptyProgress(), version: 3, attempts: [0, 1, 2, 3].map(attempt) };
-    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v3) }));
-    expect(resetReason).toBe('none');
-    expect(value.version).toBe(4);
-    expect(value.attempts.map((a) => a.helpStep)).toEqual([0, 1, 3, 4]);
-    expect(value.attempts.map((a) => a.solved)).toEqual([true, true, true, false]);
-  });
-
-  it('settings of version 3 (the published game) load as version 4 with the row and column helper on (amendment 10)', () => {
-    const v3: Record<string, unknown> = { ...defaultSettings(), version: 3, showClock: true };
-    delete v3.rowColumnHelper;
-    const { value, resetReason } = loadSettings(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v3) }));
-    expect(resetReason).toBe('none');
-    expect(value).toEqual({ ...defaultSettings(), showClock: true, rowColumnHelper: true });
-  });
-
-  it('settings of a version above 4 give defaults with resetReason newer', () => {
-    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 5 }) });
+  it('settings of a version above 1 give defaults with resetReason newer', () => {
+    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 2 }) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'newer' });
   });
 
@@ -311,11 +195,22 @@ describe('unavailable storage', () => {
 });
 
 describe('migrate', () => {
-  it('returns version 1 data and non-objects unchanged', () => {
+  it('returns version 1 data and non-objects unchanged: no kind has a step since the baseline', () => {
     const s = defaultSettings();
     expect(migrate(s, 'settings')).toBe(s);
     expect(migrate('text', 'progress')).toBe('text');
     expect(migrate([1, 2], 'records')).toEqual([1, 2]);
+  });
+
+  it('example: how a future step from version 1 to version 2 runs', () => {
+    // A later change would add this step to the kind's list in migrate.ts and raise its schema to version 2.
+    const v1ToV2: MigrationStep = (raw) => ({ ...raw, version: 2, celebrationSpeed: 'normal' });
+    const steps = [v1ToV2];
+    expect(migrateWith({ version: 1, stars: 3 }, steps)).toEqual({ version: 2, stars: 3, celebrationSpeed: 'normal' });
+    // Data already at version 2 runs no step; data without a usable version is left for the schema to refuse.
+    const v2 = { version: 2, stars: 3, celebrationSpeed: 'fast' };
+    expect(migrateWith(v2, steps)).toBe(v2);
+    for (const raw of [{ stars: 3 }, { version: 0 }, { version: 1.5 }, null]) expect(migrateWith(raw, steps)).toBe(raw);
   });
 });
 
@@ -343,7 +238,7 @@ describe('requestPersistentStorage', () => {
 describe('export and import', () => {
   const data = () => ({
     settings: { ...defaultSettings(), goalsPerRound: 15 },
-    progress: { ...emptyProgress(), directions: { 'holes|down': { masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
+    progress: { ...emptyProgress(), directions: { 'keeper|down': { masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
     records: emptyRecords(),
     lockerRoom: { ...emptyLockerRoom(), stars: 9 },
     cup: emptyCup(),
@@ -372,14 +267,18 @@ describe('export and import', () => {
     expect(importData(file({ cup: { ...emptyCup(), stage: 3 } }))).toEqual({ ok: false, reason: 'invalidCup' });
   });
 
-  it('carries the cup, and a file saved before the cup starts it at its first match (amendment 13)', () => {
+  it('carries the cup (amendment 13), and refuses a file without one', () => {
     const cup = { ...emptyCup(), cup: 2, stage: 1, tries: 1, scores: [{ goals: 5, against: 2 }], trophies: [{ cup: 1, at: '2026-11-06T12:00:00.000Z' }] };
     const r = importData(exportData({ ...data(), cup }));
     expect(r.ok && r.cup).toEqual(cup);
     const { cup: _cup, ...withoutCup } = data();
     void _cup;
-    const old = importData(JSON.stringify({ app: 'math-soccer', ...withoutCup }));
-    expect(old.ok && old.cup).toEqual(emptyCup());
+    expect(importData(JSON.stringify({ app: 'math-soccer', ...withoutCup }))).toEqual({ ok: false, reason: 'invalidCup' });
+  });
+
+  it('refuses a file saved before the stored data baseline (T106)', () => {
+    const old = JSON.stringify({ app: 'math-soccer', ...data(), settings: { ...defaultSettings(), version: 4 } });
+    expect(importData(old)).toEqual({ ok: false, reason: 'invalidSettings' });
   });
 });
 
@@ -406,10 +305,6 @@ describe('stored cup (mathsoccer.cup.v1, amendment 13)', () => {
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(cupRound) })).value).toEqual(cupRound);
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify({ ...cupRound, cupMatch: null }) })).resetReason).toBe('invalid');
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ cupMatch: { level: 3, goals: 5 } })) })).resetReason).toBe('invalid');
-    // A round stored before the cup has no field and loads as no cup match.
-    const old = storedRound() as Record<string, unknown>;
-    delete old.cupMatch;
-    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(old) })).value).toMatchObject({ cupMatch: null });
   });
 });
 
@@ -439,56 +334,70 @@ describe('rules between the fields of a stored round (review H3)', () => {
   });
 });
 
-describe('rounds of version 1 (amendment 05, FR-070)', () => {
-  const kvWith = (round: unknown) => memoryKeyValue({ [ROUND_KEY]: JSON.stringify(round) });
-  /** A round as version 1 stored it, with a mode, a line and a target with a mode and patched holes. */
-  function v1Round(mode: 'holes' | 'lines' | 'keeper', extra: Record<string, unknown> = {}) {
-    const { target, ...rest } = storedRound();
-    return {
-      ...rest,
-      version: 1,
-      mode,
-      line: mode === 'lines' ? { squares: [45, 46, 47, 48], direction: 'right', given: 2, index: 2 } : null,
-      target: { mode, number: target!.number, hints: target!.hints, patchedHoles: mode === 'holes' ? [12] : [], directions: target!.directions, difficultyStep: 0 },
-      ...extra,
-    };
-  }
-
-  it('discards a stored hole or line round on load, without a reset note and without a kept copy', () => {
-    for (const mode of ['holes', 'lines'] as const) {
-      const kv = kvWith(v1Round(mode));
-      expect(loadRound(kv)).toEqual({ value: null, resetReason: 'none' });
-      expect(kv.get(unreadableKey(ROUND_KEY))).toBeNull();
-    }
-  });
-
-  it('turns a goalkeeper round of version 1 into version 4: no mode, no line, a Nachbarn target at level 1', () => {
-    expect(loadRound(kvWith(v1Round('keeper')))).toEqual({ value: storedRound(), resetReason: 'none' });
-    const withPattern = v1Round('keeper', { target: { ...v1Round('keeper').target, pattern: 'middle' } });
-    expect(loadRound(kvWith(withPattern)).value?.target?.pattern).toBe('middle');
-  });
-
-  it('turns a round of version 2 into version 4: the target ladder step becomes its level', () => {
-    const { target, ...rest } = storedRound();
-    const shape = { ...target!, pattern: 'shape' as const, queue: [{ number: 47, directions: ['right' as const] }] };
-    const v2 = (difficultyStep: number) => ({ ...rest, version: 2, target: { ...shape, level: undefined, difficultyStep } });
-    for (const [step, level] of [[0, 1], [3, 2], [5, 3], [7, 4]] as const) {
-      const { value, resetReason } = loadRound(kvWith(v2(step)));
-      expect(resetReason).toBe('none');
-      expect(value).toEqual({ ...storedRound(), target: { ...shape, level } });
-    }
-  });
-
-  it('turns a round of version 3 (the published game) into version 4: help steps 2 and 3 become 3 and 4 (amendment 10)', () => {
-    for (const [old, now] of [[0, 0], [1, 1], [2, 3], [3, 4]] as const) {
-      const { value, resetReason } = loadRound(kvWith({ ...storedRound(), version: 3, helpStep: old }));
-      expect(resetReason).toBe('none');
-      expect(value).toEqual(storedRound({ helpStep: now }));
-    }
-  });
-
-  it('accepts help step 4 in a round of version 4 and refuses 5', () => {
+describe('help steps of a stored round (amendment 10)', () => {
+  it('accepts help step 4 and refuses 5', () => {
+    const kvWith = (round: unknown) => memoryKeyValue({ [ROUND_KEY]: JSON.stringify(round) });
     expect(loadRound(kvWith(storedRound({ helpStep: 4 }))).value?.helpStep).toBe(4);
     expect(loadRound(kvWith({ ...storedRound(), helpStep: 5 })).resetReason).toBe('invalid');
+  });
+});
+
+describe('stored data baseline (T106)', () => {
+  /** Data as a browser may hold it from before the baseline: versions 2 to 4 under the same keys, and kept copies. */
+  function preBaseline(): Record<string, string> {
+    const entries: Record<string, string> = {
+      [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 4 }),
+      [PROGRESS_KEY]: JSON.stringify({ ...emptyProgress(), version: 4 }),
+      [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), version: 2, stars: 30 }),
+      [RECORDS_KEY]: JSON.stringify(emptyRecords()),
+      [ROUND_KEY]: JSON.stringify({ ...storedRound(), version: 4 }),
+      [CUP_KEY]: JSON.stringify(emptyCup()),
+      [unreadableKey(LOCKER_ROOM_KEY)]: '{"version":1',
+      'mathSoccer.autoReloadFrom': '1.2.3',
+    };
+    return entries;
+  }
+
+  it('lists every data key', () => {
+    expect([...DATA_KEYS].sort()).toEqual([CUP_KEY, LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY].sort());
+  });
+
+  it('clears every data key and kept copy once, writes the marker, and leaves other keys alone', () => {
+    const kv = memoryKeyValue(preBaseline());
+    expect(applyBaseline(kv)).toEqual({ cleared: true });
+    for (const key of DATA_KEYS) {
+      expect(kv.get(key)).toBeNull();
+      expect(kv.get(unreadableKey(key))).toBeNull();
+    }
+    expect(kv.get(BASELINE_KEY)).toBe(BASELINE);
+    expect(kv.get('mathSoccer.autoReloadFrom')).toBe('1.2.3');
+    // The data loads as the defaults, with no reset note.
+    expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'none' });
+    expect(loadLockerRoom(kv)).toEqual({ value: emptyLockerRoom(), resetReason: 'none' });
+  });
+
+  it('keeps data saved after the marker', () => {
+    const kv = memoryKeyValue();
+    expect(applyBaseline(kv)).toEqual({ cleared: false });
+    const locker = { ...emptyLockerRoom(), stars: 7 };
+    saveLockerRoom(kv, locker);
+    expect(applyBaseline(kv)).toEqual({ cleared: false });
+    expect(loadLockerRoom(kv).value).toEqual(locker);
+  });
+
+  it('clears again when the marker holds another baseline', () => {
+    const kv = memoryKeyValue({ ...preBaseline(), [BASELINE_KEY]: 'old' });
+    expect(applyBaseline(kv)).toEqual({ cleared: true });
+    expect(kv.get(SETTINGS_KEY)).toBeNull();
+    expect(kv.get(BASELINE_KEY)).toBe(BASELINE);
+  });
+
+  it('changes nothing and does not throw when storage is blocked', () => {
+    expect(applyBaseline(throwingKeyValue())).toEqual({ cleared: false });
+  });
+
+  it('puts every stored kind at version 1', () => {
+    for (const kind of [SETTINGS, PROGRESS, RECORDS, LOCKER_ROOM, ROUND, CUP]) expect(kind.version).toBe(1);
+    for (const value of [defaultSettings(), emptyProgress(), emptyRecords(), emptyLockerRoom(), emptyCup(), storedRound()]) expect(value.version).toBe(1);
   });
 });

@@ -432,10 +432,9 @@ export class MatchController {
     }
     this.newTargetPending = false;
     this.feedbackMs = 0;
-    // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
-    // they were kept uses the current goals per round.
+    // Round type and goals per round keep their round-start values across a refresh (FR-052).
     const roundType = stored.roundType === 'time' || stored.roundType === 'cup' ? s.roundType : stored.roundType;
-    this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
+    this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound };
     const state: MatchState = { ...freshState(this.roundSettings, stored.seed, true), ...storedFields(stored) };
     // A round saved during the celebration goes on as if the celebration had ended.
     if (stored.phase === 'celebrating') this.set(this.afterCelebration(state));
@@ -751,7 +750,7 @@ export class MatchController {
     }
     // While the ball flies the round is saved as it was before the shot; the shot is lost on a refresh.
     if (s.phase !== 'aiming' && s.phase !== 'celebrating') return;
-    store.save({ version: 4, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
+    store.save({ version: 1, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
   }
 }
 

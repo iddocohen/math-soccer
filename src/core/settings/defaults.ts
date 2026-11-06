@@ -30,7 +30,7 @@ export const MISSES_PER_HEART: Record<Difficulty, 3 | 4 | 5> = { easy: 5, normal
 /** The defaults listed in data-model.md "Settings". A new object on every call. */
 export function defaultSettings(): Settings {
   return {
-    version: 4,
+    version: 1,
     range: { preset: '1-100', min: 1, max: 100 },
     hintDisplay: 'always',
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },

@@ -205,7 +205,7 @@ describe('data group (T046, FR-041)', () => {
   it('shows a transfer link with #save= and a QR code', async () => {
     setup();
     const transfer = screen.getByTestId('transfer');
-    await waitFor(() => expect(transfer.getAttribute('data-transfer-link')).toMatch(/#save=v2\./));
+    await waitFor(() => expect(transfer.getAttribute('data-transfer-link')).toMatch(/#save=v1\./));
     expect(screen.getByTestId('transfer-qr')).toBeTruthy();
   });
 });

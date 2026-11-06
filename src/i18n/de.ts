@@ -344,8 +344,6 @@ export const de = {
       alone: 'allein',
       withHelp: 'mit Hilfe',
       mastered: 'gemeistert',
-      /** Attempts in the removed hole and line modes (amendment 05, FR-070). */
-      earlier: 'früher',
     },
     directions: {
       right: 'rechts (+1)',
@@ -357,10 +355,7 @@ export const de = {
       downLeft: 'schräg links runter (+9)',
       upRight: 'schräg rechts hoch (−9)',
     },
-    /** The removed modes, named on their personal bests kept under "Früher" (FR-070). */
-    earlierModes: { holes: 'Löcher', lines: 'Reihen' },
     bests: 'Rekorde',
-    earlierBests: 'Früher',
     bestLine: (goals: number, timeMs: number) => `${goalCount(goals)} in ${clock(timeMs)}`,
     challengeBestLine: challengeResult,
     empty: 'Noch keine Versuche.',

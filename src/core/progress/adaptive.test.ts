@@ -140,11 +140,11 @@ describe('recordAttempt: the difficulty level (FR-087)', () => {
     expect(targetProgress(two, { ...s, adaptive: false }).xTwoEmpties).toBe(false);
   });
 
-  it('updates each direction of the attempt, by mode', () => {
+  it('updates each direction of the attempt', () => {
     const p = play(emptyProgress(), ['assisted'], settings(), ['down', 'right']);
     expect(ds(p, 'down')).toMatchObject({ attempts: 1, assisted: 1 });
     expect(ds(p, 'right')).toMatchObject({ attempts: 1, assisted: 1 });
-    expect(p.directions[directionKey('holes', 'down')]).toBeUndefined();
+    expect(Object.keys(p.directions).sort()).toEqual([directionKey('keeper', 'down'), directionKey('keeper', 'right')]);
   });
 
   it(`keeps only the newest ${MAX_ATTEMPTS} attempts, while the counters keep the totals`, () => {
@@ -172,10 +172,10 @@ describe('isMastered (FR-039): 10 independent attempts and 8 of the last 10 inde
 });
 
 describe('targetProgress', () => {
-  it('lists mastered directions of the goalkeeper game only (amendment 05)', () => {
+  it('lists the mastered directions', () => {
     const p = emptyProgress();
     p.directions[directionKey('keeper', 'down')] = { ...emptyDirectionState(), independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
-    p.directions[directionKey('holes', 'right')] = { ...emptyDirectionState(), independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    p.directions[directionKey('keeper', 'right')] = { ...emptyDirectionState(), independent: 9, masteryWindow: Array<Outcome>(10).fill(I) };
     expect(targetProgress(p, settings())).toEqual({ mastered: ['down'], level: 1, xTwoEmpties: false });
   });
 });

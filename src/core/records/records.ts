@@ -3,9 +3,7 @@
  * Personal bests (FR-028, data-model "PersonalBest"). Pure functions; storage.ts keeps them under
  * `mathsoccer.records.v1`, and the export file carries them.
  *
- * One best per number range and round type of the goalkeeper game. Bests of the removed hole and line modes stay in
- * storage under their own keys and show as "früher" on the progress page; new rounds are not compared with them
- * (amendment 05, FR-070). A best is the most goals in one round, with the time of that round. With the same number of
+ * One best per number range and round type of the goalkeeper game. A best is the most goals in one round, with the time of that round. With the same number of
  * goals a faster round is better, so a "Feste Zahl an Toren" round, where every finished round has the same goals,
  * keeps its fastest time. A round with no goal is never a record.
  *

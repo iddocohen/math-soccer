@@ -5,12 +5,11 @@ import { PATTERNS } from '../targets/patterns';
 import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
 /**
- * Schemas of the stored kinds other than settings (data-model.md). These are first versions: later tasks extend them
- * (T029 the round, T036 the personal bests, T043 the attempt records, T057 the locker room). A change to a stored
- * shape raises its version and adds a step in migrate.ts.
+ * Schemas of the stored kinds other than settings (data-model.md). Every kind is at version 1 since the stored data
+ * baseline (T106). A change to a stored shape raises its version and adds a step in migrate.ts.
  */
 
-/** The mode of an attempt or best: `keeper`, or `holes` and `lines` in data from before amendment 05 (FR-070). */
+/** The mode of an attempt or best: always `keeper`, the goalkeeper game. */
 export const modeSchema = z.enum(MODES);
 
 /** How one finished target went for a direction: alone, with help or misses, or not solved (as math-tank). */
@@ -31,11 +30,11 @@ export const attemptRecordSchema = z.object({
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
   /** How hints showed for this target: always, or on request (parent setting at the hardest level). */
   hintDisplay: z.enum(['always', 'onRequest']),
-  /** The difficulty level of the target, 1 to 5 (amendment 09); migrate.ts maps the ladder steps of older attempts. */
+  /** The difficulty level of the target, 1 to 5 (amendment 09). */
   level: z.literal(LEVELS),
   /** Scored before help step 4 showed the answer. */
   solved: z.boolean(),
-  /** The highest help step used on the target, 0 to 4 (amendment 10; migrate.ts moves older attempts' steps). */
+  /** The highest help step used on the target, 0 to 4 (amendment 10). */
   helpStep: z.number().int().min(0).max(4),
   misses: z.number().int().min(0),
   /** Play time from the target appearing to the scoring shot (or to the end of the round). */
@@ -71,23 +70,22 @@ export type LevelCount = z.infer<typeof levelCountSchema>;
  * counting after old attempts drop out of the list, and the child's difficulty level (amendment 09).
  */
 export const progressSchema = z.object({
-  /** Version 3 (amendment 09): one current level instead of a ladder step per direction. Version 4 (amendment 10): help steps 0 to 4. */
-  version: z.literal(4),
+  version: z.literal(1),
   attempts: z.array(attemptRecordSchema),
-  directions: z.record(z.string(), directionStateSchema).default({}),
+  directions: z.record(z.string(), directionStateSchema),
   /** The current level (FR-086); null before the first target and after a reset, so the start level applies. */
-  level: z.literal(LEVELS).nullable().default(null),
+  level: z.literal(LEVELS).nullable(),
   /** Outcomes since the level last changed, newest last, at most 6; guesses never enter it (FR-087). */
-  levelRecent: z.array(outcomeSchema).default([]),
+  levelRecent: z.array(outcomeSchema),
   /** Targets solved alone since the level last changed; at level 5 the X shape gets two empty squares after 2. */
-  levelWins: z.number().int().min(0).default(0),
+  levelWins: z.number().int().min(0),
   /** Counters per level, keyed "1" to "5" (FR-090). */
-  levels: z.record(z.string(), levelCountSchema).default({}),
+  levels: z.record(z.string(), levelCountSchema),
 });
 export type Progress = z.infer<typeof progressSchema>;
 
 export function emptyProgress(): Progress {
-  return { version: 4, attempts: [], directions: {}, level: null, levelRecent: [], levelWins: 0, levels: {} };
+  return { version: 1, attempts: [], directions: {}, level: null, levelRecent: [], levelWins: 0, levels: {} };
 }
 
 /** `mathsoccer.records.v1`: personal bests by `min-max|mode|roundType` (data-model "PersonalBest"). */
@@ -110,8 +108,7 @@ export function emptyRecords(): Records {
  * starter item back where a chosen item is not owned (`cleanLockerRoom`).
  */
 export const lockerRoomSchema = z.object({
-  // Version 2 (amendment 13, T103) adds the chosen celebration. Older data resets to the defaults (no migration).
-  version: z.literal(2),
+  version: z.literal(1),
   stars: z.number().int().min(0),
   totalEarned: z.number().int().min(0),
   owned: z.array(z.string()),
@@ -127,7 +124,7 @@ export type LockerRoom = z.infer<typeof lockerRoomSchema>;
 /** A new player: no stars, the starter items, shirt number 10, no name and the celebration "Arme hoch". */
 export function emptyLockerRoom(): LockerRoom {
   return {
-    version: 2,
+    version: 1,
     stars: 0,
     totalEarned: 0,
     owned: [],
@@ -179,22 +176,19 @@ export const targetSchema = z.object({
 });
 
 /**
- * `mathsoccer.round.v1`, version 3: the running round, kept on refresh (data-model "Round"). No stored round means no
+ * `mathsoccer.round.v1`, version 1: the running round, kept on refresh (data-model "Round"). No stored round means no
  * round to continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules
- * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load. Version 1 had a mode and a
- * line; migrate.ts turns a goalkeeper round of version 1 into version 2, and storage.ts discards hole and line rounds
- * (FR-070). Version 3 (amendment 09) stores the target's level instead of its ladder step. Version 4 (amendment 10)
- * stores the help step of the four-step help, 0 to 4.
+ * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load.
  */
 export const roundSchema = z
   .object({
-    version: z.literal(4),
+    version: z.literal(1),
     seed: z.number().int(),
     roundType: z.enum(ROUND_TYPES),
     /** The length of a time challenge in minutes (FR-076); null for the other round types. */
-    challengeMinutes: z.literal(CHALLENGE_MINUTES).nullable().default(null),
-    /** Goals per round at the round start (FR-052); missing in rounds stored before it was kept. */
-    goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX).optional(),
+    challengeMinutes: z.literal(CHALLENGE_MINUTES).nullable(),
+    /** Goals per round at the round start (FR-052). */
+    goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX),
     min: z.number().int(),
     max: z.number().int(),
     goals: z.number().int().min(0),
@@ -207,16 +201,15 @@ export const roundSchema = z
     starsThisRound: z.number().int().min(0),
     elapsedMs: z.number().min(0),
     /** Play time when the current target appeared, for the attempt's response time (T043). */
-    targetStartMs: z.number().min(0).default(0),
+    targetStartMs: z.number().min(0),
     /** All misses on the current target; `missesInRow` restarts after a lost heart, this does not. */
-    targetMisses: z.number().int().min(0).default(0),
+    targetMisses: z.number().int().min(0),
     /** Play times of the shots that missed the current target, for the guess rule (T043). */
-    missTimes: z.array(z.number().min(0)).default([]),
+    missTimes: z.array(z.number().min(0)),
     /** A cup match (amendment 13): its level and the goals that win it; null for the other round types. */
     cupMatch: z
       .object({ level: z.literal(LEVELS), goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX) })
-      .nullable()
-      .default(null),
+      .nullable(),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);

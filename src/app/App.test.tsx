@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import type { MatchController } from '../core/match/MatchController';
 import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
-import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { BASELINE, BASELINE_KEY, LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { encodeTransfer } from '../core/transfer/transfer';
 import { MatchController as Controller } from '../core/match/MatchController';
 import { t } from '../i18n';
@@ -26,6 +26,8 @@ vi.mock('../game/createGame', () => ({
 
 beforeEach(() => {
   localStorage.clear();
+  // A browser past the stored data baseline (T106), so the data a test stores is read as it is.
+  localStorage.setItem(BASELINE_KEY, BASELINE);
   game.created = 0;
   game.destroyed = 0;
   game.looks = 0;
@@ -47,7 +49,6 @@ afterEach(cleanup);
 
 describe('App', () => {
   it('shows "Spielen", "Zeit-Challenge" and "Pokal" on the start screen, and no mode buttons (FR-068, FR-075, FR-105)', () => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), version: 1, modes: { holes: true, lines: false, keeper: true }, lineLength: 5 }));
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
     const buttons = Array.from(document.querySelectorAll('[data-start]')).map((b) => b.getAttribute('data-start'));
@@ -581,9 +582,10 @@ describe('App: review fixes', () => {
   /** A stored round with one goal, saved during the celebration of that goal. */
   function celebratingRound(over: Record<string, unknown> = {}) {
     return {
-      version: 2,
+      version: 1,
       seed: 5,
       roundType: 'goalCount',
+      challengeMinutes: null,
       goalsPerRound: 1,
       min: 1,
       max: 100,
@@ -591,13 +593,14 @@ describe('App: review fixes', () => {
       hearts: 3,
       missesInRow: 0,
       helpStep: 0,
-      target: { number: 46, hints: [45], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' },
+      target: { number: 46, hints: [45], directions: ['right'], level: 1, pattern: 'neighbors' },
       targetCount: 1,
       starsThisRound: 2,
       elapsedMs: 9000,
       targetStartMs: 0,
       targetMisses: 0,
       missTimes: [],
+      cupMatch: null,
       phase: 'celebrating',
       ...over,
     };
@@ -618,29 +621,30 @@ describe('App: review fixes', () => {
     expect(screen.getByTestId('start')).toBeTruthy();
   });
 
-  it('discards a stored hole or line round from before amendment 05 on load, without a notice (FR-070)', () => {
-    for (const mode of ['holes', 'lines']) {
-      const old = {
-        ...celebratingRound({ version: 1, mode, phase: 'aiming', line: null }),
-        target: { mode, number: 46, hints: [45], patchedHoles: [12], directions: ['right'], difficultyStep: 0 },
-      };
-      localStorage.setItem(ROUND_KEY, JSON.stringify(old));
-      const view = render(<App />);
-      expect(screen.getByTestId('start')).toBeTruthy();
-      expect(screen.queryByTestId('start-notice-reset')).toBeNull();
-      view.unmount();
-    }
-  });
-
-  it('continues a stored goalkeeper round of version 1 after the update', () => {
-    const old = {
-      ...celebratingRound({ version: 1, mode: 'keeper', phase: 'aiming', goals: 0, line: null }),
-      target: { mode: 'keeper', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 },
-    };
-    localStorage.setItem(ROUND_KEY, JSON.stringify(old));
+  it('continues a stored round after a refresh', () => {
+    localStorage.setItem(ROUND_KEY, JSON.stringify(celebratingRound({ phase: 'aiming', goals: 0 })));
     render(<App />);
     expect(screen.getByTestId('match').getAttribute('data-target')).toBe('46');
     expect(screen.getByTestId('match').getAttribute('data-pattern')).toBe('neighbors');
+  });
+
+  it('clears data from before the stored data baseline once on start, without a notice (T106)', () => {
+    localStorage.removeItem(BASELINE_KEY);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), version: 4, showClock: true }));
+    localStorage.setItem(ROUND_KEY, JSON.stringify({ ...celebratingRound({ phase: 'aiming' }), version: 4 }));
+    localStorage.setItem(`${LOCKER_ROOM_KEY}.unreadable`, '{"version":1');
+    const view = render(<App />);
+    expect(screen.getByTestId('start')).toBeTruthy();
+    expect(screen.queryByTestId('start-notice-reset')).toBeNull();
+    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
+    expect(localStorage.getItem(ROUND_KEY)).toBeNull();
+    expect(localStorage.getItem(`${LOCKER_ROOM_KEY}.unreadable`)).toBeNull();
+    expect(localStorage.getItem(BASELINE_KEY)).toBe(BASELINE);
+    view.unmount();
+    // Data saved after the marker stays on the next start.
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), showClock: true }));
+    render(<App />);
+    expect(localStorage.getItem(SETTINGS_KEY)).not.toBeNull();
   });
 
   it('a refresh keeps the round-start goals per round after the parent changed it (H7)', () => {

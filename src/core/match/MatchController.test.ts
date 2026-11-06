@@ -428,16 +428,6 @@ describe('saving the round (mathsoccer.round.v1)', () => {
     expect(again.getState()).toMatchObject({ phase: 'roundOver', goals: 2 });
   });
 
-  it('a round stored without goals per round uses the current settings', () => {
-    const store = memoryStore();
-    const settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 3 };
-    fixed({ roundType: 'goalCount', goalsPerRound: 3 }, store);
-    delete store.round!.goalsPerRound;
-    const again = new MatchController({ settings: () => settings, store });
-    expect(again.restore()).toBe(true);
-    expect(again.getRoundSettings().goalsPerRound).toBe(3);
-  });
-
   it('a refresh during the final goal\'s celebration restores straight into roundOver and deletes the stored round', () => {
     const store = memoryStore();
     const settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 };
