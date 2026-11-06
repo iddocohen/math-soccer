@@ -3,7 +3,8 @@
  * MatchController state and tells the controller when an animation has ended; all rules live in src/core.
  *
  * - Composes the views: the stadium backdrop, StandsView, GoalView, KeeperView (shown in goalkeeper mode only),
- *   PlayerView and BallView.
+ *   PlayerView and BallView. The look from the locker room (ball design, shirt color, number and name, scarf color)
+ *   applies on every draw, so a changed look shows without a new round (FR-043).
  * - Subscribes to the controller in create() and unsubscribes on shutdown.
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
  *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the fans cheer, and after
@@ -28,7 +29,9 @@ import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
 import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
-import { COLOR, css, DEFAULT_LOOK, type Look } from './palette';
+import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
+import { emptyLockerRoom } from '../core/storage/schemas';
+import { COLOR, css } from './palette';
 import { PlayerView } from './PlayerView';
 import { StandsView } from './StandsView';
 import { ensureTextures } from './textures';
@@ -48,7 +51,11 @@ export interface MatchSceneOptions {
   sounds?: MatchSounds;
   /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch"). */
   settings: () => Settings;
-  look?: Look;
+  /**
+   * The look chosen in the locker room (ball design, shirt, scarves). Read on every draw, so a new look shows at the
+   * next change of the match state; the starter look without it.
+   */
+  look?: () => Look;
   /** Hears the keeper's phase in goalkeeper mode (`data-keeper` for tests). */
   onKeeper?: (phase: KeeperPhase) => void;
 }
@@ -71,6 +78,8 @@ export class MatchScene extends Phaser.Scene {
   private ballInNet = false;
   private celebration: Phaser.Time.TimerEvent | null = null;
   private pausedNow = false;
+  /** The look the views show, as `lookKey`. */
+  private lookKey = '';
 
   constructor(controller: MatchController, options: MatchSceneOptions) {
     super('match');
@@ -81,13 +90,14 @@ export class MatchScene extends Phaser.Scene {
   create(): void {
     ensureTextures(this);
     this.drawBackdrop();
-    const look = this.options.look ?? DEFAULT_LOOK;
+    const look = this.currentLook();
+    this.lookKey = lookKey(look);
     this.stands = new StandsView(this, look.scarfColor);
     this.goal = new GoalView(this);
     this.keeper = new KeeperView(this, this.options.onKeeper);
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
-    this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)));
+    this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)), look.ball);
     this.prev = null;
     this.flying = false;
     this.ballInNet = false;
@@ -127,7 +137,9 @@ export class MatchScene extends Phaser.Scene {
       this.stands.calm();
     }
     this.keeper.setVisible(s.mode === 'keeper');
-    this.ball.setKind(ballKind(layout));
+    const look = this.currentLook();
+    this.applyLook(look);
+    this.ball.setLook(ballKind(layout), look.ball);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
@@ -141,6 +153,19 @@ export class MatchScene extends Phaser.Scene {
       this.ballInNet = false;
       this.ball.reset();
     }
+  }
+
+  private currentLook(): Look {
+    return this.options.look?.() ?? lookOf(emptyLockerRoom());
+  }
+
+  /** Redraws the shirt and recolors the scarves when the look changed. */
+  private applyLook(look: Look): void {
+    const key = lookKey(look);
+    if (key === this.lookKey) return;
+    this.lookKey = key;
+    this.player.setLook(look);
+    this.stands.setScarfColor(look.scarfColor);
   }
 
   /** A round started again: from the start screen or with "Nochmal" (the seed can stay the same with `?seed=`). */

@@ -6,6 +6,9 @@
  *
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a
  * 2-second press. The fullscreen button shows only where the browser lets a page use fullscreen.
+ *
+ * With the locker room on (FR-044), a "Kabine" button (K) and the star total (`data-testid="star-total"`) show below
+ * the modes; with it off, both are hidden.
  */
 import type { ReactNode } from 'react';
 import { MODES, type Mode } from '../core/types';
@@ -30,9 +33,11 @@ interface Props {
   modes: readonly Mode[];
   onPlay: (mode: Mode) => void;
   gear?: ReactNode;
+  /** The star balance and how to open the locker room; null when the parent turned the locker room off. */
+  lockerRoom?: { stars: number; onOpen: () => void } | null;
 }
 
-export function StartScreen({ modes, onPlay, gear }: Props) {
+export function StartScreen({ modes, onPlay, gear, lockerRoom = null }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   return (
@@ -63,6 +68,20 @@ export function StartScreen({ modes, onPlay, gear }: Props) {
           </button>
         ))}
       </div>
+      {lockerRoom && (
+        <div className="start-locker">
+          <span className="star-total" data-testid="star-total" aria-label={text.start.starsLabel(lockerRoom.stars)}>
+            {text.start.stars(lockerRoom.stars)}
+          </span>
+          <button type="button" data-testid="open-locker-room" aria-keyshortcuts="K" onClick={lockerRoom.onOpen}>
+            {text.start.lockerRoom}
+            <span className="mode-key" aria-hidden="true">
+              {' '}
+              K
+            </span>
+          </button>
+        </div>
+      )}
     </main>
   );
 }

@@ -7,6 +7,7 @@
  * The locker room has its own key, so "Fortschritt zurücksetzen" never touches the stars.
  */
 import { recordAttempt as addAttempt } from '../core/progress/adaptive';
+import { award } from '../core/rewards/lockerRoom';
 import type { Settings } from '../core/settings/schema';
 import { exportData, importData, type ImportResult, type SaveData } from '../core/storage/exportImport';
 import type { KeyValue } from '../core/storage/keyValue';
@@ -32,6 +33,10 @@ export interface Persistence {
   recordAttempt(record: AttemptRecord, settings: Settings): { ok: boolean };
   /** Empties the progress; the stars and the personal bests stay. */
   resetProgress(): { ok: boolean };
+  /** Adds stars earned in a round to the locker room and saves (FR-042). */
+  awardStars(n: number): { ok: boolean };
+  /** The locker room after a purchase, a choice, or a new shirt number or name. */
+  saveLockerRoom(l: LockerRoom): { ok: boolean };
   /** Personal bests changed by the round end. */
   saveRecords(r: Records): { ok: boolean };
   /** The export file for "Daten sichern" (FR-041). */
@@ -87,6 +92,14 @@ export function createPersistence(kv: KeyValue): Persistence {
     resetProgress() {
       progress = emptyProgress();
       return saveProgress(kv, progress);
+    },
+    awardStars(n) {
+      lockerRoom = award(lockerRoom, n);
+      return saveLockerRoom(kv, lockerRoom);
+    },
+    saveLockerRoom(l) {
+      lockerRoom = structuredClone(l);
+      return saveLockerRoom(kv, lockerRoom);
     },
     saveRecords(r) {
       records = r;

@@ -1,4 +1,5 @@
 // Adapted from math-tank src/core/storage/storage.ts.
+import { cleanLockerRoom } from '../rewards/lockerRoom';
 import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { isRecord } from '../util';
@@ -76,7 +77,10 @@ export const LOCKER_ROOM: StoredKind<LockerRoom> = {
   name: 'lockerRoom',
   key: LOCKER_ROOM_KEY,
   version: 1,
-  parse: schemaParser('lockerRoom', lockerRoomSchema),
+  parse: (raw) => {
+    const locker = schemaParser('lockerRoom', lockerRoomSchema)(raw);
+    return locker && cleanLockerRoom(locker);
+  },
   empty: emptyLockerRoom,
 };
 

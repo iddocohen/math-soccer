@@ -1,11 +1,13 @@
 /**
  * The child's player, seen from behind (FR-001): hair, a shirt in the shirt color with the shirt number on the back,
  * shorts and legs, standing left of the ball at the kick spot, below the goal line and clear of the chart (FR-056). `kick()` leans the player toward the ball for a moment.
- * Drawn with shapes in code (FR-048); the locker room (US6) changes the color and number with `setLook`.
+ * Drawn with shapes in code (FR-048); the locker room (US6) changes the shirt color, the number and the name above it
+ * with `setLook`.
  */
 import Phaser from 'phaser';
 import { KICK_SPOT } from '../core/match/world';
-import { COLOR, type Look } from './palette';
+import type { Look } from '../core/rewards/lockerRoom';
+import { COLOR } from './palette';
 
 export const PLAYER_DEPTH = 6;
 
@@ -22,6 +24,7 @@ export class PlayerView {
   private readonly container: Phaser.GameObjects.Container;
   private readonly shirt: Phaser.GameObjects.Graphics;
   private readonly number: Phaser.GameObjects.Text;
+  private readonly name: Phaser.GameObjects.Text;
   private readonly scene: Phaser.Scene;
 
   constructor(scene: Phaser.Scene, look: Look) {
@@ -42,6 +45,9 @@ export class PlayerView {
     this.number = scene.add
       .text(0, -72 - SHIRT.height / 2 + 4, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '38px', color: '#12202c' })
       .setOrigin(0.5, 0.5);
+    this.name = scene.add
+      .text(0, -72 - SHIRT.height + 14, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '13px', color: '#12202c' })
+      .setOrigin(0.5, 0.5);
 
     const head = scene.add.graphics();
     head.fillStyle(COLOR.skin, 1);
@@ -50,7 +56,7 @@ export class PlayerView {
     head.fillStyle(COLOR.hair, 1);
     head.fillCircle(0, -72 - SHIRT.height - 20, 25);
 
-    this.container = scene.add.container(FEET.x, FEET.y, [legs, this.shirt, this.number, head]).setScale(SCALE).setDepth(PLAYER_DEPTH);
+    this.container = scene.add.container(FEET.x, FEET.y, [legs, this.shirt, this.number, this.name, head]).setScale(SCALE).setDepth(PLAYER_DEPTH);
     this.setLook(look);
   }
 
@@ -62,9 +68,14 @@ export class PlayerView {
     this.shirt.fillRect(-SHIRT.width / 2 - 10, -72 - SHIRT.height + 4, 14, 30);
     this.shirt.fillRect(SHIRT.width / 2 - 4, -72 - SHIRT.height + 4, 14, 30);
     this.number.setText(String(look.shirtNumber));
-    // A dark number on light shirts, a light number on dark shirts.
+    this.name.setText(look.shirtName.toUpperCase());
+    // Long names are squeezed to the shirt's width.
+    this.name.setScale(Math.min(1, (SHIRT.width - 8) / Math.max(1, this.name.width)), 1);
+    // A dark number and name on light shirts, light ones on dark shirts.
     const c = Phaser.Display.Color.IntegerToColor(look.shirtColor);
-    this.number.setColor(c.v > 0.6 && c.s < 0.9 ? '#12202c' : '#f4f6ef');
+    const ink = c.v > 0.6 && c.s < 0.9 ? '#12202c' : '#f4f6ef';
+    this.number.setColor(ink);
+    this.name.setColor(ink);
   }
 
   /** Leans toward the ball and back. */

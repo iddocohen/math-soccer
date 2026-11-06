@@ -149,10 +149,10 @@ description: "Task list for Math Soccer"
 
 **Independent Test**: quickstart scenario 12.
 
-- [ ] T057 [P] [US6] Create `src/core/rewards/items.ts`, `lockerRoom.ts` and tests: items for ball designs, shirt colors, scarf colors costing 5 to 40 stars, free starter ball, white shirt and yellow scarves; `award`, `buy`, `equip`; stars: line mode 1 per correct square and 3 per finished line, hole and keeper mode 2 per goal; stars never decrease except by buying; shirt number "1 to 99", shirt name "up to 10 letters" (FR-042, FR-043)
-- [ ] T058 [US6] Create `src/app/LockerRoom.tsx`: preview player and ball, groups Ball, Trikot, Nummer und Name, Fans, locked items with "noch N Sterne", Escape back; K opens it from the start screen; hidden when `lockerRoom` is off (FR-044)
-- [ ] T059 [US6] Apply the chosen looks in `PlayerView.ts`, `BallView.ts` and `StandsView.ts`; show stars earned on `RoundEnd.tsx` and the star total on `StartScreen.tsx`
-- [ ] T060 [US6] `tests/e2e/lockerroom.spec.ts`: earn stars, buy and choose a ball, start a round, expect `data-ball` with the new id
+- [X] T057 [P] [US6] Create `src/core/rewards/items.ts`, `lockerRoom.ts` and tests: items for ball designs, shirt colors, scarf colors costing 5 to 40 stars, free starter ball, white shirt and yellow scarves; `award`, `buy`, `equip`; stars: line mode 1 per correct square and 3 per finished line, hole and keeper mode 2 per goal; stars never decrease except by buying; shirt number "1 to 99", shirt name "up to 10 letters" (FR-042, FR-043)
+- [X] T058 [US6] Create `src/app/LockerRoom.tsx`: preview player and ball, groups Ball, Trikot, Nummer und Name, Fans, locked items with "noch N Sterne", Escape back; K opens it from the start screen; hidden when `lockerRoom` is off (FR-044)
+- [X] T059 [US6] Apply the chosen looks in `PlayerView.ts`, `BallView.ts` and `StandsView.ts`; show stars earned on `RoundEnd.tsx` and the star total on `StartScreen.tsx`
+- [X] T060 [US6] `tests/e2e/lockerroom.spec.ts`: earn stars, buy and choose a ball, start a round, expect `data-ball` with the new id
 
 ---
 

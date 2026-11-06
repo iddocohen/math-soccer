@@ -700,3 +700,158 @@ button:focus-visible {
   transform: translateY(-50%) rotate(-90deg);
   pointer-events: none;
 }
+
+/* Stars on the start screen and the round end (US6) */
+.start-locker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.star-total,
+.round-end .round-stars {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--kit);
+}
+
+/* Locker room (contracts/screens.md "Locker room") */
+.locker-room {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  background: var(--night);
+  touch-action: auto;
+}
+
+.locker-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  background: var(--night);
+}
+
+.locker-header h1 {
+  margin: 0;
+  margin-right: auto;
+  color: var(--kit);
+}
+
+.locker-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.locker-preview {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--pitch);
+}
+
+.locker-groups {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.locker-group {
+  padding: 12px 16px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 12px;
+}
+
+.locker-group h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.locker-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.locker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 96px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.locker-item[data-chosen='true'] {
+  border-color: var(--kit);
+  box-shadow: 0 0 0 2px var(--kit);
+}
+
+.locker-item[data-locked='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.locker-item-price,
+.locker-item-chosen {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.locker-item-chosen {
+  color: var(--kit);
+}
+
+.locker-swatch {
+  display: block;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgb(0 0 0 / 30%);
+  border-radius: 8px;
+}
+
+.locker-swatch-scarf {
+  height: 16px;
+  margin: 12px 0;
+}
+
+.locker-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.locker-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.locker-fields input {
+  min-height: 44px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 2px solid var(--chalk);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1.2rem;
+  user-select: text;
+}
+
+.locker-fields input[data-testid='shirt-number'] {
+  width: 5ch;
+}

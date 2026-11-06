@@ -1,6 +1,7 @@
 /**
  * The ball (FR-003, FR-008, FR-012). Its kind follows the chart size (`ballKind`): a soccer ball up to 10 rows, a
- * tennis ball up to 30, a ping-pong ball above.
+ * tennis ball up to 30, a ping-pong ball above. Its design is the one chosen in the locker room (FR-043); ballArt.ts
+ * draws every design in every kind.
  *
  * - `fly(rect, onArrive)`: from the kick spot along an arc to the middle of `rect` (the `cellRect` of the typed number)
  *   in FLIGHT_MS, shrinking with distance to fit the square, with a shadow on the ground. Calls `onArrive` at the end.
@@ -13,10 +14,12 @@
  */
 import Phaser from 'phaser';
 import type { BallKind } from '../core/chart/layout';
+import type { BallDesign } from '../core/rewards/items';
 import { GOAL_FRAME, KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
+import { ballTexture } from './ballArt';
 import { BALL_IN_NET_DEPTH } from './GoalView';
-import { BALL_SIZE, TEX } from './textures';
+import { BALL_SIZE } from './textures';
 
 export const BALL_DEPTH = 7;
 /** Flight time from the kick spot to the square (plan "Performance Goals"). */
@@ -33,21 +36,26 @@ export class BallView {
   private readonly ball: Phaser.GameObjects.Image;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private kind: BallKind;
+  private design: BallDesign;
   private tween: Phaser.Tweens.Tween | null = null;
 
-  constructor(scene: Phaser.Scene, kind: BallKind) {
+  constructor(scene: Phaser.Scene, kind: BallKind, design: BallDesign) {
     this.scene = scene;
     this.kind = kind;
+    this.design = design;
     this.shadow = scene.add.ellipse(KICK_SPOT.x, KICK_SPOT.y, 100, 35, 0x000000, 0.25).setDepth(BALL_DEPTH - 1);
-    this.ball = scene.add.image(KICK_SPOT.x, KICK_SPOT.y, TEX.ball[kind]).setDepth(BALL_DEPTH);
+    this.ball = scene.add.image(KICK_SPOT.x, KICK_SPOT.y, ballTexture(scene, design, kind)).setDepth(BALL_DEPTH);
     this.reset();
   }
 
-  setKind(kind: BallKind): void {
-    if (kind === this.kind) return;
+  /** The ball kind for the chart size and the design from the locker room. A new kind puts the ball back at the kick spot. */
+  setLook(kind: BallKind, design: BallDesign): void {
+    if (kind === this.kind && design === this.design) return;
+    const newKind = kind !== this.kind;
     this.kind = kind;
-    this.ball.setTexture(TEX.ball[kind]);
-    this.reset();
+    this.design = design;
+    this.ball.setTexture(ballTexture(this.scene, design, kind));
+    if (newKind) this.reset();
   }
 
   /** Stops any motion and puts the ball at the kick spot. */

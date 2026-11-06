@@ -31,6 +31,7 @@
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
+import { starsFor } from '../rewards/lockerRoom';
 import { MISSES_PER_HEART } from '../settings/defaults';
 import type { Difficulty, Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
@@ -50,12 +51,8 @@ export const MAX_HELP_STEP = ANSWER_STEP;
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
 
-/** Stars for a goal in hole and goalkeeper mode (data-model "LockerRoom"). */
-export const GOAL_STARS = 2;
-
-/** Stars for a correct square in line mode, and the bonus for a finished line (data-model "LockerRoom", FR-042). */
-export const SQUARE_STARS = 1;
-export const LINE_STARS = 3;
+/** Stars per goal, per correct line square and per finished line live with the locker room (FR-042). */
+export { GOAL_STARS, LINE_STARS, SQUARE_STARS } from '../rewards/lockerRoom';
 
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 export const SAVE_TIME_EVERY_MS = 1000;
@@ -323,7 +320,7 @@ export class MatchController {
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
       const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
       // In line mode the goal finishes the line: every square lights, and a correct square's star comes with the bonus.
-      const lineStars = s.line ? SQUARE_STARS + LINE_STARS : GOAL_STARS;
+      const lineStars = starsFor(s.line ? 'lineDone' : 'goal', s.mode);
       this.set({
         ...s,
         line: s.line ? { ...s.line, index: s.line.squares.length } : null,
@@ -388,7 +385,7 @@ export class MatchController {
       ball: { ...ball, outcome: 'square' },
       line: { ...line, index: line.index + 1 },
       lastAttempt: { number: ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
-      starsThisRound: s.starsThisRound + SQUARE_STARS,
+      starsThisRound: s.starsThisRound + starsFor('square', s.mode),
       missesInRow: 0,
       helpStep: 0,
       helpChartOpen: false,

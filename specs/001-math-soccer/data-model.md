@@ -94,4 +94,4 @@ Key: `min-max|mode|roundType`. Value: `{ goals, timeMs, at }`.
 | `shirtName` | up to 10 letters |
 | `scarfColor` | chosen scarf color id |
 
-Stars: line mode 1 per correct square and 3 per finished line; hole and keeper mode 2 per goal. Items cost 5 to 40 stars; the starter ball, white shirt and yellow scarves are free.
+Stars: line mode 1 per correct square and 3 per finished line; hole and keeper mode 2 per goal. Items cost 5 to 40 stars; the starter ball, white shirt and yellow scarves are free. Decision (T057): the yellow shirt in the game's kit color is free too and is the shirt a new player wears; `owned` lists bought items only. Item ids are `ball.<design>`, `shirt.<color>` and `scarf.<color>` (src/core/rewards/items.ts).

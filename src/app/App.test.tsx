@@ -96,7 +96,8 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: '1' });
     const match = screen.getByTestId('match');
     expect(match.getAttribute('data-rows')).toBe('10');
-    expect(match.getAttribute('data-ball')).toBe('soccer');
+    expect(match.getAttribute('data-ball-kind')).toBe('soccer');
+    expect(match.getAttribute('data-ball')).toBe('ball.classic');
     expect(screen.getByTestId('hearts').querySelectorAll('.heart')).toHaveLength(3);
     await waitFor(() => expect(game.controller).not.toBeNull());
   });
@@ -245,5 +246,85 @@ describe('App parent screens (T041 to T046)', () => {
     expect((JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number }).stars).toBe(7);
     expect((JSON.parse(localStorage.getItem(SETTINGS_KEY)!) as { showClock: boolean }).showClock).toBe(true);
     expect(window.location.hash).toBe('');
+  });
+});
+
+/** The stored locker room. */
+function storedLocker(): { stars: number; totalEarned: number; ball: string } {
+  return JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number; totalEarned: number; ball: string };
+}
+
+describe('App: stars and locker room (US6)', () => {
+  it('awards 2 stars per goal at once, none again after a refresh, and shows them on the round end and the start screen', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 }));
+    const first = render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    expect(storedLocker().stars).toBe(2);
+    first.unmount();
+    game.controller = null;
+
+    render(<App />);
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    expect(storedLocker().stars).toBe(2);
+    scoreGoal();
+    expect(storedLocker()).toMatchObject({ stars: 4, totalEarned: 4 });
+    expect(screen.getByTestId('round-stars').textContent).toBe('+4 Sterne');
+    fireEvent.click(screen.getByText('Zurück'));
+    expect(screen.getByTestId('star-total').textContent).toBe('★ 4');
+  });
+
+  it('a miss takes no star away', async () => {
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 5, totalEarned: 5 }));
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    const target = Number(screen.getByTestId('match').getAttribute('data-target'));
+    for (const k of String(target === 1 ? 2 : target - 1)) fireEvent.keyDown(window, { key: k });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    act(() => game.controller!.ballLanded());
+    expect(storedLocker().stars).toBe(5);
+  });
+
+  it('K opens the locker room; buying and choosing a ball stores it, Escape goes back, and the match shows the ball', async () => {
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    render(<App />);
+    fireEvent.keyDown(window, { key: 'k' });
+    const room = screen.getByTestId('locker-room');
+    expect(room.getAttribute('data-stars')).toBe('25');
+    expect(screen.getByTestId('item-ball.rainbow').textContent).toContain('noch 15 Sterne');
+    expect(screen.getByTestId('item-ball.rainbow').getAttribute('data-locked')).toBe('true');
+    fireEvent.click(screen.getByTestId('item-ball.rainbow'));
+    expect(screen.queryByTestId('buy-question')).toBeNull();
+    fireEvent.click(screen.getByTestId('item-ball.gold'));
+    expect(screen.getByTestId('buy-question').textContent).toContain('Für 20 Sterne kaufen?');
+    fireEvent.click(screen.getByText('Ja'));
+    expect(storedLocker()).toMatchObject({ stars: 5, ball: 'ball.gold' });
+    expect(screen.getByTestId('item-ball.gold').getAttribute('data-chosen')).toBe('true');
+    fireEvent.change(screen.getByTestId('shirt-number'), { target: { value: '7' } });
+    fireEvent.change(screen.getByTestId('shirt-name'), { target: { value: 'Mia123' } });
+    expect(JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!)).toMatchObject({ shirtNumber: 7, shirtName: 'Mia' });
+    // Keys typed into the fields never start a round.
+    expect(screen.queryByTestId('match')).toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByTestId('star-total').textContent).toBe('★ 5');
+    fireEvent.keyDown(window, { key: '1' });
+    expect(screen.getByTestId('match').getAttribute('data-ball')).toBe('ball.gold');
+    await waitFor(() => expect(game.controller).not.toBeNull());
+  });
+
+  it('with the locker room off, the star total, the button and K do nothing, and the round end shows no stars', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), lockerRoom: false, roundType: 'goalCount', goalsPerRound: 1 }));
+    render(<App />);
+    expect(screen.queryByTestId('star-total')).toBeNull();
+    expect(screen.queryByTestId('open-locker-room')).toBeNull();
+    fireEvent.keyDown(window, { key: 'k' });
+    expect(screen.queryByTestId('locker-room')).toBeNull();
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    expect(screen.queryByTestId('round-stars')).toBeNull();
   });
 });

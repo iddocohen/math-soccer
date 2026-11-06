@@ -16,12 +16,18 @@
  * Transfer (FR-041, as math-tank): when the page opens with `#save=` in the address, the code is decoded and
  * TransferDialog asks the parent; "Übernehmen" (a 2-second hold) replaces the settings, progress, personal bests and
  * locker room. The fragment is removed after the dialog closes, unless storing failed, so a reload asks again.
+ *
+ * Stars and the locker room (US6, FR-042 to FR-044): every star the controller adds to `starsThisRound` goes to the
+ * locker room balance at once, so a refresh loses none; a restored round's stars were awarded before the refresh and
+ * are not awarded again. The locker room opens from the start screen ("Kabine" or K) when the parent turned it on, and
+ * the scene draws the chosen look.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSfx } from '../audio/sfx';
 import { MatchController, type MatchState, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import { recordKey, submitResult } from '../core/records/records';
+import { lookOf, newStars } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
 import { clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
@@ -30,6 +36,7 @@ import type { GameHandle } from '../game/createGame';
 import type { KeeperPhase } from '../game/KeeperView';
 import type { KeyAction, KeyScreen } from './keyboard';
 import { HelpChart } from './HelpChart';
+import { LockerRoom } from './LockerRoom';
 import { MatchOverlay } from './MatchOverlay';
 import { ParentGate } from './ParentGate';
 import { createPersistence, type Persistence } from './persistence';
@@ -42,7 +49,7 @@ import { useAutoPause } from './useAutoPause';
 import { useMatchState } from './useController';
 import { applyMatchAction, useKeyboard } from './useKeyboard';
 
-type Screen = 'start' | 'match';
+type Screen = 'start' | 'match' | 'lockerRoom';
 
 /** The parent screens over the game: the parent menu, the settings page and the progress page. */
 type ParentView = 'closed' | 'menu' | 'settings' | 'progress';
@@ -97,6 +104,14 @@ function createApp() {
   const sfx = createSfx({ sound: () => settings().sound });
   // A round stored before a refresh continues (T029); one that no longer fits the settings is discarded (FR-036a).
   const restored = controller.restore();
+  // Stars go to the locker room as soon as they are earned (FR-042). A restored round's stars were awarded before.
+  let seenStars = controller.getState().starsThisRound;
+  controller.subscribe(() => {
+    const current = controller.getState().starsThisRound;
+    const earned = newStars(seenStars, current);
+    seenStars = current;
+    if (earned > 0) persistence.awardStars(earned);
+  });
   return { persistence, controller, sfx, settings, restored };
 }
 
@@ -139,7 +154,12 @@ export function App() {
     let left = false;
     loadGame().then(
       ({ createGame }) => {
-        if (!left) handle = createGame(parent, controller, { sounds: sfx, settings, onKeeper: setKeeper });
+        if (!left) handle = createGame(parent, controller, {
+            sounds: sfx,
+            settings,
+            onKeeper: setKeeper,
+            look: () => lookOf(persistence.lockerRoom()),
+          });
       },
       // Without the game chunk no ball can fly, so the round could not go on: back to the start screen.
       () => {
@@ -150,7 +170,7 @@ export function App() {
       left = true;
       handle?.destroy();
     };
-  }, [screen, controller, sfx, settings]);
+  }, [screen, controller, sfx, settings, persistence]);
 
   // A round that just ended goes to the personal bests, once (FR-028).
   useEffect(() => {
@@ -220,7 +240,8 @@ export function App() {
   const gameScreen: KeyScreen =
     screen === 'start' ? 'start' : roundOver ? 'roundEnd' : state.paused ? 'paused' : state.helpChartOpen ? 'helpChart' : 'match';
   // While a parent screen or the transfer dialog is open, keys do nothing in the game (FR-034).
-  const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null ? gameScreen : null;
+  // The locker room has its own keys (Escape back).
+  const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null && screen !== 'lockerRoom' ? gameScreen : null;
 
   const closeParent = useCallback(() => setParent('closed'), []);
   const gear = (
@@ -245,14 +266,36 @@ export function App() {
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.mode);
     else if (action.type === 'again') startMatch(state.mode);
-    else if (action.type !== 'lockerRoom') applyMatchAction(controller, action);
+    else if (action.type === 'lockerRoom') setScreen('lockerRoom');
+    else applyMatchAction(controller, action);
   };
   useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: settings().lockerRoom, enterMode: modeFromUrl(window.location.search), onAction });
 
-  if (screen === 'start') {
+  const lockerOn = settings().lockerRoom;
+  const locker = persistence.lockerRoom();
+
+  if (screen === 'lockerRoom' && lockerOn) {
+    return (
+      <LockerRoom
+        locker={locker}
+        onChange={(next) => {
+          persistence.saveLockerRoom(next);
+          setDataVersion((n) => n + 1);
+        }}
+        onBack={() => setScreen('start')}
+      />
+    );
+  }
+
+  if (screen !== 'match') {
     return (
       <>
-        <StartScreen modes={offered} onPlay={startMatch} gear={gear} />
+        <StartScreen
+          modes={offered}
+          onPlay={startMatch}
+          gear={gear}
+          lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}
+        />
         {parentScreens}
       </>
     );
@@ -264,6 +307,7 @@ export function App() {
       <MatchOverlay
         state={state}
         keeper={keeper}
+        ball={locker.ball}
         settings={settings()}
         gear={gear}
         onHelp={() => controller.askHelp()}
@@ -285,6 +329,7 @@ export function App() {
           elapsedMs={state.elapsedMs}
           roundType={state.roundType}
           record={record}
+          stars={lockerOn ? state.starsThisRound : null}
           onAgain={() => startMatch(state.mode)}
           onBack={() => setScreen('start')}
         />

@@ -22,12 +22,3 @@ export function css(color: number, alpha = 1): string {
   const b = color & 0xff;
   return alpha === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${alpha})`;
 }
-
-/** The child's look in the scene. The locker room (US6) chooses it; until then the defaults apply. */
-export interface Look {
-  shirtColor: number;
-  shirtNumber: number;
-  scarfColor: number;
-}
-
-export const DEFAULT_LOOK: Look = { shirtColor: COLOR.kit, shirtNumber: 10, scarfColor: COLOR.kit };

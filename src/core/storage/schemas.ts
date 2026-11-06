@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STARTER } from '../rewards/items';
 import { DIRECTIONS, MODES } from '../types';
 
 /**
@@ -83,7 +84,11 @@ export function emptyRecords(): Records {
   return { version: 1, bests: {} };
 }
 
-/** `mathsoccer.lockerroom.v1`: stars and the chosen look (data-model "LockerRoom"). */
+/**
+ * `mathsoccer.lockerroom.v1`: stars and the chosen look (data-model "LockerRoom"). `owned` lists the bought items; the
+ * free items are owned without being listed (src/core/rewards/items.ts). Loading also drops unknown items and puts the
+ * starter item back where a chosen item is not owned (`cleanLockerRoom`).
+ */
 export const lockerRoomSchema = z.object({
   version: z.literal(1),
   stars: z.number().int().min(0),
@@ -92,23 +97,23 @@ export const lockerRoomSchema = z.object({
   ball: z.string(),
   shirtColor: z.string(),
   shirtNumber: z.number().int().min(1).max(99),
-  shirtName: z.string().max(10),
+  shirtName: z.string().max(10).regex(/^[\p{L} -]*$/u),
   scarfColor: z.string(),
 });
 export type LockerRoom = z.infer<typeof lockerRoomSchema>;
 
-/** The free starter items; the item ids are placeholders until the item list exists (T057). */
+/** A new player: no stars, the starter items, shirt number 10 and no name. */
 export function emptyLockerRoom(): LockerRoom {
   return {
     version: 1,
     stars: 0,
     totalEarned: 0,
-    owned: ['ball.starter', 'shirt.white', 'scarf.yellow'],
-    ball: 'ball.starter',
-    shirtColor: 'shirt.white',
+    owned: [],
+    ball: STARTER.ball,
+    shirtColor: STARTER.shirt,
     shirtNumber: 10,
     shirtName: '',
-    scarfColor: 'scarf.yellow',
+    scarfColor: STARTER.scarf,
   };
 }
 

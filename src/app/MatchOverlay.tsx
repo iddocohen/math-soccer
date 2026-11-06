@@ -4,7 +4,8 @@
  * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
- * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows), `data-ball` (ball kind) and,
+ * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows), `data-ball` (the ball design
+ * from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and,
  * in line mode, `data-line` (the line's numbers) and `data-line-index` (the target's place in it), and in goalkeeper
  * mode `data-keeper` (the keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
@@ -16,6 +17,7 @@ import type { ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
+import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
 import type { KeeperPhase } from '../game/KeeperView';
 import { t } from '../i18n';
@@ -59,6 +61,8 @@ interface Props {
   state: MatchState;
   /** The keeper's phase from the scene; shown in goalkeeper mode only. */
   keeper?: KeeperPhase;
+  /** The chosen ball design id from the locker room (`data-ball`). */
+  ball?: string;
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
@@ -67,7 +71,7 @@ interface Props {
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, keeper = 'idle', settings, gear, onHelp, onPause, onResume }: Props) {
+export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, settings, gear, onHelp, onPause, onResume }: Props) {
   const text = t();
   const layout = layoutChart(state.min, state.max);
   const help = helpText(state);
@@ -83,7 +87,8 @@ export function MatchOverlay({ state, keeper = 'idle', settings, gear, onHelp, o
       data-goals={state.goals}
       data-hearts={state.hearts}
       data-rows={layout.rows}
-      data-ball={ballKind(layout)}
+      data-ball={ball}
+      data-ball-kind={ballKind(layout)}
       data-line={state.line?.squares.join(',') ?? ''}
       data-line-index={state.line?.index ?? ''}
       data-keeper={state.mode === 'keeper' ? keeper : undefined}
