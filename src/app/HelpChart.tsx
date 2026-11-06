@@ -3,9 +3,10 @@
  * panel, laid out with the same `layoutChart` as the goal board. The target square has a thick yellow outline; the last
  * typed number is a filled warm square with a ball icon, so the two differ by shape as well as color.
  *
- * It closes with a tap anywhere on it; Enter, Escape and Space close it through the app's keyboard map (keyboard.ts,
- * screen `helpChart`), and that Enter does not shoot.
+ * It closes with a tap anywhere on it; Enter, Escape and Space close it through MatchController.typeKey, and that
+ * Enter does not shoot.
  */
+import { memo, useMemo } from 'react';
 import { COLUMNS, layoutChart, numberAt } from '../core/chart/layout';
 import { COLOR, css } from '../game/palette';
 import { t } from '../i18n';
@@ -29,10 +30,13 @@ function BallIcon() {
   );
 }
 
-export function HelpChart({ min, max, target, lastGuess, onClose }: Props) {
+export const HelpChart = memo(function HelpChart({ min, max, target, lastGuess, onClose }: Props) {
   const text = t().help;
-  const layout = layoutChart(min, max);
-  const rows = Array.from({ length: layout.rows }, (_, row) => Array.from({ length: COLUMNS }, (_, col) => numberAt(layout, row, col)));
+  const layout = useMemo(() => layoutChart(min, max), [min, max]);
+  const rows = useMemo(
+    () => Array.from({ length: layout.rows }, (_, row) => Array.from({ length: COLUMNS }, (_, col) => numberAt(layout, row, col))),
+    [layout],
+  );
   // Many rows need smaller squares; the panel scrolls when they still do not fit.
   const dense = layout.rows > 10;
   return (
@@ -89,4 +93,4 @@ export function HelpChart({ min, max, target, lastGuess, onClose }: Props) {
       </div>
     </div>
   );
-}
+});

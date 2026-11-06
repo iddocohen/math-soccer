@@ -39,7 +39,7 @@
  * new help line is read aloud; the speaker icon repeats the help line, or the task when there is none. The start tap
  * speaks a short greeting, since tablet browsers speak only after a user tap.
  */
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { createSpeaker } from '../audio/speaker';
@@ -50,6 +50,7 @@ import { lookOf, newStars } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
 import { clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
+import type { Digit } from '../core/match/entry';
 import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
 import type { KeeperPhase } from '../game/KeeperView';
@@ -67,7 +68,7 @@ import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
 import { TransferDialog, type TransferDialogState } from './TransferDialog';
 import { useAutoPause } from './useAutoPause';
-import { useMatchState } from './useController';
+import { useMatchState, type ClockSource } from './useController';
 import { applyMatchAction, useKeyboard } from './useKeyboard';
 
 type Screen = 'start' | 'match' | 'lockerRoom';
@@ -184,6 +185,13 @@ function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, s
   const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
   if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
+}
+
+/** Which keys the game takes on `screen`. */
+function keyScreenOf(screen: Screen, roundOver: boolean, paused: boolean): KeyScreen {
+  if (screen === 'start') return 'start';
+  if (roundOver) return 'roundEnd';
+  return paused ? 'paused' : 'match';
 }
 
 /** Removes `#save=` from the address without a reload or a new history entry. */
@@ -331,16 +339,15 @@ export function App() {
   const startMatch = useCallback(
     (mode: Mode) => {
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
-      if (settings().sound.speech) speaker.prime();
+      if (speech) speaker.prime();
       controller.start(mode);
       setScreen('match');
     },
-    [controller, settings, speaker],
+    [controller, speech, speaker],
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
-  const gameScreen: KeyScreen =
-    screen === 'start' ? 'start' : roundOver ? 'roundEnd' : state.paused ? 'paused' : state.helpChartOpen ? 'helpChart' : 'match';
+  const gameScreen = keyScreenOf(screen, roundOver, state.paused);
   // While a parent screen or the transfer dialog is open, keys do nothing in the game (FR-034).
   // The locker room has its own keys (Escape back).
   const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null && screen !== 'lockerRoom' && !matchLocker ? gameScreen : null;
@@ -360,15 +367,20 @@ export function App() {
     // paused with the new target.
     if (saved !== null && screen === 'match') controller.applySettings(saved);
   }, [controller, screen]);
-  const gear = (
-    <ParentGate
-      open={parent === 'menu'}
-      onOpen={() => setParent('menu')}
-      onClose={closeParent}
-      onSettings={() => setParent('settings')}
-      onProgress={() => setParent('progress')}
-    />
+  const gear = useMemo(
+    () => (
+      <ParentGate
+        open={parent === 'menu'}
+        onOpen={() => setParent('menu')}
+        onClose={closeParent}
+        onSettings={() => setParent('settings')}
+        onProgress={() => setParent('progress')}
+      />
+    ),
+    [parent, closeParent],
   );
+  // A failed or partial transfer keeps `#save=` in the address, so a reload asks again.
+  const dismissTransfer = transfer?.kind === 'failed' || transfer?.kind === 'partial' ? () => setTransfer(null) : closeTransfer;
   const parentScreens = (
     <>
       {parent === 'settings' && <SettingsPage persistence={persistence} onSaved={settingsSaved} onClose={closeParent} />}
@@ -377,7 +389,7 @@ export function App() {
         <TransferDialog
           state={transfer}
           onAccept={acceptTransfer}
-          onCancel={transfer.kind === 'failed' || transfer.kind === 'partial' ? () => setTransfer(null) : closeTransfer}
+          onCancel={dismissTransfer}
         />
       )}
     </>
@@ -389,7 +401,7 @@ export function App() {
     else if (action.type === 'lockerRoom') setScreen('lockerRoom');
     else applyMatchAction(controller, action);
   };
-  useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: settings().lockerRoom, enterMode: modeFromUrl(window.location.search), onAction });
+  useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: lockerOn, enterMode: modeFromUrl(window.location.search), onAction });
 
   const locker = persistence.lockerRoom();
   const saveLocker = (next: typeof locker) => {
@@ -401,6 +413,29 @@ export function App() {
     // The scene draws the look on every state change; a round the child paused has none, so it is shown here.
     gameHandle.current?.showLook();
   };
+
+  // Stable props, so the memoized overlay re-renders only when what it shows changes.
+  const clock = useMemo<ClockSource>(
+    () => ({ subscribe: (fn) => controller.subscribe(fn), elapsedMs: () => controller.getState().elapsedMs }),
+    [controller],
+  );
+  const showClock = settings().showClock;
+  // Goals per round keep their round-start value (FR-052).
+  const roundGoals = controller.getRoundSettings().goalsPerRound;
+  const overlaySettings = useMemo(() => ({ showClock, goalsPerRound: roundGoals }), [showClock, roundGoals]);
+  const openMatchLocker = useCallback(() => setLockerOpen(true), []);
+  const pad = useMemo(
+    () => ({
+      onDigit: (digit: Digit) => controller.typeKey({ digit }),
+      onBackspace: () => controller.typeKey('backspace'),
+      onShoot: () => controller.shoot(),
+    }),
+    [controller],
+  );
+  const askHelp = useCallback(() => controller.askHelp(), [controller]);
+  const pause = useCallback(() => controller.pause(), [controller]);
+  const resume = useCallback(() => controller.resume(), [controller]);
+  const closeHelpChart = useCallback(() => controller.closeHelpChart(), [controller]);
 
   if (screen === 'lockerRoom' && lockerOn) {
     return (
@@ -435,22 +470,19 @@ export function App() {
       <div className="game-parent" ref={gameParent} />
       <MatchOverlay
         state={state}
+        help={help}
+        clock={clock}
         keeper={keeper}
         ball={locker.ball}
         shirt={locker.shirtColor}
-        // Goals per round keep their round-start value (FR-052).
-        settings={{ ...settings(), goalsPerRound: controller.getRoundSettings().goalsPerRound }}
+        settings={overlaySettings}
         gear={gear}
-        onLockerRoom={lockerOn ? () => setLockerOpen(true) : undefined}
-        pad={
-          showPad
-            ? { onDigit: (digit) => controller.typeKey({ digit }), onBackspace: () => controller.typeKey('backspace'), onShoot: () => controller.shoot() }
-            : undefined
-        }
+        onLockerRoom={lockerOn ? openMatchLocker : undefined}
+        pad={showPad ? pad : undefined}
         onSpeak={speech && speaker.available ? speakTask : undefined}
-        onHelp={() => controller.askHelp()}
-        onPause={() => controller.pause()}
-        onResume={() => controller.resume()}
+        onHelp={askHelp}
+        onPause={pause}
+        onResume={resume}
       />
       {state.helpChartOpen && state.target && !state.paused && (
         <HelpChart
@@ -458,7 +490,7 @@ export function App() {
           max={state.max}
           target={state.target.number}
           lastGuess={state.lastGuess}
-          onClose={() => controller.closeHelpChart()}
+          onClose={closeHelpChart}
         />
       )}
       {roundOver && (

@@ -11,6 +11,7 @@
  */
 import { useState } from 'react';
 import { t } from '../i18n';
+import { noFocus } from './noFocus';
 import { useHold } from './useHold';
 
 export { HOLD_MS } from './useHold';
@@ -61,7 +62,7 @@ export function ParentGate({ open: openFromApp, onOpen, onClose, onSettings, onP
         data-testid="parent-gate"
         aria-label={m.start.gear}
         title={m.start.parentHint}
-        tabIndex={-1}
+        {...noFocus}
         {...handlers}
       >
         <svg className="parent-gate-ring" data-testid="parent-gate-ring" data-progress={progress} viewBox="0 0 64 64" aria-hidden="true">

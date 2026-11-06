@@ -22,7 +22,7 @@
  */
 import Phaser from 'phaser';
 import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
-import type { MatchController, MatchView } from '../core/match/MatchController';
+import { onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -125,6 +125,8 @@ export class MatchScene extends Phaser.Scene {
     const prev = this.prev;
     this.prev = s;
     if (!s.started) return;
+    // A clock tick changes nothing the scene draws.
+    if (prev !== null && onlyTimeChanged(prev, s)) return;
     const layout = layoutChart(s.min, s.max);
 
     if (prev === null || this.isNewRound(prev, s)) {
@@ -137,9 +139,7 @@ export class MatchScene extends Phaser.Scene {
       this.stands.calm();
     }
     this.keeper.setVisible(s.mode === 'keeper');
-    const look = this.currentLook();
-    this.applyLook(look);
-    this.ball.setLook(ballKind(layout), look.ball);
+    this.refreshLook(s);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
@@ -165,9 +165,13 @@ export class MatchScene extends Phaser.Scene {
    */
   showLook(): void {
     if (!this.player) return;
+    this.refreshLook(this.controller.getState());
+  }
+
+  /** Shows the current look on the player, the scarves and the ball of the chart size of `s`. */
+  private refreshLook(s: MatchView): void {
     const look = this.currentLook();
     this.applyLook(look);
-    const s = this.controller.getState();
     this.ball.setLook(ballKind(layoutChart(s.min, s.max)), look.ball);
   }
 

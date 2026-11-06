@@ -49,6 +49,9 @@ export class StandsView {
   private cheering = 0;
   private slumping = 0;
   private clapping = 0;
+  /** Whether the arms and the scarves show now; their visibility changes only when these change. */
+  private armsShown = false;
+  private scarvesShown = false;
 
   constructor(scene: Phaser.Scene, scarfColor: number, depth = 1) {
     const perRow = Math.ceil(WORLD_WIDTH / FAN_GAP) + 1;
@@ -119,6 +122,20 @@ export class StandsView {
     const t = this.time;
     const bodyHeight = FAN_SIZE.height * SCALE;
     const headSize = FAN_HEAD_SIZE * SCALE;
+    const bodyScaleY = SCALE * (1 - 0.15 * this.slumping);
+    // The body image's displayed height, without reading it from every fan.
+    const bodyShown = bodyScaleY * FAN_SIZE.height;
+    const armsUp = this.cheering > 0.05;
+    const clapsNow = !armsUp && this.clapping > 0.05;
+    const waving = this.cheering > 0.05;
+    if ((armsUp || clapsNow) !== this.armsShown) {
+      this.armsShown = armsUp || clapsNow;
+      for (const fan of this.fans) fan.arms.setVisible(this.armsShown);
+    }
+    if (waving !== this.scarvesShown) {
+      this.scarvesShown = waving;
+      for (const fan of this.fans) fan.scarf?.setVisible(waving);
+    }
     for (const fan of this.fans) {
       const sway = Math.sin(t * 1.4 + fan.phase) * 1.5;
       const jump = this.cheering > 0 ? Math.abs(Math.sin(t * 11 + fan.phase)) * 18 * this.cheering : 0;
@@ -127,13 +144,10 @@ export class StandsView {
       const slump = 5 * this.slumping;
       const x = fan.x + sway;
       const bottom = fan.y - jump - stand + slump;
-      fan.body.setPosition(x, bottom).setScale(SCALE, SCALE * (1 - 0.15 * this.slumping));
-      const shoulders = bottom - fan.body.displayHeight;
+      fan.body.setPosition(x, bottom).setScale(SCALE, bodyScaleY);
+      const shoulders = bottom - bodyShown;
       fan.head.setPosition(x, shoulders + 1);
 
-      const armsUp = this.cheering > 0.05;
-      const clapsNow = !armsUp && this.clapping > 0.05;
-      fan.arms.setVisible(armsUp || clapsNow);
       if (armsUp) {
         fan.arms.setPosition(x, shoulders + bodyHeight * 0.4).setScale(SCALE, SCALE);
       } else if (clapsNow) {
@@ -142,13 +156,9 @@ export class StandsView {
         fan.arms.setPosition(x, shoulders + bodyHeight * 0.6 - beat).setScale(SCALE * 0.5, SCALE * 0.6);
       }
 
-      if (fan.scarf) {
-        const waving = this.cheering > 0.05;
-        fan.scarf.setVisible(waving);
-        if (waving) {
-          const lift = FAN_ARMS_SIZE.height * SCALE + headSize * 0.2;
-          fan.scarf.setPosition(x, shoulders - lift + SCARF_SIZE.height).setRotation(Math.sin(t * 9 + fan.phase) * 0.35);
-        }
+      if (fan.scarf && waving) {
+        const lift = FAN_ARMS_SIZE.height * SCALE + headSize * 0.2;
+        fan.scarf.setPosition(x, shoulders - lift + SCARF_SIZE.height).setRotation(Math.sin(t * 9 + fan.phase) * 0.35);
       }
     }
   }

@@ -36,7 +36,10 @@ export function useKeyboard({ screen, modes = [], lockerRoom = false, enterMode,
   }, []);
 }
 
-/** Match actions go to controller methods. Returns false for actions the match does not handle (start, again). */
+/**
+ * Match actions go to `controller.typeKey`, which also owns the help chart rule: with the chart open, shoot and pause
+ * only close it. Returns false for actions the match does not handle (start, again).
+ */
 export function applyMatchAction(controller: MatchController, action: KeyAction): boolean {
   switch (action.type) {
     case 'digit':
@@ -46,16 +49,13 @@ export function applyMatchAction(controller: MatchController, action: KeyAction)
       controller.typeKey('backspace');
       return true;
     case 'shoot':
-      controller.shoot();
+      controller.typeKey('enter');
       return true;
     case 'help':
-      controller.askHelp();
-      return true;
-    case 'closeHelp':
-      controller.closeHelpChart();
+      controller.typeKey('help');
       return true;
     case 'pause':
-      controller.pause();
+      controller.typeKey('escape');
       return true;
     case 'resume':
       controller.resume();

@@ -7,8 +7,8 @@
  *   mode named by `?mode=` when it is offered, otherwise the first offered mode; K opens the locker room when it is on.
  * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause. Mode keys work only on the start screen, so
  *   digits always type during a round (plan decision 7).
- * - Help chart open (help step 2): Enter, Space or Escape close it and do not shoot; H goes on to help step 3; digits
- *   and Backspace close it and edit the entry.
+ * - Help chart open (help step 2): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
+ *   Space or Escape without shooting or pausing.
  * - Paused: Enter, Space or Escape resume. Round end: Enter or Space play again.
  *
  * Keys with Ctrl, Alt or Meta stay with the browser, held Enter and Space do not repeat, and no key opens the parent
@@ -26,7 +26,7 @@ export interface KeyLike {
   repeat: boolean;
 }
 
-export type KeyScreen = 'start' | 'match' | 'helpChart' | 'paused' | 'roundEnd';
+export type KeyScreen = 'start' | 'match' | 'paused' | 'roundEnd';
 
 export type KeyAction =
   | { type: 'start'; mode: Mode }
@@ -35,7 +35,6 @@ export type KeyAction =
   | { type: 'backspace' }
   | { type: 'shoot' }
   | { type: 'help' }
-  | { type: 'closeHelp' }
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'again' };
@@ -71,9 +70,6 @@ export function keyToAction(event: KeyLike, screen: KeyScreen, context: KeyConte
     }
     case 'paused':
       return isEnter || isSpace || key === 'Escape' ? { type: 'resume' } : null;
-    case 'helpChart':
-      if (isEnter || isSpace || key === 'Escape') return { type: 'closeHelp' };
-      return keyToAction(event, 'match', context);
     case 'roundEnd':
       return isEnter || isSpace ? { type: 'again' } : null;
     case 'match':

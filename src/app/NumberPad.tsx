@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { Digit } from '../core/match/entry';
 import type { Settings } from '../core/settings/schema';
 import { t } from '../i18n';
+import { noFocus } from './noFocus';
 
 const DIGITS: Digit[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
 
@@ -77,9 +78,8 @@ function PadKey({ name, area, label, disabled, onPress, children }: { name: stri
       data-key={name}
       aria-label={label}
       style={{ gridArea: area }}
-      tabIndex={-1}
       disabled={disabled}
-      onMouseDown={(e) => e.preventDefault()}
+      {...noFocus}
       onKeyDown={(e) => e.preventDefault()}
       onClick={onPress}
     >

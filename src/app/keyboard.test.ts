@@ -1,9 +1,13 @@
 // Adapted from math-tank src/app/keyboard.test.ts.
 import { describe, expect, it } from 'vitest';
+import { MatchController } from '../core/match/MatchController';
+import { defaultSettings } from '../core/settings/defaults';
+import type { Target } from '../core/types';
 import { keyToAction, type KeyLike, type KeyScreen } from './keyboard';
+import { applyMatchAction } from './useKeyboard';
 
 const key = (k: string, extra: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, altKey: false, metaKey: false, repeat: false, ...extra });
-const SCREENS: KeyScreen[] = ['start', 'match', 'helpChart', 'paused', 'roundEnd'];
+const SCREENS: KeyScreen[] = ['start', 'match', 'paused', 'roundEnd'];
 const ALL = { modes: ['holes', 'lines', 'keeper'] as const, lockerRoom: true };
 
 describe('keyToAction: start screen', () => {
@@ -92,18 +96,34 @@ describe('keyToAction: keys left to the browser', () => {
   });
 });
 
-describe('keyToAction: help chart open (help step 2)', () => {
-  it('Enter, Space and Escape close the chart; they do not shoot or pause', () => {
-    for (const k of ['Enter', ' ', 'Escape']) expect(keyToAction(key(k), 'helpChart', ALL)).toEqual({ type: 'closeHelp' });
-  });
+describe('applyMatchAction: help chart open (help step 2)', () => {
+  function chartOpen(): MatchController {
+    const target: Target = { mode: 'holes', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 };
+    const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target });
+    c.start('holes');
+    c.typeKey({ digit: 4 });
+    c.askHelp();
+    c.askHelp();
+    return c;
+  }
 
-  it('a held Enter does not close it again', () => {
-    expect(keyToAction(key('Enter', { repeat: true }), 'helpChart', ALL)).toBeNull();
-  });
+  for (const k of ['Enter', ' ', 'Escape']) {
+    it(`${k === ' ' ? 'Space' : k} closes the chart; it does not shoot or pause`, () => {
+      const c = chartOpen();
+      applyMatchAction(c, keyToAction(key(k), 'match', ALL)!);
+      expect(c.getState()).toMatchObject({ helpStep: 2, helpChartOpen: false, phase: 'aiming', paused: false, ball: null });
+    });
+  }
 
-  it('H goes on to help step 3; digits and Backspace type', () => {
-    expect(keyToAction(key('h'), 'helpChart', ALL)).toEqual({ type: 'help' });
-    expect(keyToAction(key('4'), 'helpChart', ALL)).toEqual({ type: 'digit', digit: 4 });
-    expect(keyToAction(key('Backspace'), 'helpChart', ALL)).toEqual({ type: 'backspace' });
+  it('H goes on to help step 3; digits and Backspace close it and type', () => {
+    const c = chartOpen();
+    applyMatchAction(c, keyToAction(key('h'), 'match', ALL)!);
+    expect(c.getState()).toMatchObject({ helpStep: 3, helpChartOpen: false });
+    const d = chartOpen();
+    applyMatchAction(d, keyToAction(key('5'), 'match', ALL)!);
+    expect(d.getState()).toMatchObject({ helpChartOpen: false, entry: '45' });
+    const b = chartOpen();
+    applyMatchAction(b, keyToAction(key('Backspace'), 'match', ALL)!);
+    expect(b.getState()).toMatchObject({ helpChartOpen: false, entry: '' });
   });
 });

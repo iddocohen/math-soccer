@@ -23,7 +23,7 @@
  * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
  * these icons never take focus, so Enter and Space keep shooting.
  */
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
@@ -32,11 +32,11 @@ import type { Settings } from '../core/settings/schema';
 import type { Digit } from '../core/match/entry';
 import type { KeeperPhase } from '../game/KeeperView';
 import { t } from '../i18n';
+import { noFocus } from './noFocus';
 import { NumberPad } from './NumberPad';
+import { useElapsedMs, type ClockSource } from './useController';
 import { requestFullscreen } from './StartScreen';
 
-/** Props for a button that never takes focus, so keys keep going to the game. */
-const noFocus = { tabIndex: -1, onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() } as const;
 
 /** German text of a match message. */
 export function messageText(message: MatchMessage | null): string {
@@ -75,6 +75,10 @@ export function formatClock(ms: number): string {
 
 interface Props {
   state: MatchView;
+  /** The help line of `state` when the caller already has it; computed from `state` otherwise. */
+  help?: string;
+  /** Where the clock reads the time played, so a tick re-renders only the clock; `state.elapsedMs` otherwise. */
+  clock?: ClockSource;
   /** The keeper's phase from the scene; shown in goalkeeper mode only. */
   keeper?: KeeperPhase;
   /** The chosen ball design id from the locker room (`data-ball`). */
@@ -95,11 +99,25 @@ interface Props {
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shirt = STARTER.shirt, settings, gear, onLockerRoom, pad, onSpeak, onHelp, onPause, onResume }: Props) {
+export const MatchOverlay = memo(function MatchOverlay({
+  state,
+  help = helpText(state),
+  clock,
+  keeper = 'idle',
+  ball = STARTER.ball,
+  shirt = STARTER.shirt,
+  settings,
+  gear,
+  onLockerRoom,
+  pad,
+  onSpeak,
+  onHelp,
+  onPause,
+  onResume,
+}: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
-  const help = helpText(state);
   const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
   return (
     <div
@@ -132,11 +150,7 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
               ))}
             </span>
           )}
-          {settings.showClock && (
-            <span className="clock" data-testid="clock">
-              {formatClock(state.elapsedMs)}
-            </span>
-          )}
+          {settings.showClock && <Clock source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />}
         </div>
         <div className="overlay-buttons">
           <button type="button" className="icon-button" aria-label={text.match.help} data-testid="help-button" onClick={onHelp}>
@@ -176,8 +190,7 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
               data-testid="match-locker-room"
               aria-label={text.match.lockerRoom}
               title={text.match.lockerRoom}
-              tabIndex={-1}
-              onMouseDown={(e) => e.preventDefault()}
+              {...noFocus}
               onClick={onLockerRoom}
             >
               <ShirtIcon />
@@ -201,6 +214,17 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
       </div>
       {pad && <NumberPad disabled={state.paused || state.phase !== 'aiming'} onDigit={pad.onDigit} onBackspace={pad.onBackspace} onShoot={pad.onShoot} />}
     </div>
+  );
+});
+
+const noSubscribe = () => () => {};
+
+/** The time played; it re-renders on its own when the source ticks. */
+function Clock({ source }: { source: ClockSource }) {
+  return (
+    <span className="clock" data-testid="clock">
+      {formatClock(useElapsedMs(source))}
+    </span>
   );
 }
 

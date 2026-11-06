@@ -163,6 +163,19 @@ export function matchInvariantErrors(s: MatchState): string[] {
   return errors;
 }
 
+/**
+ * True when `b` differs from `a` only in the time played and the shown square's time left, as after a `tick` that
+ * changed nothing else. The views skip such states, except the clock.
+ */
+export function onlyTimeChanged(a: MatchView, b: MatchView): boolean {
+  if (a.elapsedMs === b.elapsedMs && a.shown === b.shown) return false;
+  if (a.shown?.number !== b.shown?.number) return false;
+  for (const key of Object.keys(b) as Array<keyof MatchView>) {
+    if (key !== 'elapsedMs' && key !== 'shown' && a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
 /** Where the running round is kept (`mathsoccer.round.v1`); the app connects browser storage. */
 export interface RoundStore {
   load(): StoredRound | null;
