@@ -66,7 +66,7 @@ The parent opens settings by holding the gear icon for 2 seconds, as math-tank. 
 **Acceptance Scenarios**:
 
 1. **Given** any screen, **When** the parent taps the gear briefly or presses any key, **Then** settings do not open. **When** the parent holds the gear for 2 seconds, **Then** settings open and the game pauses.
-2. **Given** settings are open, **When** the parent sets a custom range of 200 to 500, **Then** the next round shows a chart of 30 rows of 10 numbers on the goal, with smaller squares and a smaller ball.
+2. **Given** settings are open, **When** the parent sets a custom range of 200 to 500, **Then** the next round shows a chart of 31 rows of 10 numbers (191 to 200 through 491 to 500) on the goal, with smaller squares and a smaller ball.
 3. **Given** the parent changed settings, **When** the browser is closed and opened again, **Then** the settings are kept.
 4. **Given** the progress page, **When** the parent opens it, **Then** it shows, per direction (+1, −1, +10, −10, +11, −11, +9, −9) and per mode, how many targets were solved alone and how many with help, and which directions count as mastered.
 5. **Given** the settings page, **When** the parent uses "Daten sichern" or the QR transfer, **Then** settings, progress, bests and locker room data move to a file or another browser, as math-tank.

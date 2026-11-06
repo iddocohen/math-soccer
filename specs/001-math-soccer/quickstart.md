@@ -22,7 +22,7 @@ Each scenario maps to the spec. Run them in Firefox and Chrome on a computer, an
 2. **Out of range (US1)**: type 150 in range 1 to 100, Enter: no shot, "Zahlen von 1 bis 100".
 3. **Help steps (US2)**: press H three times: hint, full chart with target and last number marked, answer. Hearts and stars unchanged.
 4. **Parent gate (US3)**: tap the gear: nothing. Hold 2 s: parent menu, game paused. Keys never open it.
-5. **Custom range (US3)**: set 200 to 500: 30 rows, smaller squares, tennis ball. Set 205 to 480: the first row shows empty grey squares for 201 to 204.
+5. **Custom range (US3)**: set 200 to 500: 31 rows (200 sits in the row 191 to 200), smaller squares, ping-pong ball. Set 205 to 480: the first row shows empty grey squares for 201 to 204.
 6. **Range with 0 (US3)**: set 0 to 1000: rows start at 0, ping-pong ball, the game plays without errors.
 7. **Progress (US3)**: play 5 targets; the progress page shows them under the right directions.
 8. **Line mode (US4)**: only direction "runter": 1 and 11 printed (or another start), next square marked; each correct square lights up with clapping; the fifth square scores a goal.
