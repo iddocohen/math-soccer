@@ -178,7 +178,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Select
             label={L.rangePreset}
             value={draft.range.preset}
-            options={PRESETS.map((p) => ({ value: p, label: O.rangePreset[p] }))}
+            options={options(PRESETS, O.rangePreset)}
             onChange={(v) => choosePreset(v as RangePreset)}
           />
           {custom && (
@@ -199,7 +199,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Select
             label={L.hintDisplay}
             value={draft.hintDisplay}
-            options={(['always', 'onRequest'] as const).map((v) => ({ value: v, label: O.hintDisplay[v] }))}
+            options={options(['always', 'onRequest'] as const, O.hintDisplay)}
             onChange={(v) => set('hintDisplay', v as Settings['hintDisplay'])}
           />
           <p className="field-label">{L.hintDistance}</p>
@@ -228,7 +228,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Select
             label={L.roundType}
             value={draft.roundType}
-            options={(['untilHearts', 'goalCount'] as const).map((v) => ({ value: v, label: O.roundType[v] }))}
+            options={options(['untilHearts', 'goalCount'] as const, O.roundType)}
             onChange={(v) => set('roundType', v as Settings['roundType'])}
           />
           {draft.roundType === 'goalCount' && (
@@ -249,7 +249,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Select
             label={L.difficulty}
             value={draft.difficulty}
-            options={(['easy', 'normal', 'challenging'] as const).map((v) => ({ value: v, label: O.difficulty[v] }))}
+            options={options(['easy', 'normal', 'challenging'] as const, O.difficulty)}
             onChange={(v) => set('difficulty', v as Settings['difficulty'])}
           />
           <Check label={L.adaptive} checked={draft.adaptive} onChange={(v) => set('adaptive', v)} />
@@ -266,7 +266,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Select
             label={L.numberPad}
             value={draft.numberPad}
-            options={(['auto', 'always', 'never'] as const).map((v) => ({ value: v, label: O.numberPad[v] }))}
+            options={options(['auto', 'always', 'never'] as const, O.numberPad)}
             onChange={(v) => set('numberPad', v as Settings['numberPad'])}
           />
         </Group>
@@ -423,6 +423,11 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
       <label htmlFor={id}>{label}</label>
     </div>
   );
+}
+
+/** Select options for `values`, labeled from `labels`. */
+function options<V extends string>(values: readonly V[], labels: Record<V, string>): Array<{ value: string; label: string }> {
+  return values.map((value) => ({ value, label: labels[value] }));
 }
 
 function Select({

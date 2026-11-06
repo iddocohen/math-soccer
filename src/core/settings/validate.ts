@@ -66,8 +66,3 @@ export function validateSettings(s: Settings): SettingsError[] {
   }
   return errors;
 }
-
-/** True when the settings pass the schema shape and every rule. */
-export function isValidSettings(s: Settings): boolean {
-  return validateSettings(s).length === 0;
-}

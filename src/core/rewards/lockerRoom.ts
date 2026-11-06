@@ -33,8 +33,15 @@ export const SHIRT_NAME_PATTERN = /^[\p{L} -]*$/u;
 
 /** The stars one event earns in a mode. */
 export function starsFor(event: 'goal' | 'square' | 'lineDone', mode: Mode): number {
-  if (mode === 'lines') return event === 'square' ? SQUARE_STARS : event === 'lineDone' ? SQUARE_STARS + LINE_STARS : 0;
-  return event === 'goal' ? GOAL_STARS : 0;
+  if (mode !== 'lines') return event === 'goal' ? GOAL_STARS : 0;
+  switch (event) {
+    case 'square':
+      return SQUARE_STARS;
+    case 'lineDone':
+      return SQUARE_STARS + LINE_STARS;
+    case 'goal':
+      return 0;
+  }
 }
 
 /**

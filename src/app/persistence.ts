@@ -35,13 +35,9 @@ import {
 import {
   load,
   LOCKER_ROOM,
-  LOCKER_ROOM_KEY,
   PROGRESS,
-  PROGRESS_KEY,
   RECORDS,
-  RECORDS_KEY,
   SETTINGS,
-  SETTINGS_KEY,
   unreadableKey,
   type ResetReason,
   type StoredKind,
@@ -51,8 +47,6 @@ import {
 export type DataKind = 'settings' | 'progress' | 'records' | 'lockerRoom';
 
 const DATA_ORDER: DataKind[] = ['settings', 'progress', 'records', 'lockerRoom'];
-
-const KEYS: Record<DataKind, string> = { settings: SETTINGS_KEY, progress: PROGRESS_KEY, records: RECORDS_KEY, lockerRoom: LOCKER_ROOM_KEY };
 
 /**
  * The result of a save. `partial` is true when a save of several kinds failed and some keys still hold the new text,
@@ -141,7 +135,7 @@ export function createPersistence(kv: KeyValue): Persistence {
     if (reason === 'newer') kept.add(kind);
     if (reason !== 'invalid') continue;
     try {
-      if (kv.get(unreadableKey(KEYS[kind])) !== kv.get(KEYS[kind])) kept.add(kind);
+      if (kv.get(unreadableKey(KINDS[kind].key)) !== kv.get(KINDS[kind].key)) kept.add(kind);
     } catch {
       kept.add(kind);
     }
@@ -157,7 +151,7 @@ export function createPersistence(kv: KeyValue): Persistence {
     const written: Array<{ key: string; old: string | null }> = [];
     try {
       for (const kind of kinds) {
-        const key = KEYS[kind];
+        const key = KINDS[kind].key;
         const old = kinds.length > 1 ? kv.get(key) : null;
         kv.set(key, JSON.stringify(next[kind]));
         written.push({ key, old });
@@ -193,7 +187,7 @@ export function createPersistence(kv: KeyValue): Persistence {
     for (const kind of DATA_ORDER) {
       let raw: string | null;
       try {
-        raw = kv.get(unreadableKey(KEYS[kind]));
+        raw = kv.get(unreadableKey(KINDS[kind].key));
       } catch {
         continue;
       }
@@ -240,7 +234,7 @@ export function createPersistence(kv: KeyValue): Persistence {
       if (!r.ok) return r;
       for (const kind of kinds) {
         try {
-          kv.remove(unreadableKey(KEYS[kind]));
+          kv.remove(unreadableKey(KINDS[kind].key));
         } catch {
           // The data is restored; a copy left behind is offered again, and restoring it twice changes nothing.
         }

@@ -36,7 +36,6 @@ export const de = {
     parentHint: 'Für Eltern: Zahnrad gedrückt halten',
     /** Spoken once on the start tap, so tablet browsers allow speech later (FR-032). */
     greeting: "Los geht's!",
-    updateReady: 'Eine neue Version ist bereit.',
     /** Shown on the start screen when saving stars, progress or bests failed during play (review M6). */
     saveFailed: 'Speichern klappt gerade nicht. Neue Sterne und Fortschritte gelten nur, bis der Browser geschlossen wird.',
     /** Closes a notice on the start screen. */
@@ -100,7 +99,6 @@ export const de = {
   roundEnd: {
     cheer: 'Super gespielt!',
     summary: (goals: number, timeMs: number) => `${goalCount(goals)} in ${clock(timeMs)}`,
-    goalsOnly: goalCount,
     newRecord: 'Neuer Rekord!',
     record: (n: number) => `Dein Rekord: ${n}`,
     recordTime: (goals: number, timeMs: number) => `Dein Rekord: ${goalCount(goals)} in ${clock(timeMs)}`,
@@ -188,7 +186,6 @@ export const de = {
     saved: 'Gespeichert. Die Einstellungen gelten ab der nächsten Runde.',
     saveFailed: 'Speichern hat nicht geklappt. Die Einstellungen gelten nur, bis der Browser geschlossen wird.',
     checkFields: 'Bitte die markierten Felder prüfen.',
-    persistDenied: 'Der Browser darf gespeicherte Daten löschen. Bitte die Daten ab und zu sichern.',
     version: (version: string, date: string) => `Version ${version} vom ${date}`,
     groups: {
       range: 'Zahlenraum',
@@ -348,7 +345,6 @@ export const de = {
     receiveHint: 'Der Spielstand aus dem Link ersetzt den Spielstand in diesem Browser.',
     accept: 'Übernehmen',
     decline: 'Abbrechen',
-    accepted: 'Spielstand übernommen.',
     invalid: 'Dieser Link enthält keinen gültigen Spielstand.',
     close: 'Schließen',
   },

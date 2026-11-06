@@ -50,8 +50,25 @@ function isLight(color: number): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150;
 }
 
+/** The pattern on a ball design's small picture: a star, flames, a center patch, or none on the rainbow ball. */
+function markOf(design: BallDesign, fill: string): ReactElement | null {
+  switch (design) {
+    case 'stars':
+      return (
+        <text x="20" y="27" textAnchor="middle" fontSize="20" fill={fill}>
+          ★
+        </text>
+      );
+    case 'flames':
+      return <path d="M8 34 L14 18 L18 28 L20 12 L24 28 L28 18 L32 34 Z" fill={fill} />;
+    case 'rainbow':
+      return null;
+    default:
+      return <circle cx="20" cy="20" r="7" fill={fill} />;
+  }
+}
+
 export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: number }): ReactElement {
-  const fill = css(BALL_COLORS[design].fill);
   const mark = css(BALL_COLORS[design].mark);
   const gradient = `ball-gradient${useId().replace(/[^\w-]/g, '')}`;
   return (
@@ -66,16 +83,8 @@ export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: num
           <stop offset="100%" stopColor="#e74c3c" />
         </radialGradient>
       </defs>
-      <circle cx="20" cy="20" r="19" fill={design === 'rainbow' ? `url(#${gradient})` : fill} stroke="rgb(0 0 0 / 30%)" />
-      {design === 'stars' ? (
-        <text x="20" y="27" textAnchor="middle" fontSize="20" fill={mark}>
-          ★
-        </text>
-      ) : design === 'flames' ? (
-        <path d="M8 34 L14 18 L18 28 L20 12 L24 28 L28 18 L32 34 Z" fill={mark} />
-      ) : design === 'rainbow' ? null : (
-        <circle cx="20" cy="20" r="7" fill={mark} />
-      )}
+      <circle cx="20" cy="20" r="19" fill={design === 'rainbow' ? `url(#${gradient})` : css(BALL_COLORS[design].fill)} stroke="rgb(0 0 0 / 30%)" />
+      {markOf(design, mark)}
     </svg>
   );
 }
