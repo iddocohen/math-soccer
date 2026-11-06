@@ -24,8 +24,6 @@ export const GOAL_STARS = 2;
 export const SHIRT_NUMBER_MIN = 1;
 export const SHIRT_NUMBER_MAX = 99;
 export const SHIRT_NAME_MAX = 10;
-/** Letters (any language), spaces and hyphens. */
-export const SHIRT_NAME_PATTERN = /^[\p{L} -]*$/u;
 
 /**
  * The stars to award after `starsThisRound` changed from `seen` to `current`. A new round starts again at 0, so a

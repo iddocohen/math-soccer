@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
+import type { Settings } from '../settings/schema';
 import { emptyRecords, emptyProgress } from '../storage/schemas';
 import type { Target } from '../types';
 import { directionKey, emptyDirectionState, recordAttempt } from './adaptive';
-import { attemptDirections, makeAttemptRecord, type FinishedTarget } from './attempt';
+import { makeAttemptRecord, type FinishedTarget } from './attempt';
 import { parseRecordKey, summarize } from './summarize';
 
 const target: Target = { number: 46, hints: [36, 45], directions: ['down', 'right'], level: 1, pattern: 'neighbors' };
@@ -50,7 +51,10 @@ describe('makeAttemptRecord (T043, FR-037)', () => {
   });
 });
 
-describe('attemptDirections (FR-038)', () => {
+describe('attempt directions (FR-038)', () => {
+  const attemptDirections = (target: Target, settings: Settings, helpStep: number) =>
+    makeAttemptRecord(finished({ target, settings, helpStep })).directions;
+
   it('counts toward the directions the hints point from', () => {
     expect(attemptDirections(target, defaultSettings(), 0)).toEqual(['down', 'right']);
   });

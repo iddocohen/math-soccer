@@ -27,14 +27,13 @@ import { LEVELS, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { placements, ROW_GIVEN, type PatternChoice } from '../targets/patterns';
 import { SHAPE_IDS } from '../targets/shapes';
-import { X_DIRECTIONS } from '../targets/xshape';
-import type { Direction, HintDistance } from '../types';
+import { DIAGONAL, STRAIGHT } from '../targets/hints';
+import { HINT_DISTANCES, type Direction, type HintDistance } from '../types';
 
 export { LEVELS, type Level };
 
-/** The lowest and the highest level. */
+/** The lowest level. */
 export const FIRST_LEVEL: Level = 1;
-export const LAST_LEVEL: Level = 5;
 
 /** The level whose X shape gets two empty squares, and after how many targets solved alone at it (amendment 09). */
 export const X_LEVEL: Level = 5;
@@ -42,9 +41,6 @@ export const X_TWO_EMPTIES_AFTER = 2;
 
 /** Unmastered directions are picked this many times as often as mastered ones (research R9, FR-089). */
 export const UNMASTERED_WEIGHT = 2;
-
-const STRAIGHT: readonly Direction[] = ['right', 'left', 'down', 'up'];
-const DIAGONAL: readonly Direction[] = X_DIRECTIONS;
 
 /**
  * The directions each level trains. A target whose hints stayed hidden counts toward these (attempt.ts); a big plus
@@ -71,11 +67,6 @@ export const DISTANCE_DIRECTIONS: Record<HintDistance, readonly Direction[]> = {
   diagonal: DIAGONAL,
   far: STRAIGHT,
 };
-
-/** True when `n` is one of the five levels. */
-export function isLevel(n: unknown): n is Level {
-  return typeof n === 'number' && (LEVELS as readonly number[]).includes(n);
-}
 
 /** True when the parent's settings allow level `level` at all: levels 3 and 4 need at least one shape. */
 function offered(level: Level, settings: Pick<Settings, 'shapes'>): boolean {
@@ -199,12 +190,28 @@ export interface LevelProgress {
   xTwoEmpties: boolean;
 }
 
+/** A short key of `choice` for the caches below. */
+function choiceKey(choice: PatternChoice): string {
+  switch (choice.pattern) {
+    case 'neighbors':
+      return `n${choice.distance}`;
+    case 'middle':
+      return `m${choice.direction}`;
+    case 'row':
+      return `r${choice.direction}${choice.given}`;
+    case 'shape':
+      return `s${choice.shape}${choice.empties}`;
+    case 'xshape':
+      return `x${choice.empties}`;
+  }
+}
+
 /** Answers of `fits`, by range, choice and direction: they never change, and every target asks them again. */
 const fitCache = new Map<string, boolean>();
 
 /** True when `choice` has a placement on `layout` that trains `direction`. */
 function fits(layout: ChartLayout, choice: PatternChoice, direction: Direction): boolean {
-  const key = `${layout.min}-${layout.max}|${JSON.stringify(choice)}|${direction}`;
+  const key = `${layout.min}-${layout.max}|${choiceKey(choice)}|${direction}`;
   let found = fitCache.get(key);
   if (found === undefined) {
     found = placements(layout, choice, direction).length > 0;
@@ -213,13 +220,22 @@ function fits(layout: ChartLayout, choice: PatternChoice, direction: Direction):
   return found;
 }
 
+/** Answers of `fittingAt`, by range, level, the X's empty squares and the settings `levelChoices` reads. */
+const fittingCache = new Map<string, Map<Direction, PatternChoice[]>>();
+
 /** The choices of `level` that fit the chart, by direction; empty when nothing of the level fits. */
 function fittingAt(layout: ChartLayout, level: Level, settings: Settings, xTwoEmpties: boolean): Map<Direction, PatternChoice[]> {
+  const shapeKey = SHAPE_IDS.map((id) => (settings.shapes[id] ? 1 : 0)).join('');
+  const distanceKey = HINT_DISTANCES.map((d) => (settings.hintDistance[d] ? 1 : 0)).join('');
+  const key = `${layout.min}-${layout.max}|${level}|${xTwoEmpties ? 2 : 1}|${shapeKey}|${distanceKey}`;
+  const cached = fittingCache.get(key);
+  if (cached !== undefined) return cached;
   const out = new Map<Direction, PatternChoice[]>();
   for (const direction of PICK_DIRECTIONS[level]) {
     const ok = levelChoices(level, direction, settings, xTwoEmpties).filter((c) => fits(layout, c, direction));
     if (ok.length > 0) out.set(direction, ok);
   }
+  fittingCache.set(key, out);
   return out;
 }
 

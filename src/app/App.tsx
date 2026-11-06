@@ -61,8 +61,7 @@
  *
  * Polish (T061, T062): the number pad shows by the parent's setting (automatic: only without a mouse or trackpad,
  * FR-031). With "Vorlesen" on (FR-032), each new target reads a short task aloud that never says the number; the
- * speaker icon repeats it. There is no help sentence to read (amendment 14, FR-119). The start tap
- * speaks a short greeting, since tablet browsers speak only after a user tap.
+ * speaker icon repeats it. The start tap speaks a short greeting, since tablet browsers speak only after a user tap.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Settings } from '../core/settings/schema';
@@ -454,7 +453,7 @@ export function App() {
     if (!speech || taskKey === null) return;
     speaker.speak(t().match.task);
   }, [speech, taskKey, speaker]);
-  // The speaker icon reads the task again; there is no help sentence to read (amendment 14, FR-119).
+  // The speaker icon reads the task again.
   const speakTask = useCallback(() => speaker.speak(t().match.task), [speaker]);
 
   const finePointer = useFinePointer();

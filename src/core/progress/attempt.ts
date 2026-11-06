@@ -33,7 +33,7 @@ export interface FinishedTarget {
 }
 
 /** The directions an attempt counts toward (FR-038). */
-export function attemptDirections(target: Target, settings: Settings, helpStep: number): Direction[] {
+function attemptDirections(target: Target, settings: Settings, helpStep: number): Direction[] {
   const display = targetHintDisplay(settings, target);
   const shown = hintsVisible(display, helpStep);
   if (shown && target.directions.length > 0) return [...target.directions];

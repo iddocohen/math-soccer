@@ -31,6 +31,12 @@ export const MOVE: Record<Direction, readonly [number, number]> = {
   upRight: [-1, 1],
 };
 
+/** The straight directions, across and down, both ways, in the order of DIRECTIONS. */
+export const STRAIGHT: readonly Direction[] = ['right', 'left', 'down', 'up'];
+
+/** The diagonal directions, both ways, in the order of DIRECTIONS. */
+export const DIAGONAL: readonly Direction[] = ['downRight', 'upLeft', 'downLeft', 'upRight'];
+
 /**
  * Where the hints sit relative to the target, as [dRow, dCol]:
  * - `direct`: left, right, above, below.

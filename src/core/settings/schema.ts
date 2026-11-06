@@ -46,7 +46,5 @@ export const settingsSchema = z.object({
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
-export type SettingsRange = z.infer<typeof rangeSchema>;
 export type RangePreset = z.infer<typeof rangePresetSchema>;
 export type Difficulty = Settings['difficulty'];
-export type LevelRange = Settings['levels'];

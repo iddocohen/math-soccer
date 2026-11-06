@@ -377,7 +377,6 @@ export const de = {
     /** The current level (FR-090). */
     currentLevel: (label: string) => `Stufe jetzt: ${label}`,
     toRaise: (n: number) => (n === 1 ? 'noch 1 Treffer allein bis zur nächsten Stufe' : `noch ${n} Treffer allein bis zur nächsten Stufe`),
-    levelsTitle: 'Stufen',
     levelColumn: 'Stufe',
     masteredYes: 'ja',
     masteredNo: 'noch nicht',

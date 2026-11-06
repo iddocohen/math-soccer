@@ -364,7 +364,7 @@ describe('stored data baseline (T106)', () => {
 
   it('clears every data key and kept copy once, writes the marker, and leaves other keys alone', () => {
     const kv = memoryKeyValue(preBaseline());
-    expect(applyBaseline(kv)).toEqual({ cleared: true });
+    applyBaseline(kv);
     for (const key of DATA_KEYS) {
       expect(kv.get(key)).toBeNull();
       expect(kv.get(unreadableKey(key))).toBeNull();
@@ -378,22 +378,22 @@ describe('stored data baseline (T106)', () => {
 
   it('keeps data saved after the marker', () => {
     const kv = memoryKeyValue();
-    expect(applyBaseline(kv)).toEqual({ cleared: false });
+    applyBaseline(kv);
     const locker = { ...emptyLockerRoom(), stars: 7 };
     saveLockerRoom(kv, locker);
-    expect(applyBaseline(kv)).toEqual({ cleared: false });
+    applyBaseline(kv);
     expect(loadLockerRoom(kv).value).toEqual(locker);
   });
 
   it('clears again when the marker holds another baseline', () => {
     const kv = memoryKeyValue({ ...preBaseline(), [BASELINE_KEY]: 'old' });
-    expect(applyBaseline(kv)).toEqual({ cleared: true });
+    applyBaseline(kv);
     expect(kv.get(SETTINGS_KEY)).toBeNull();
     expect(kv.get(BASELINE_KEY)).toBe(BASELINE);
   });
 
   it('changes nothing and does not throw when storage is blocked', () => {
-    expect(applyBaseline(throwingKeyValue())).toEqual({ cleared: false });
+    expect(() => applyBaseline(throwingKeyValue())).not.toThrow();
   });
 
   it('puts every stored kind at version 1', () => {

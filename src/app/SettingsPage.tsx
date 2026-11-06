@@ -192,7 +192,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             label={L.rangePreset}
             value={draft.range.preset}
             options={options(PRESETS, O.rangePreset)}
-            onChange={(v) => choosePreset(v as RangePreset)}
+            onChange={choosePreset}
           />
           {custom && (
             <>
@@ -207,7 +207,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             label={L.hintDisplay}
             value={draft.hintDisplay}
             options={options(['always', 'onRequest'] as const, O.hintDisplay)}
-            onChange={(v) => set('hintDisplay', v as Settings['hintDisplay'])}
+            onChange={(v) => set('hintDisplay', v)}
           />
           <p className="field-label">{L.hintDistance}</p>
           {HINT_DISTANCES.map((d) => (
@@ -228,7 +228,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             label={L.roundType}
             value={draft.roundType}
             options={options(['untilHearts', 'goalCount'] as const, O.roundType)}
-            onChange={(v) => set('roundType', v as Settings['roundType'])}
+            onChange={(v) => set('roundType', v)}
           />
           {draft.roundType === 'goalCount' && (
             <NumberInput
@@ -272,7 +272,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             label={L.difficulty}
             value={draft.difficulty}
             options={options(['easy', 'normal', 'challenging'] as const, O.difficulty)}
-            onChange={(v) => set('difficulty', v as Settings['difficulty'])}
+            onChange={(v) => set('difficulty', v)}
           />
           <Check label={L.adaptive} checked={draft.adaptive} onChange={(v) => set('adaptive', v)} />
           <Select
@@ -302,7 +302,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             label={L.numberPad}
             value={draft.numberPad}
             options={options(['auto', 'always', 'never'] as const, O.numberPad)}
-            onChange={(v) => set('numberPad', v as Settings['numberPad'])}
+            onChange={(v) => set('numberPad', v)}
           />
         </Group>
 
@@ -461,26 +461,26 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
 }
 
 /** Select options for `values`, labeled from `labels`. */
-function options<V extends string>(values: readonly V[], labels: Record<V, string>): Array<{ value: string; label: string }> {
+function options<V extends string>(values: readonly V[], labels: Record<V, string>): Array<{ value: V; label: string }> {
   return values.map((value) => ({ value, label: labels[value] }));
 }
 
-function Select({
+function Select<V extends string>({
   label,
   value,
   options,
   onChange,
 }: {
   label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
+  value: V;
+  options: Array<{ value: V; label: string }>;
+  onChange: (v: V) => void;
 }) {
   const id = useId();
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <select id={id} value={value} onChange={(e) => onChange(e.currentTarget.value)}>
+      <select id={id} value={value} onChange={(e) => onChange(e.currentTarget.value as V)}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

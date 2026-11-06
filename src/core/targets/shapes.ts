@@ -17,7 +17,7 @@
  *   filled.
  */
 import { cellOf, COLUMNS, layoutChart, numberAt, type ChartLayout } from '../chart/layout';
-import { DIRECTIONS, type Direction } from '../types';
+import type { Direction } from '../types';
 import { directionsOf } from './hints';
 
 export const SHAPE_IDS = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'] as const;
@@ -103,8 +103,16 @@ function pointing(n: number, lit: readonly number[]): number {
 
 /** Every placement of `shape` with `empties` empty squares on the chart; with `direction`, only those that train it. */
 export function shapePlacements(layout: ChartLayout, shape: ShapeId, empties: ShapeEmpties, direction?: Direction): ShapePlacement[] {
-  const out: ShapePlacement[] = [];
-  for (const { cells, model } of modelTurns(shape, empties)) {
+  return turnPlacements(layout, modelTurns(shape, empties), direction).map((p) => ({ ...p, shape }));
+}
+
+/** A placement of any pattern of squares on the chart: a shape or the X (xshape.ts). */
+export type SquaresPlacement = Omit<ShapePlacement, 'shape'>;
+
+/** Every place of every turn on the chart, with each of its model placements; with `direction`, only those that train it. */
+export function turnPlacements(layout: ChartLayout, turns: ReadonlyArray<ModelTurn>, direction?: Direction): SquaresPlacement[] {
+  const out: SquaresPlacement[] = [];
+  for (const { cells, model } of turns) {
     for (let row = 0; row < layout.rows; row++) {
       for (let col = 0; col < COLUMNS; col++) {
         const squares = cells.map(([r, c]) => numberAt(layout, row + r, col + c));
@@ -117,7 +125,6 @@ export function shapePlacements(layout: ChartLayout, shape: ShapeId, empties: Sh
             hints: m.lit.map(at),
             directions: m.directions,
             queue: m.second === null ? [] : [{ number: at(m.second), directions: m.secondDirections }],
-            shape,
             squares: squares as number[],
           });
         }
@@ -128,13 +135,28 @@ export function shapePlacements(layout: ChartLayout, shape: ShapeId, empties: Sh
 }
 
 /** One placement of a turn by square index: the empty squares, the lit ones and the trained directions. */
-interface ModelPlacement {
+export interface ModelPlacement {
   first: number;
   second: number | null;
   lit: number[];
   directions: Direction[];
   secondDirections: Direction[];
 }
+
+/** A turn of a pattern of squares, as [row, column] offsets, with its placements by square index. */
+export interface ModelTurn {
+  cells: ReadonlyArray<readonly [number, number]>;
+  model: ModelPlacement[];
+}
+
+/** How a pattern of squares picks its empty squares: the directions a square trains, and for one empty square, how many lit squares must point to it. */
+export interface EmptyRule {
+  directions: (n: number, lit: readonly number[]) => Direction[];
+  minPointing: number;
+}
+
+/** The rule of the shapes (file comment): directions from touching lit squares, and two lit squares pointing to a single empty one. */
+const SHAPE_RULE: EmptyRule = { directions: (n, lit) => shapeDirections(MODEL, n, lit), minPointing: 2 };
 
 /** A chart where every turn fits away from the edges, so the directions read the same as anywhere else. */
 const MODEL = layoutChart(1, 100);
@@ -146,19 +168,19 @@ const MODEL_COL = 3;
  * directions depend only on the turn, not on where it sits, so they are worked out once per shape and number of empty
  * squares on a model chart, and moved to each place.
  */
-const modelCache = new Map<string, Array<{ cells: Cells; model: ModelPlacement[] }>>();
-function modelTurns(shape: ShapeId, empties: ShapeEmpties): Array<{ cells: Cells; model: ModelPlacement[] }> {
+const modelCache = new Map<string, ModelTurn[]>();
+function modelTurns(shape: ShapeId, empties: ShapeEmpties): ModelTurn[] {
   const key = `${shape}|${empties}`;
   let turns = modelCache.get(key);
   if (turns === undefined) {
-    turns = shapeTurns(shape).map((cells) => ({ cells, model: modelPlacements(cells, empties) }));
+    turns = shapeTurns(shape).map((cells) => ({ cells, model: modelPlacements(cells, empties, SHAPE_RULE) }));
     modelCache.set(key, turns);
   }
   return turns;
 }
 
-/** The placements of a turn by the rules in the file comment, by square index. */
-function modelPlacements(cells: ReadonlyArray<readonly [number, number]>, empties: ShapeEmpties): ModelPlacement[] {
+/** The placements of a turn by `rule`, by square index. */
+export function modelPlacements(cells: ReadonlyArray<readonly [number, number]>, empties: ShapeEmpties, rule: EmptyRule): ModelPlacement[] {
   const squares = cells.map(([r, c]) => numberAt(MODEL, MODEL_ROW + r, MODEL_COL + c)!);
   const indexes = squares.map((_, i) => i);
   const out: ModelPlacement[] = [];
@@ -166,8 +188,8 @@ function modelPlacements(cells: ReadonlyArray<readonly [number, number]>, emptie
     if (empties === 1) {
       const lit = indexes.filter((i) => i !== first);
       const litNumbers = lit.map((i) => squares[i]!);
-      const directions = shapeDirections(MODEL, squares[first]!, litNumbers);
-      if (directions.length === 0 || pointing(squares[first]!, litNumbers) < 2) continue;
+      const directions = rule.directions(squares[first]!, litNumbers);
+      if (directions.length === 0 || pointing(squares[first]!, litNumbers) < rule.minPointing) continue;
       out.push({ first, second: null, lit, directions, secondDirections: [] });
       continue;
     }
@@ -175,14 +197,11 @@ function modelPlacements(cells: ReadonlyArray<readonly [number, number]>, emptie
       if (second === first) continue;
       const lit = indexes.filter((i) => i !== first && i !== second);
       const litNumbers = lit.map((i) => squares[i]!);
-      const directions = shapeDirections(MODEL, squares[first]!, litNumbers);
-      const secondDirections = shapeDirections(MODEL, squares[second]!, [...litNumbers, squares[first]!]);
+      const directions = rule.directions(squares[first]!, litNumbers);
+      const secondDirections = rule.directions(squares[second]!, [...litNumbers, squares[first]!]);
       if (directions.length === 0 || secondDirections.length === 0) continue;
       out.push({ first, second, lit, directions, secondDirections });
     }
   }
   return out;
 }
-
-/** The directions shapes can train: across and down, both ways. */
-export const SHAPE_DIRECTIONS: readonly Direction[] = DIRECTIONS.filter((d) => d === 'right' || d === 'left' || d === 'down' || d === 'up');

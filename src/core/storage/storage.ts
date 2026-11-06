@@ -171,25 +171,21 @@ export function load<T>(kv: KeyValue, kind: StoredKind<T>): { value: T; resetRea
 
 /**
  * Clears stored data from before the baseline once: when `BASELINE_KEY` does not hold `BASELINE`, every data key and
- * its kept copy is removed and the marker is written. Runs before anything is loaded. `cleared` is true when it removed
- * data. When storage cannot be read or written, the loaders report it as usual and the next start tries again.
+ * its kept copy is removed and the marker is written. Runs before anything is loaded. When storage cannot be read or
+ * written, the loaders report it as usual and the next start tries again.
  */
-export function applyBaseline(kv: KeyValue): { cleared: boolean } {
-  let cleared = false;
+export function applyBaseline(kv: KeyValue): void {
   try {
-    if (kv.get(BASELINE_KEY) === BASELINE) return { cleared };
+    if (kv.get(BASELINE_KEY) === BASELINE) return;
     for (const key of DATA_KEYS) {
       for (const k of [key, unreadableKey(key)]) {
-        if (kv.get(k) === null) continue;
-        kv.remove(k);
-        cleared = true;
+        if (kv.get(k) !== null) kv.remove(k);
       }
     }
     kv.set(BASELINE_KEY, BASELINE);
   } catch {
     // Storage is blocked or full: what was removed stays removed, and the next start tries again.
   }
-  return { cleared };
 }
 
 /** Saves one stored kind; `ok` is false when storage is full or blocked, and the game keeps going. */
