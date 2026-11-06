@@ -211,6 +211,19 @@ See [amendment 04](./amendment-04-keeper-scale.md), [05](./amendment-05-keeper-m
 
 ---
 
+## Phase 8e: Amendments 08 to 11 (player size, difficulty levels, row and column helper, net and polish)
+
+See [amendment 08](./amendment-08-player-scale.md), [09](./amendment-09-difficulty-levels.md), [10](./amendment-10-row-column-helper.md), [11](./amendment-11-net-and-polish.md).
+
+- [ ] T094 [US3] Difficulty levels 1 to 5 in `src/core/progress/ladder.ts` (or a new `levels.ts`): Gerade Linien, Schräge Linien, Formen, Formen mit 2 Lücken, X-Form (diagonal cross in `src/core/targets/xshape.ts`); level up after 3 independent solves in a row, down when 2 of the last 3 needed help, clamped to the parent's start and hardest level; current level stored and kept across rounds; shapes all off skips levels 3 and 4 (FR-085 to FR-089); unit tests
+- [ ] T095 [US3] Settings version bump: "Schwierigkeit" group with "Stufe am Anfang" and "Schwerste Stufe" (example drawing per level), remove "Hinweis-Muster" and "Richtungen"; migration and old step mapping per amendment 09; progress page shows the current level and per-level counts (FR-090); "Neue Stufe: …" line with a small cheer on level up only (FR-088); unit tests and `tests/e2e/levels.spec.ts`
+- [ ] T096 [US2] Row and column helper: row scale right of the goal with tens labels, column scale above the crossbar 1 to 10, calm style, parent switch "Zeilen- und Spaltenhilfe" (on), every fifth row label above 20 rows (FR-091 to FR-093); help steps row, column, whole chart, answer with bands, arrows and hint lines (FR-094, FR-095); `data-help-row`, `data-help-col`; unit tests; update `help.spec.ts`
+- [ ] T097 [US1] Player drawn at least 1.3 times the keeper's height, lower left of the ball, never over `CHART_RECT`, short step on the kick (FR-082 to FR-084); unit tests
+- [ ] T098 [US1] Net: diamond mesh with depth and sag drawn once into a texture, chart grid as a separate soft panel, bulge on a goal (FR-096 to FR-098); overlay bars clear of floodlights, entry placeholder, "Enter" hint on "Spielen" (FR-099 to FR-101); tests; screenshot check
+- [ ] T099 Update README, `contracts/screens.md`, `data-model.md` and `quickstart.md` for amendments 08 to 11; run lint, typecheck, test, build, Chromium and base-path e2e, iPad projects and performance
+
+---
+
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
