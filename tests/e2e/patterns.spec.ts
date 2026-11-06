@@ -1,18 +1,28 @@
 /**
- * Hint patterns end to end (T090; amendment 05, FR-065, FR-066): for each pattern, the settings allow only that
- * pattern, Enter starts "Spielen", the target carries the pattern (`data-pattern`) and its hint numbers (`data-hints`)
- * sit where the pattern says, and shooting the target scores the round's one goal. "Formen" gets its own round with
- * the shapes (T091): a shape with two empty squares scores two goals, one after the other. Keys drive the game; waits are on data-* state, never fixed sleeps.
+ * Hint patterns end to end (T090; amendment 05, FR-065; amendment 09): for each pattern of level 1 "Gerade Linien", a
+ * seed whose first target has that pattern (worked out as the game does it), Enter starts "Spielen", the target carries
+ * the pattern (`data-pattern`) and its hint numbers (`data-hints`) sit where the pattern says, and shooting the target
+ * scores the round's one goal. Level 4 "Formen mit 2 Lücken" gets its own round (T091): a shape with two empty squares
+ * scores two goals, one after the other. Keys drive the game; waits are on data-* state, never fixed sleeps.
  */
 import type { Locator } from '@playwright/test';
 import { expect, seedStorage, startRound, targetNumber, test, typeAndShoot } from './fixtures';
-import { defaultSettings } from '../../src/core/settings/defaults';
+import { defaultSettings, type Level } from '../../src/core/settings/defaults';
+import type { Settings } from '../../src/core/settings/schema';
 import { SETTINGS_KEY } from '../../src/core/storage/storage';
 import { layoutChart } from '../../src/core/chart/layout';
 import { createRng, deriveSeed } from '../../src/core/rng';
-import { nextTarget, NO_PROGRESS } from '../../src/core/targets/nextTarget';
+import { nextTarget } from '../../src/core/targets/nextTarget';
+import type { Target } from '../../src/core/types';
 
-const NONE = { neighbors: false, middle: false, row: false, shape: false };
+/** The first seed whose first target at `level` passes `ok`, worked out as the game does it for a child without progress. */
+function seedFor(settings: Settings, level: Level, ok: (t: Target) => boolean): number {
+  const layout = layoutChart(settings.range.min, settings.range.max);
+  const first = (seed: number) => nextTarget({ layout, settings, progress: { mastered: [], level, xTwoEmpties: false }, rng: createRng(deriveSeed(seed, 0)) });
+  let seed = 1;
+  while (!ok(first(seed))) seed++;
+  return seed;
+}
 
 /** The hint numbers of the current target, in the order the pattern gives them. */
 async function hintsOf(match: Locator): Promise<number[]> {
@@ -57,20 +67,21 @@ const CASES = [
 ] as const;
 
 for (const c of CASES) {
-  test(`with only "${c.name}" allowed, a round of one goal has ${c.name} targets`, async ({ page }) => {
-    await seedStorage(page, {
-      [SETTINGS_KEY]: {
-        ...defaultSettings(),
-        ...c.extra,
-        patterns: { ...NONE, [c.pattern]: true },
-        adaptive: false,
-        roundType: 'goalCount',
-        goalsPerRound: 1,
-      },
-    });
-    await page.goto('/?start=play&seed=6');
+  test(`at level 1, a round of one goal with a ${c.name} target`, async ({ page }) => {
+    const settings: Settings = {
+      ...defaultSettings(),
+      ...c.extra,
+      levels: { start: 1, hardest: 1 },
+      adaptive: false,
+      roundType: 'goalCount',
+      goalsPerRound: 1,
+    };
+    const seed = seedFor(settings, 1, (t) => t.pattern === c.pattern);
+    await seedStorage(page, { [SETTINGS_KEY]: settings });
+    await page.goto(`/?start=play&seed=${seed}`);
     const match = await startRound(page);
     await expect(match).toHaveAttribute('data-pattern', c.pattern);
+    await expect(match).toHaveAttribute('data-level', '1');
     const target = await targetNumber(match);
     c.check(target, await hintsOf(match));
 
@@ -80,24 +91,21 @@ for (const c of CASES) {
   });
 }
 
-test('with only "Formen" allowed, a shape with two empty squares scores two goals in a row', async ({ page }) => {
-  const settings = {
+test('at level 4 "Formen mit 2 Lücken", a shape with two empty squares scores two goals in a row', async ({ page }) => {
+  const settings: Settings = {
     ...defaultSettings(),
-    patterns: { ...NONE, shape: true },
+    levels: { start: 4, hardest: 4 },
     adaptive: false,
-    roundType: 'goalCount' as const,
+    roundType: 'goalCount',
     goalsPerRound: 2,
   };
-  // The first seed whose first target is a shape with two empty squares, worked out as the game does it.
-  const layout = layoutChart(settings.range.min, settings.range.max);
-  const first = (seed: number) => nextTarget({ layout, settings, progress: NO_PROGRESS, rng: createRng(deriveSeed(seed, 0)) });
-  let seed = 1;
-  while (!first(seed).queue) seed++;
+  const seed = seedFor(settings, 4, (t) => t.queue !== undefined);
 
   await seedStorage(page, { [SETTINGS_KEY]: settings });
   await page.goto(`/?start=play&seed=${seed}`);
   const match = await startRound(page);
   await expect(match).toHaveAttribute('data-pattern', 'shape');
+  await expect(match).toHaveAttribute('data-level', '4');
   await expect(match).toHaveAttribute('data-queue', /^\d+$/);
   const target = await targetNumber(match);
   const second = Number(await match.getAttribute('data-queue'));

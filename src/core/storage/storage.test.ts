@@ -29,7 +29,7 @@ import {
 /** A full stored round; `over` replaces fields. */
 function storedRound(over: Partial<StoredRound> = {}): StoredRound {
   return {
-    version: 2,
+    version: 3,
     seed: 1,
     roundType: 'untilHearts',
     challengeMinutes: null,
@@ -39,7 +39,7 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     hearts: 3,
     missesInRow: 0,
     helpStep: 0,
-    target: { number: 46, hints: [45, 47, 36, 56], directions: ['right', 'left', 'down', 'up'], difficultyStep: 0, pattern: 'neighbors' },
+    target: { number: 46, hints: [45, 47, 36, 56], directions: ['right', 'left', 'down', 'up'], level: 1, pattern: 'neighbors' },
     targetCount: 1,
     starsThisRound: 0,
     elapsedMs: 0,
@@ -135,29 +135,45 @@ describe('damaged data resets with a reason (FR-036)', () => {
   });
 
   it('settings that break a settings rule give defaults with resetReason invalid', () => {
-    const bad = { ...defaultSettings(), patterns: { neighbors: false, middle: false, row: false, shape: false } };
+    const bad = { ...defaultSettings(), levels: { start: 4, hardest: 2 } };
     const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(bad) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'invalid' });
   });
 
-  it('settings stored by the published game (version 1) load as version 2 without a reset (FR-070)', () => {
+  it('settings stored by the first published game (version 1) load as version 3 without a reset (FR-070)', () => {
     const v1 = {
       ...defaultSettings(),
       version: 1,
       modes: { holes: true, lines: false, keeper: true },
       lineLength: 6,
-      lineDirections: { ...defaultSettings().directions, up: true },
+      lineDirections: { right: true, down: true, downRight: true, downLeft: true, left: false, up: true, upLeft: false, upRight: false },
       difficulty: 'challenging',
     } as Record<string, unknown>;
-    for (const key of ['directions', 'patterns', 'shapes', 'timeChallenge']) delete v1[key];
+    for (const key of ['levels', 'shapes', 'timeChallenge']) delete v1[key];
     const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v1) });
     const { value, resetReason } = loadSettings(kv);
     expect(resetReason).toBe('none');
-    expect(value).toEqual({ ...defaultSettings(), directions: { ...defaultSettings().directions, up: true }, difficulty: 'challenging' });
+    expect(value).toEqual({ ...defaultSettings(), difficulty: 'challenging' });
   });
 
-  it('progress of version 1 maps old keeper ladder steps 0 to 3 to the new steps 0, 2, 6 and 7 (amendment 05)', () => {
-    const ds = (step: number) => ({ step, recent: ['independent' as const], masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 });
+  it('settings stored by the published game (version 2) load as version 3 without a reset (amendment 09)', () => {
+    const v2 = {
+      ...defaultSettings(),
+      version: 2,
+      hintDisplay: 'onRequest',
+      directions: { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false },
+      patterns: { neighbors: true, middle: true, row: true, shape: true },
+    } as Record<string, unknown>;
+    delete v2.levels;
+    const { value, resetReason } = loadSettings(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v2) }));
+    expect(resetReason).toBe('none');
+    expect(value).toEqual({ ...defaultSettings(), hintDisplay: 'onRequest' });
+  });
+
+  const ds = (step: number) => ({ step, recent: ['independent' as const], masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 });
+  const counters = { masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 };
+
+  it('progress of version 1 moves old keeper steps 0 to 3 to 0, 2, 6 and 7, then to levels: the highest, 7, is level 4', () => {
     const v1 = {
       version: 1,
       attempts: [],
@@ -165,23 +181,67 @@ describe('damaged data resets with a reason (FR-036)', () => {
     };
     const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v1) }));
     expect(resetReason).toBe('none');
-    expect(value.version).toBe(2);
+    expect(value.version).toBe(3);
+    expect(value.level).toBe(4);
     expect(value.directions).toEqual({
-      'keeper|right': ds(0),
-      'keeper|left': ds(2),
-      'keeper|down': ds(6),
-      'keeper|up': ds(7),
-      'holes|down': ds(2),
+      'keeper|right': counters,
+      'keeper|left': counters,
+      'keeper|down': counters,
+      'keeper|up': counters,
+      'holes|down': counters,
     });
   });
 
-  it('progress of version 2 keeps its ladder steps', () => {
-    const v2 = { ...emptyProgress(), directions: { 'keeper|down': { step: 3, recent: [], masteryWindow: [], attempts: 0, independent: 0, assisted: 0, guesses: 0 } } };
-    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }))).toEqual({ value: v2, resetReason: 'none' });
+  it('progress of version 2 (the published game) maps its highest keeper step to one level: 0 to 2 level 1, 3 to 4 level 2, 5 level 3, 6 to 7 level 4', () => {
+    const expected: Record<number, number> = { 0: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 4 };
+    for (const [step, level] of Object.entries(expected)) {
+      const v2 = { version: 2, attempts: [], directions: { 'keeper|down': ds(0), 'keeper|right': ds(Number(step)), 'holes|up': ds(7) } };
+      const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }));
+      expect(resetReason).toBe('none');
+      expect(value.level).toBe(level);
+      expect(value.levelRecent).toEqual([]);
+      expect(value.directions['keeper|right']).toEqual(counters);
+    }
   });
 
-  it('settings of a version above 2 give defaults with resetReason newer', () => {
-    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 3 }) });
+  it('progress of version 2 without goalkeeper steps starts at the start level, and its attempts get levels and per-level counts', () => {
+    const attempt = (difficultyStep: number, extra: Record<string, unknown> = {}) => ({
+      at: '2026-11-06T12:00:00.000Z',
+      mode: 'keeper',
+      min: 1,
+      max: 100,
+      target: 46,
+      directions: ['down'],
+      hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
+      hintDisplay: 'always',
+      difficultyStep,
+      solved: true,
+      helpStep: 0,
+      misses: 0,
+      responseMs: 4000,
+      guess: false,
+      ...extra,
+    });
+    const v2 = { version: 2, attempts: [attempt(0), attempt(4, { helpStep: 1 }), attempt(6), attempt(7, { guess: true }), attempt(2, { mode: 'holes' })], directions: {} };
+    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }));
+    expect(resetReason).toBe('none');
+    expect(value.level).toBeNull();
+    expect(value.attempts.map((a) => a.level)).toEqual([1, 2, 4, 4, 1]);
+    expect(value.attempts[0]).not.toHaveProperty('difficultyStep');
+    expect(value.levels).toEqual({
+      '1': { independent: 1, assisted: 0, guesses: 0 },
+      '2': { independent: 0, assisted: 1, guesses: 0 },
+      '4': { independent: 1, assisted: 0, guesses: 1 },
+    });
+  });
+
+  it('progress of version 3 loads as it is', () => {
+    const v3 = { ...emptyProgress(), level: 2 as const, levelWins: 1, directions: { 'keeper|down': counters } };
+    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v3) }))).toEqual({ value: v3, resetReason: 'none' });
+  });
+
+  it('settings of a version above 3 give defaults with resetReason newer', () => {
+    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 4 }) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'newer' });
   });
 
@@ -246,7 +306,7 @@ describe('requestPersistentStorage', () => {
 describe('export and import', () => {
   const data = () => ({
     settings: { ...defaultSettings(), goalsPerRound: 15 },
-    progress: { ...emptyProgress(), directions: { 'holes|down': { step: 1, recent: [], masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
+    progress: { ...emptyProgress(), directions: { 'holes|down': { masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
     records: emptyRecords(),
     lockerRoom: { ...emptyLockerRoom(), stars: 9 },
   });
@@ -323,9 +383,20 @@ describe('rounds of version 1 (amendment 05, FR-070)', () => {
     }
   });
 
-  it('turns a goalkeeper round of version 1 into version 2: no mode, no line, a Nachbarn target', () => {
+  it('turns a goalkeeper round of version 1 into version 3: no mode, no line, a Nachbarn target at level 1', () => {
     expect(loadRound(kvWith(v1Round('keeper')))).toEqual({ value: storedRound(), resetReason: 'none' });
     const withPattern = v1Round('keeper', { target: { ...v1Round('keeper').target, pattern: 'middle' } });
     expect(loadRound(kvWith(withPattern)).value?.target?.pattern).toBe('middle');
+  });
+
+  it('turns a round of version 2 (the published game) into version 3: the target ladder step becomes its level', () => {
+    const { target, ...rest } = storedRound();
+    const shape = { ...target!, pattern: 'shape' as const, queue: [{ number: 47, directions: ['right' as const] }] };
+    const v2 = (difficultyStep: number) => ({ ...rest, version: 2, target: { ...shape, level: undefined, difficultyStep } });
+    for (const [step, level] of [[0, 1], [3, 2], [5, 3], [7, 4]] as const) {
+      const { value, resetReason } = loadRound(kvWith(v2(step)));
+      expect(resetReason).toBe('none');
+      expect(value).toEqual({ ...storedRound(), target: { ...shape, level } });
+    }
   });
 });

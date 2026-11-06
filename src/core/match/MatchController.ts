@@ -39,7 +39,7 @@
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
 import { GOAL_STARS } from '../rewards/lockerRoom';
-import { MISSES_PER_HEART, type ChallengeMinutes } from '../settings/defaults';
+import { MISSES_PER_HEART, type ChallengeMinutes, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
@@ -63,6 +63,8 @@ const SAVE_TIME_EVERY_MS = 1000;
 export type MatchMessage =
   | { kind: 'outOfRange'; min: number; max: number }
   | { kind: 'goal' }
+  /** A goal that raised the difficulty level (FR-088); a level going down shows nothing. */
+  | { kind: 'levelUp'; level: Level }
   | { kind: 'miss'; number: number }
   | { kind: 'heartLost'; number: number };
 
@@ -184,8 +186,11 @@ export interface MatchControllerOptions {
   progress?: () => TargetProgress;
   /** Saves the round so a refresh continues it; no saving without it. */
   store?: RoundStore;
-  /** Receives one record per finished target: scored, or left when the round ended (T043, FR-037). */
-  onAttempt?: (record: AttemptRecord) => void;
+  /**
+   * Receives one record per finished target: scored, or left when the round ended (T043, FR-037). Returns the new
+   * level when the record raised the child's level (FR-088), else null or nothing.
+   */
+  onAttempt?: (record: AttemptRecord) => Level | null | void;
   /** The wall clock for the records' `at`; defaults to now. */
   now?: () => Date;
 }
@@ -282,8 +287,7 @@ const TARGET_KEYS = [
   'range',
   'hintDisplay',
   'hintDistance',
-  'directions',
-  'patterns',
+  'levels',
   'shapes',
   'difficulty',
   'adaptive',
@@ -461,15 +465,16 @@ export class MatchController {
       // A shot at the answer of help step 3 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
       const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
+      const { attempt, levelUp } = this.scored(s, s.ball);
       this.set({
         ...s,
         ball: { ...s.ball, outcome: 'goal' },
-        lastAttempt: this.scored(s, s.ball),
+        lastAttempt: attempt,
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
         starsThisRound: s.starsThisRound + GOAL_STARS,
         missesInRow: 0,
-        message: { kind: 'goal' },
+        message: levelUp === null ? { kind: 'goal' } : { kind: 'levelUp', level: levelUp },
       });
       return;
     }
@@ -522,11 +527,11 @@ export class MatchController {
     });
   }
 
-  /** Records the attempt at the target of `s` that `ball` just scored, and returns it for `lastAttempt`. */
-  private scored(s: MatchState, ball: Ball): FinishedAttempt {
+  /** Records the attempt at the target of `s` that `ball` just scored; returns it for `lastAttempt`, and a new level. */
+  private scored(s: MatchState, ball: Ball): { attempt: FinishedAttempt; levelUp: Level | null } {
     const solved = s.helpStep < MAX_HELP_STEP;
-    this.recordAttempt(s, { solved, endedAt: ball.atMs });
-    return { number: ball.number, solved, helpStep: s.helpStep };
+    const levelUp = this.recordAttempt(s, { solved, endedAt: ball.atMs });
+    return { attempt: { number: ball.number, solved, helpStep: s.helpStep }, levelUp };
   }
 
   /** Called by the scene when the goal celebration ends: the next target, or the end of the round. */
@@ -628,10 +633,10 @@ export class MatchController {
     });
   }
 
-  /** Hands the record of the finished current target of `s` to `onAttempt` (T043). */
-  private recordAttempt(s: MatchState, end: { solved: boolean; endedAt: number }): void {
-    if (!this.options.onAttempt || !s.target) return;
-    this.options.onAttempt(
+  /** Hands the record of the finished current target of `s` to `onAttempt` (T043); returns a level it raised. */
+  private recordAttempt(s: MatchState, end: { solved: boolean; endedAt: number }): Level | null {
+    if (!this.options.onAttempt || !s.target) return null;
+    const raised = this.options.onAttempt(
       makeAttemptRecord({
         min: s.min,
         max: s.max,
@@ -646,6 +651,7 @@ export class MatchController {
         now: this.options.now?.() ?? new Date(),
       }),
     );
+    return raised ?? null;
   }
 
   private set(next: MatchState, { save = true }: { save?: boolean } = {}): void {
@@ -678,7 +684,7 @@ export class MatchController {
     }
     // While the ball flies the round is saved as it was before the shot; the shot is lost on a refresh.
     if (s.phase !== 'aiming' && s.phase !== 'celebrating') return;
-    store.save({ version: 2, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
+    store.save({ version: 3, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
   }
 }
 

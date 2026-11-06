@@ -1,9 +1,9 @@
 // Structure adapted from math-tank src/app/ProgressPage.tsx: rows per direction, no sessions and no garage.
 /**
  * Parent progress page (FR-039, contracts/screens.md "Progress"). Opened from the parent menu, so it sits behind the
- * same gate as the settings. It shows per direction the attempts, the targets solved alone and with help in separate
- * columns, the adaptive step (with how many more targets alone raise it) and whether the direction is mastered, all
- * from the goalkeeper game, and in a "früher" column the attempts of the removed hole and line modes (amendment 05,
+ * same gate as the settings. It shows the child's current difficulty level (with how many more targets alone raise it)
+ * and per level the targets solved alone and with help (FR-090). Then per direction the attempts, the targets solved
+ * alone and with help in separate columns and whether the direction is mastered, all from the goalkeeper game, and in a "früher" column the attempts of the removed hole and line modes (amendment 05,
  * FR-070). Then the personal bests as a plain list, and the bests of the removed modes under "Früher". "Fortschritt zurücksetzen" asks first and then empties the
  * progress; the personal bests and the stars stay. "Alles zurücksetzen" (amendment 01, FR-051, as math-tank amendment 24)
  * asks first, reminding the parent to save the data before, then clears progress, personal bests, stars and the locker
@@ -66,6 +66,33 @@ export function ProgressPage({ persistence, onClose }: Props) {
         {allNote === 'partial' && <p className="notice warn">{P.resetAllPartial}</p>}
       </div>
 
+      {summary.level && (
+        <section className="progress-section" data-testid="progress-level" data-level={summary.level.level}>
+          <p>
+            {P.currentLevel(m.levels.label(summary.level.level, m.levels.names[summary.level.level]))}
+            {summary.level.toRaise !== null && <span className="hint step-hint">{P.toRaise(summary.level.toRaise)}</span>}
+          </p>
+          <table className="progress-table" data-testid="progress-levels">
+            <thead>
+              <tr>
+                <th scope="col">{P.levelColumn}</th>
+                <th scope="col">{P.columns.alone}</th>
+                <th scope="col">{P.columns.withHelp}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.levels.map((r) => (
+                <tr key={r.level} data-level={r.level}>
+                  <th scope="row">{m.levels.label(r.level, m.levels.names[r.level])}</th>
+                  <td>{r.independent}</td>
+                  <td>{r.withHelp}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <section className="progress-section">
         {summary.directions.length === 0 ? (
           <p className="hint">{P.empty}</p>
@@ -77,7 +104,6 @@ export function ProgressPage({ persistence, onClose }: Props) {
                 <th scope="col">{P.columns.attempts}</th>
                 <th scope="col">{P.columns.alone}</th>
                 <th scope="col">{P.columns.withHelp}</th>
-                <th scope="col">{P.columns.step}</th>
                 <th scope="col">{P.columns.mastered}</th>
                 <th scope="col">{P.columns.earlier}</th>
               </tr>
@@ -89,10 +115,6 @@ export function ProgressPage({ persistence, onClose }: Props) {
                   <td>{r.attempts}</td>
                   <td>{r.independent}</td>
                   <td>{r.withHelp}</td>
-                  <td>
-                    {P.stepOf(r.step + 1, r.stepCount)}
-                    {r.toRaise !== null && <span className="hint step-hint">{P.toRaise(r.toRaise)}</span>}
-                  </td>
                   <td>{r.mastered ? P.masteredYes : P.masteredNo}</td>
                   <td data-testid="progress-earlier">{r.earlier}</td>
                 </tr>

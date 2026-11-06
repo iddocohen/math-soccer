@@ -18,7 +18,8 @@
  *   part of the new data is stored, so the parent sees "Ein Teil wurde gespeichert" instead of "nichts geändert".
  * - `resetReasons()` names the kinds that were reset on load, for the notice on the start screen (FR-036).
  */
-import { recordAttempt as addAttempt } from '../core/progress/adaptive';
+import { recordAttempt as addAttempt, levelRaised } from '../core/progress/adaptive';
+import type { Level } from '../core/progress/levels';
 import { award } from '../core/rewards/lockerRoom';
 import type { Settings } from '../core/settings/schema';
 import { exportData, importData, type ImportResult, type SaveData } from '../core/storage/exportImport';
@@ -79,8 +80,8 @@ export interface Persistence {
   records(): Records;
   lockerRoom(): LockerRoom;
   saveSettings(s: Settings): { ok: boolean };
-  /** Adds one finished target to the progress, with the adaptive step for the settings in use, and saves (T043). */
-  recordAttempt(record: AttemptRecord, settings: Settings): { ok: boolean };
+  /** Adds one finished target to the progress, moving the level for the settings in use, and saves (T043); `levelUp` is a level it raised to. */
+  recordAttempt(record: AttemptRecord, settings: Settings): { ok: boolean; levelUp: Level | null };
   /** Empties the progress; the stars and the personal bests stay. */
   resetProgress(): { ok: boolean };
   /** Adds stars earned in a round to the locker room and saves (FR-042). */
@@ -207,7 +208,11 @@ export function createPersistence(kv: KeyValue): Persistence {
     records: () => values.records,
     lockerRoom: () => values.lockerRoom,
     saveSettings: (s) => saveOne('settings', structuredClone(s)),
-    recordAttempt: (record, inUse) => saveOne('progress', addAttempt(values.progress, record, inUse)),
+    recordAttempt(record, inUse) {
+      const before = values.progress;
+      const after = addAttempt(before, record, inUse);
+      return { ...saveOne('progress', after), levelUp: levelRaised(before, after, inUse) };
+    },
     resetProgress: () => saveOne('progress', emptyProgress()),
     awardStars: (n) => saveOne('lockerRoom', award(values.lockerRoom, n)),
     saveLockerRoom: (l) => saveOne('lockerRoom', structuredClone(l)),

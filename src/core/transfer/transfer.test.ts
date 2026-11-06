@@ -1,7 +1,7 @@
-// Adapted from math-tank src/core/transfer/transfer.test.ts, trimmed to one code version.
+// Adapted from math-tank src/core/transfer/transfer.test.ts: code version 2, and version 1 read from the published game.
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
-import { emptyLockerRoom, emptyProgress, emptyRecords, type Outcome } from '../storage/schemas';
+import { emptyLockerRoom, emptyProgress, emptyRecords } from '../storage/schemas';
 import type { SaveData } from './transfer';
 import {
   browserCodec,
@@ -17,9 +17,11 @@ const PAGE = 'https://iddocohen.github.io/math-soccer/';
 
 function saveData(): SaveData {
   const progress = emptyProgress();
+  progress.level = 3;
+  progress.levelRecent = ['independent'];
+  progress.levelWins = 1;
+  progress.levels['3'] = { independent: 4, assisted: 1, guesses: 0 };
   progress.directions['holes|down'] = {
-    step: 2,
-    recent: ['independent'],
     masteryWindow: ['independent', 'assisted', 'unsolved'],
     attempts: 5,
     independent: 3,
@@ -35,7 +37,7 @@ function saveData(): SaveData {
     directions: ['down'],
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
     hintDisplay: 'always',
-    difficultyStep: 2,
+    level: 1,
     solved: true,
     helpStep: 0,
     misses: 0,
@@ -52,10 +54,18 @@ function saveData(): SaveData {
   };
 }
 
-/** What a receiver gets: no attempt history and no `recent` list. */
+/** What a receiver gets: no attempt history, no `levelRecent` and no `levelWins`. */
 function expected(data: SaveData): SaveData {
-  const progress = { ...emptyProgress(), directions: { 'holes|down': { ...data.progress.directions['holes|down']!, recent: [] as Outcome[] } } };
+  const progress = { ...emptyProgress(), directions: data.progress.directions, level: data.progress.level, levels: data.progress.levels };
   return { ...data, progress };
+}
+
+/** A code as the published game (transfer version 1) wrote it, uncompressed. */
+function v1Code(): string {
+  const settings = { ...defaultSettings(), version: 2, directions: { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false }, patterns: { neighbors: true, middle: true, row: true, shape: true } } as Record<string, unknown>;
+  delete settings.levels;
+  const json = JSON.stringify({ v: 1, settings, lockerRoom: emptyLockerRoom(), records: {}, directions: { 'keeper|down': [5, 4, 3, 1, 0, 'iia'], 'keeper|right': [1, 2, 2, 0, 0, ''] } });
+  return `v1.${btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
 }
 
 describe('transfer links (FR-041)', () => {
@@ -69,10 +79,20 @@ describe('transfer links (FR-041)', () => {
     for (const codec of [browserCodec(), null]) {
       const r = await encodeTransfer(saveData(), PAGE, { codec });
       expect(r.fits).toBe(true);
-      expect(r.link.startsWith(`${PAGE}#save=v1.`)).toBe(true);
+      expect(r.link.startsWith(`${PAGE}#save=v2.`)).toBe(true);
       const decoded = await decodeTransfer(r.code, { codec });
       expect(decoded).toEqual({ ok: true, data: expected(saveData()), summary: { stars: 31, record: 12, min: 200, max: 500 } });
     }
+  });
+
+  it('reads a code of version 1 from the published game: settings migrate, the highest ladder step becomes the level', async () => {
+    const decoded = await decodeTransfer(v1Code(), { codec: null });
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.data.settings).toEqual(defaultSettings());
+    // Step 5 is level 3 (amendment 09).
+    expect(decoded.data.progress.level).toBe(3);
+    expect(decoded.data.progress.directions['keeper|down']).toEqual({ masteryWindow: ['independent', 'independent', 'assisted'], attempts: 4, independent: 3, assisted: 1, guesses: 0 });
   });
 
   it('cuts the mastery windows when the link would be too long, and says when it never fits', async () => {
@@ -82,6 +102,7 @@ describe('transfer links (FR-041)', () => {
   });
 
   it('refuses damaged, foreign, invalid and oversized codes', async () => {
+    expect(await decodeTransfer('v3.abc', { codec: null })).toEqual({ ok: false });
     expect(await decodeTransfer('v2.abc', { codec: null })).toEqual({ ok: false });
     expect(await decodeTransfer('v1.***', { codec: null })).toEqual({ ok: false });
     expect(await decodeTransfer(`v1.${'A'.repeat(TRANSFER_MAX_CODE_LENGTH)}`, { codec: null })).toEqual({ ok: false });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { STARTER } from '../rewards/items';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
+import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from '../settings/defaults';
 import { PATTERNS } from '../targets/patterns';
 import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
@@ -29,10 +29,10 @@ export const attemptRecordSchema = z.object({
   directions: z.array(z.enum(DIRECTIONS)),
   /** The hint distances the parent allowed. */
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
-  /** How hints showed for this target: always, or on request (parent setting or adaptive step 3). */
+  /** How hints showed for this target: always, or on request (parent setting at the hardest level). */
   hintDisplay: z.enum(['always', 'onRequest']),
-  /** The ladder step, 0 to 7 (core/progress/ladder.ts); attempts of the removed hole mode used 0 to 3. */
-  difficultyStep: z.number().int().min(0).max(7),
+  /** The difficulty level of the target, 1 to 5 (amendment 09); migrate.ts maps the ladder steps of older attempts. */
+  level: z.literal(LEVELS),
   /** Scored before help step 3 showed the answer. */
   solved: z.boolean(),
   /** The highest help step used on the target, 0 to 3. */
@@ -44,13 +44,12 @@ export const attemptRecordSchema = z.object({
 });
 export type AttemptRecord = z.infer<typeof attemptRecordSchema>;
 
-/** The adaptive state of one direction in one mode (data-model "DirectionProgress", as math-tank's SkillProgress). */
+/**
+ * The counters of one direction in one mode (data-model "DirectionProgress", as math-tank's SkillProgress). Since
+ * amendment 09 the difficulty is one level for the child (`Progress.level`), not a step per direction.
+ */
 export const directionStateSchema = z.object({
-  /** Adaptive step, 0 to 7 (core/progress/ladder.ts); migrate.ts moves steps of the older 4-step ladder. */
-  step: z.number().int().min(0).max(7),
-  /** Newest last, at most 6; cleared on a step change. Guesses never enter it. */
-  recent: z.array(outcomeSchema),
-  /** Newest last, at most 10; kept across step changes. Guesses never enter it. */
+  /** Newest last, at most 10. Guesses never enter it. */
   masteryWindow: z.array(outcomeSchema),
   attempts: z.number().int().min(0),
   independent: z.number().int().min(0),
@@ -59,20 +58,36 @@ export const directionStateSchema = z.object({
 });
 export type DirectionState = z.infer<typeof directionStateSchema>;
 
+/** Targets solved alone and with help at one level (FR-090); guesses are counted apart. */
+export const levelCountSchema = z.object({
+  independent: z.number().int().min(0),
+  assisted: z.number().int().min(0),
+  guesses: z.number().int().min(0),
+});
+export type LevelCount = z.infer<typeof levelCountSchema>;
+
 /**
- * `mathsoccer.progress.v1`: attempt records, capped at the last 2000, and the state per `mode|direction`, which keeps
- * counting after old attempts drop out of the list.
+ * `mathsoccer.progress.v1`: attempt records, capped at the last 2000, the state per `mode|direction`, which keeps
+ * counting after old attempts drop out of the list, and the child's difficulty level (amendment 09).
  */
 export const progressSchema = z.object({
-  /** Version 2 (amendment 05): steps on the 8-step keeper ladder. */
-  version: z.literal(2),
+  /** Version 3 (amendment 09): one current level instead of a ladder step per direction. */
+  version: z.literal(3),
   attempts: z.array(attemptRecordSchema),
   directions: z.record(z.string(), directionStateSchema).default({}),
+  /** The current level (FR-086); null before the first target and after a reset, so the start level applies. */
+  level: z.literal(LEVELS).nullable().default(null),
+  /** Outcomes since the level last changed, newest last, at most 6; guesses never enter it (FR-087). */
+  levelRecent: z.array(outcomeSchema).default([]),
+  /** Targets solved alone since the level last changed; at level 5 the X shape gets two empty squares after 2. */
+  levelWins: z.number().int().min(0).default(0),
+  /** Counters per level, keyed "1" to "5" (FR-090). */
+  levels: z.record(z.string(), levelCountSchema).default({}),
 });
 export type Progress = z.infer<typeof progressSchema>;
 
 export function emptyProgress(): Progress {
-  return { version: 2, attempts: [], directions: {} };
+  return { version: 3, attempts: [], directions: {}, level: null, levelRecent: [], levelWins: 0, levels: {} };
 }
 
 /** `mathsoccer.records.v1`: personal bests by `min-max|mode|roundType` (data-model "PersonalBest"). */
@@ -127,22 +142,22 @@ export const targetSchema = z.object({
   number: z.number().int(),
   hints: z.array(z.number().int()),
   directions: z.array(z.enum(DIRECTIONS)),
-  difficultyStep: z.number().int().min(0).max(7),
+  level: z.literal(LEVELS),
   pattern: z.enum(PATTERNS),
-  /** Formen with two empty squares: the empty squares still to shoot after this one (FR-072). */
+  /** Formen or the X shape with two empty squares: the empty squares still to shoot after this one (FR-072). */
   queue: z.array(z.object({ number: z.number().int(), directions: z.array(z.enum(DIRECTIONS)) })).optional(),
 });
 
 /**
- * `mathsoccer.round.v1`, version 2: the running round, kept on refresh (data-model "Round"). No stored round means no
+ * `mathsoccer.round.v1`, version 3: the running round, kept on refresh (data-model "Round"). No stored round means no
  * round to continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules
  * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load. Version 1 had a mode and a
  * line; migrate.ts turns a goalkeeper round of version 1 into version 2, and storage.ts discards hole and line rounds
- * (FR-070).
+ * (FR-070). Version 3 (amendment 09) stores the target's level instead of its ladder step.
  */
 export const roundSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(3),
     seed: z.number().int(),
     roundType: z.enum(ROUND_TYPES),
     /** The length of a time challenge in minutes (FR-076); null for the other round types. */

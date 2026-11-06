@@ -95,7 +95,7 @@ describe('keyToAction: keys left to the browser', () => {
 
 describe('applyMatchAction: help chart open (help step 2)', () => {
   function chartOpen(): MatchController {
-    const target: Target = { number: 46, hints: [45], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' };
+    const target: Target = { number: 46, hints: [45], directions: ['right'], level: 1, pattern: 'neighbors' };
     const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target });
     c.start();
     c.typeKey({ digit: 4 });

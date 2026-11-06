@@ -2,13 +2,13 @@
  * Builds the AttemptRecord of one finished target (T043, FR-037, FR-038; data-model "AttemptRecord").
  *
  * Directions (FR-038): a target counts toward each direction its hints point from, which `Target.directions` already
- * holds. A target whose hints never showed (hints on request and no help asked) counts toward every direction the
- * parent allows ("Richtungen", FR-066). Every new record has the mode `keeper` (amendment 05).
+ * holds. A target whose hints never showed (hints on request and no help asked) counts toward every direction its
+ * difficulty level trains (amendment 09). Every new record has the mode `keeper` (amendment 05).
  */
 import { hintsVisible, targetHintDisplay } from '../match/help';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord } from '../storage/schemas';
-import { allowedDirections } from './ladder';
+import { LEVEL_DIRECTIONS } from './levels';
 import { PLAYED_MODE, type Direction, type Target } from '../types';
 import { classifyAttempt } from './classify';
 
@@ -36,7 +36,7 @@ export function attemptDirections(target: Target, settings: Settings, helpStep: 
   const display = targetHintDisplay(settings, target);
   const shown = hintsVisible(display, helpStep);
   if (shown && target.directions.length > 0) return [...target.directions];
-  return allowedDirections(settings);
+  return [...LEVEL_DIRECTIONS[target.level]];
 }
 
 export function makeAttemptRecord(f: FinishedTarget): AttemptRecord {
@@ -58,7 +58,7 @@ export function makeAttemptRecord(f: FinishedTarget): AttemptRecord {
     directions: attemptDirections(f.target, f.settings, f.helpStep),
     hintDistance: { ...f.settings.hintDistance },
     hintDisplay: targetHintDisplay(f.settings, f.target),
-    difficultyStep: f.target.difficultyStep,
+    level: f.target.level,
     solved: f.solved,
     helpStep: f.helpStep,
     misses: f.misses,

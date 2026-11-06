@@ -5,14 +5,14 @@
  */
 import type { Settings } from '../settings/schema';
 import type { Progress, Records } from '../storage/schemas';
-import { STEP_COUNT } from './ladder';
 import { DIRECTIONS, EARLIER_MODES, MODES, PLAYED_MODE, type Direction, type EarlierMode, type Mode, type RoundType } from '../types';
-import { directionKey, emptyDirectionState, rowToRaise } from './adaptive';
+import { directionKey, emptyDirectionState, emptyLevelCount, rowToRaise } from './adaptive';
+import { currentLevel, LEVELS, type Level } from './levels';
 import { isMastered } from './mastery';
 
 /**
- * One direction: the counters, step and mastery of the goalkeeper game, and the attempts of the removed hole and line
- * modes as one "früher" total (amendment 05, FR-070).
+ * One direction: the counters and mastery of the goalkeeper game, and the attempts of the removed hole and line modes as
+ * one "früher" total (amendment 05, FR-070).
  */
 export interface DirectionRow {
   direction: Direction;
@@ -22,14 +22,25 @@ export interface DirectionRow {
   /** Targets solved after help or misses, plus targets left unsolved. */
   withHelp: number;
   guesses: number;
-  /** 0 to 7; the page shows `step + 1` of `stepCount`. */
-  step: number;
-  stepCount: number;
-  /** More independent targets in a row that raise the step; null at the top step, with adaptive off or without settings. */
-  toRaise: number | null;
   mastered: boolean;
   /** Attempts in hole and line mode, from before amendment 05. */
   earlier: number;
+}
+
+/** One difficulty level (FR-090): targets solved alone and with help at it. */
+export interface LevelRow {
+  level: Level;
+  independent: number;
+  /** Targets solved after help or misses, plus targets left unsolved. */
+  withHelp: number;
+  guesses: number;
+}
+
+/** The child's level now (FR-090). */
+export interface CurrentLevel {
+  level: Level;
+  /** More targets in a row solved alone that raise the level; null at the top level or with adaptive off. */
+  toRaise: number | null;
 }
 
 export interface BestRow {
@@ -44,6 +55,10 @@ export interface BestRow {
 }
 
 export interface ProgressSummary {
+  /** The current level; null without settings. */
+  level: CurrentLevel | null;
+  /** Every level, 1 to 5, with its counters. */
+  levels: LevelRow[];
   /** Per direction (DIRECTIONS order); only directions with attempts in any mode. */
   directions: DirectionRow[];
   /** Personal bests of the goalkeeper game, by range and round type; a plain list, no ranking. */
@@ -65,7 +80,7 @@ export function parseRecordKey(key: string): Omit<BestRow, 'goals' | 'timeMs'> |
   return { ...base, roundType: 'time', challengeMinutes: Number(m[5]) };
 }
 
-/** `settings` gives each row its `toRaise`. */
+/** `settings` gives the current level. */
 export function summarize(p: Progress, records: Records, settings?: Settings): ProgressSummary {
   const directions: DirectionRow[] = [];
   for (const direction of DIRECTIONS) {
@@ -79,9 +94,6 @@ export function summarize(p: Progress, records: Records, settings?: Settings): P
       independent: ds.independent,
       withHelp: ds.assisted,
       guesses: ds.guesses,
-      step: ds.step,
-      stepCount: STEP_COUNT,
-      toRaise: settings ? rowToRaise(ds, direction, settings) : null,
       mastered: isMastered(ds),
       earlier,
     });
@@ -92,5 +104,10 @@ export function summarize(p: Progress, records: Records, settings?: Settings): P
     if (parsed) all.push({ ...parsed, goals: best.goals, timeMs: best.timeMs });
   }
   all.sort((a, b) => a.min - b.min || a.max - b.max || MODES.indexOf(a.mode) - MODES.indexOf(b.mode) || a.roundType.localeCompare(b.roundType) || (a.challengeMinutes ?? 0) - (b.challengeMinutes ?? 0));
-  return { directions, bests: all.filter((b) => b.mode === PLAYED_MODE), earlierBests: all.filter(isEarlier) };
+  const levels: LevelRow[] = LEVELS.map((level) => {
+    const c = p.levels[String(level)] ?? emptyLevelCount();
+    return { level, independent: c.independent, withHelp: c.assisted, guesses: c.guesses };
+  });
+  const level = settings ? { level: currentLevel(p.level, settings), toRaise: rowToRaise(p, settings) } : null;
+  return { level, levels, directions, bests: all.filter((b) => b.mode === PLAYED_MODE), earlierBests: all.filter(isEarlier) };
 }

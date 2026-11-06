@@ -3,7 +3,7 @@ import { layoutChart } from '../chart/layout';
 import { createRng } from '../rng';
 import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
-import { DIRECTIONS, type HintDistance } from '../types';
+import type { HintDistance } from '../types';
 import { hintsFor } from './hints';
 import { NO_PROGRESS, nextTarget, pickDirection, UNMASTERED_WEIGHT } from './nextTarget';
 
@@ -53,16 +53,13 @@ describe('nextTarget', () => {
     }
   });
 
-  it('never goes beyond the parent settings: steps 2 and 6 with only Nachbarn and direct hints allowed still give direct hints', () => {
+  it('stays within the parent hint distances at level 1: only direct hints allowed gives no other Nachbarn', () => {
     const rng = createRng(8);
-    const settings: Settings = { ...only('direct'), patterns: { neighbors: true, middle: false, row: false, shape: false } };
-    for (const step of [2, 6]) {
-      const steps = Object.fromEntries(DIRECTIONS.map((d) => [d, step]));
-      for (let i = 0; i < 50; i++) {
-        const t = nextTarget({ layout: chart, settings, progress: { mastered: [], steps }, rng });
-        expect(t.hints).toEqual(hintsFor(chart, t.number, 'direct'));
-        expect(t.pattern).toBe('neighbors');
-      }
+    const settings = only('direct');
+    for (let i = 0; i < 100; i++) {
+      const t = nextTarget({ layout: chart, settings, progress: NO_PROGRESS, rng });
+      expect(t.level).toBe(1);
+      if (t.pattern === 'neighbors') expect(t.hints).toEqual(hintsFor(chart, t.number, 'direct'));
     }
   });
 });

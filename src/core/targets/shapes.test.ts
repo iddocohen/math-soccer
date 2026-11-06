@@ -119,17 +119,16 @@ describe('shape targets in a round (FR-072)', () => {
   const onlyShapes = {
     ...defaultSettings(),
     adaptive: true,
-    patterns: { neighbors: false, middle: false, row: false, shape: true },
   };
 
-  it('ladder step 6 (index 5) gives one empty square; step 7 and above (index 6, 7) give two', () => {
+  it('level 3 gives one empty square; level 4 gives two (amendment 09)', () => {
     const rng = createRng(3);
     for (let i = 0; i < 40; i++) {
-      const one = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], steps: { right: 5, down: 5 } }, rng });
+      const one = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], level: 3, xTwoEmpties: false }, rng });
       expect(one.pattern).toBe('shape');
       expect(one.queue).toBeUndefined();
       expect(one.hints).toHaveLength(3);
-      const two = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], steps: { right: 6, down: 7 } }, rng });
+      const two = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], level: 4, xTwoEmpties: false }, rng });
       expect(two.pattern).toBe('shape');
       expect(two.hints).toHaveLength(2);
       expect(two.queue).toHaveLength(1);
@@ -138,7 +137,7 @@ describe('shape targets in a round (FR-072)', () => {
 
   it('after the first goal the second empty square is the target and the first one lights up', () => {
     const rng = createRng(8);
-    const first = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], steps: { right: 7, down: 7 } }, rng });
+    const first = nextTarget({ layout: chart, settings: onlyShapes, progress: { mastered: [], level: 4, xTwoEmpties: false }, rng });
     const second = nextInShape(first)!;
     expect(second.number).toBe(first.queue![0]!.number);
     expect(second.hints).toEqual([...first.hints, first.number]);

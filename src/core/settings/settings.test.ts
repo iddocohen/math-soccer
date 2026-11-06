@@ -22,23 +22,15 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
 
   it('has the listed values', () => {
     const s = defaultSettings();
-    expect(s.version).toBe(2);
+    expect(s.version).toBe(3);
     expect(s.range).toEqual({ preset: '1-100', min: 1, max: 100 });
     expect(s).not.toHaveProperty('modes');
     expect(s).not.toHaveProperty('lineLength');
     expect(s.hintDisplay).toBe('always');
     expect(s.hintDistance).toEqual({ direct: true, vertical: true, diagonal: true, far: true });
-    expect(s.directions).toEqual({
-      right: true,
-      down: true,
-      downRight: true,
-      downLeft: true,
-      left: false,
-      up: false,
-      upLeft: false,
-      upRight: false,
-    });
-    expect(s.patterns).toEqual({ neighbors: true, middle: true, row: true, shape: true });
+    expect(s).not.toHaveProperty('directions');
+    expect(s).not.toHaveProperty('patterns');
+    expect(s.levels).toEqual({ start: 1, hardest: 5 });
     expect(s.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
     expect(s.timeChallenge).toEqual({ allowed: true, minutes: 2 });
     expect(s.roundType).toBe('untilHearts');
@@ -55,8 +47,8 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
 
   it('returns a new object on every call', () => {
     const a = defaultSettings();
-    a.patterns.middle = false;
-    expect(defaultSettings().patterns.middle).toBe(true);
+    a.shapes.L = false;
+    expect(defaultSettings().shapes.L).toBe(true);
   });
 });
 
@@ -99,33 +91,30 @@ describe('range: "integers, `0 <= min < max <= 1000`, `max - min >= 9`"', () => 
   });
 });
 
-describe('"at least one true" rules', () => {
-  it('patterns (FR-066)', () => {
-    const none = { neighbors: false, middle: false, row: false, shape: false };
-    expect(keys(withChanges((s) => (s.patterns = none)))).toEqual(['noPattern']);
-    expect(keys(withChanges((s) => (s.patterns = { ...none, row: true })))).toEqual([]);
+describe('levels (FR-085)', () => {
+  it('refuses a start level above the hardest level', () => {
+    expect(keys(withChanges((s) => (s.levels = { start: 3, hardest: 2 })))).toEqual(['levelOrder']);
+    expect(keys(withChanges((s) => (s.levels = { start: 2, hardest: 2 })))).toEqual([]);
   });
 
-  it('shapes, only while "Formen" is on (FR-074)', () => {
+  it('allows every shape off, which skips levels 3 and 4, unless the range holds only those levels', () => {
     const none = { I: false, O: false, T: false, L: false, J: false, S: false, Z: false };
-    expect(keys(withChanges((s) => (s.shapes = none)))).toEqual(['noShape']);
-    expect(keys(withChanges((s) => (s.shapes = { ...none, L: true })))).toEqual([]);
-    expect(keys(withChanges((s) => ((s.shapes = none), (s.patterns.shape = false))))).toEqual([]);
+    expect(keys(withChanges((s) => (s.shapes = none)))).toEqual([]);
+    expect(keys(withChanges((s) => ((s.shapes = none), (s.levels = { start: 3, hardest: 4 }))))).toEqual(['noLevel']);
+    expect(keys(withChanges((s) => ((s.shapes = { ...none, L: true }), (s.levels = { start: 3, hardest: 4 }))))).toEqual([]);
   });
 
+  it('refuses a level outside 1 to 5 in stored settings', () => {
+    expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 0, hardest: 5 } }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 1, hardest: 6 } }).success).toBe(false);
+  });
+});
+
+describe('"at least one true" rules', () => {
   it('hintDistance', () => {
     const none = { direct: false, vertical: false, diagonal: false, far: false };
     expect(keys(withChanges((s) => (s.hintDistance = none)))).toEqual(['noHintDistance']);
     expect(keys(withChanges((s) => (s.hintDistance = { ...none, far: true })))).toEqual([]);
-  });
-
-  it('directions (FR-066)', () => {
-    const none = withChanges((s) => {
-      for (const d of Object.keys(s.directions) as Array<keyof Settings['directions']>) s.directions[d] = false;
-    });
-    expect(keys(none)).toEqual(['noDirection']);
-    none.directions.upLeft = true;
-    expect(keys(none)).toEqual([]);
   });
 });
 
@@ -144,8 +133,8 @@ describe('settingsSchema', () => {
     const { pointAfterFullHelp: _dropped, ...rest } = defaultSettings();
     void _dropped;
     expect(settingsSchema.safeParse(rest).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 1 }).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 3 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 2 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 4 }).success).toBe(false);
   });
 });
 
@@ -184,16 +173,37 @@ function storedV1(): Record<string, unknown> {
   };
 }
 
-describe('settings version 1 to version 2 (FR-070)', () => {
-  it('drops modes and line length, keeps the line directions as directions, turns every pattern and shape on', () => {
+/** Settings as the published game (version 2, amendments 05 to 07) stored them, with fields away from their defaults. */
+function storedV2(): Record<string, unknown> {
+  return {
+    version: 2,
+    range: { preset: '1-100', min: 1, max: 100 },
+    hintDisplay: 'onRequest',
+    hintDistance: { direct: true, vertical: false, diagonal: true, far: true },
+    directions: { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false },
+    patterns: { neighbors: true, middle: false, row: true, shape: true },
+    shapes: { I: true, O: false, T: true, L: true, J: true, S: false, Z: true },
+    timeChallenge: { allowed: false, minutes: 3 },
+    roundType: 'untilHearts',
+    goalsPerRound: 10,
+    difficulty: 'challenging',
+    adaptive: true,
+    sound: { effects: true, crowd: false, ohh: true, speech: false },
+    numberPad: 'auto',
+    showClock: false,
+    showRecords: true,
+    lockerRoom: true,
+    pointAfterFullHelp: true,
+  };
+}
+
+describe('settings version 1 to version 3 (FR-070, amendment 09)', () => {
+  it('drops modes, line length and line directions, sets levels 1 to 5, turns every shape on', () => {
     const s = parseSettings(storedV1());
     expect(s).not.toBeNull();
-    expect(s).not.toHaveProperty('modes');
-    expect(s).not.toHaveProperty('lineLength');
-    expect(s).not.toHaveProperty('lineDirections');
-    expect(s!.version).toBe(2);
-    expect(s!.directions).toEqual(storedV1().lineDirections);
-    expect(s!.patterns).toEqual({ neighbors: true, middle: true, row: true, shape: true });
+    for (const gone of ['modes', 'lineLength', 'lineDirections', 'directions', 'patterns']) expect(s).not.toHaveProperty(gone);
+    expect(s!.version).toBe(3);
+    expect(s!.levels).toEqual({ start: 1, hardest: 5 });
     expect(s!.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
     expect(s!.timeChallenge).toEqual({ allowed: true, minutes: 2 });
   });
@@ -205,24 +215,45 @@ describe('settings version 1 to version 2 (FR-070)', () => {
     expect(s).toMatchObject(kept);
   });
 
-  it('reads version 1 settings with the defaults, and version 1 settings whose line length was out of bounds', () => {
+  it('reads version 1 settings with the old defaults, also with a line length out of bounds', () => {
     const v1: Record<string, unknown> = { ...defaultSettings(), version: 1, modes: { holes: true, lines: true, keeper: true }, lineLength: 5 };
-    delete v1.directions;
-    delete v1.patterns;
+    delete v1.levels;
     delete v1.shapes;
     delete v1.timeChallenge;
-    v1.lineDirections = defaultSettings().directions;
+    v1.lineDirections = { right: true, down: true, downRight: true, downLeft: true, left: false, up: false, upLeft: false, upRight: false };
     expect(parseSettings(v1)).toEqual(defaultSettings());
     expect(parseSettings({ ...v1, lineLength: 99 })).toEqual(defaultSettings());
   });
 
-  it('reads version 2 settings as they are', () => {
-    const v2 = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.patterns.row = false)));
-    expect(parseSettings(JSON.parse(JSON.stringify(v2)))).toEqual(v2);
+  it('refuses version 1 settings that break a rule that still exists', () => {
+    expect(parseSettings({ ...storedV1(), difficulty: 'hard' })).toBeNull();
+  });
+});
+
+describe('settings version 2 to version 3 (amendment 09)', () => {
+  it('replaces "Richtungen" and "Hinweis-Muster" with levels 1 to 5, and keeps the hint display and the shape switches', () => {
+    const s = parseSettings(storedV2())!;
+    expect(s).not.toBeNull();
+    expect(s).not.toHaveProperty('directions');
+    expect(s).not.toHaveProperty('patterns');
+    const { version: _v, directions: _d, patterns: _p, ...kept } = storedV2();
+    void [_v, _d, _p];
+    expect(s).toEqual({ ...kept, version: 3, levels: { start: 1, hardest: 5 } });
   });
 
-  it('refuses version 1 settings that break a rule that still exists', () => {
-    expect(parseSettings({ ...storedV1(), lineDirections: { right: false, down: false, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false } })).toBeNull();
-    expect(parseSettings({ ...storedV1(), difficulty: 'hard' })).toBeNull();
+  it('turns every shape off when the parent had turned the pattern "Formen" off, so levels 3 and 4 are skipped', () => {
+    const s = parseSettings({ ...storedV2(), patterns: { neighbors: true, middle: true, row: true, shape: false } })!;
+    expect(Object.values(s.shapes).some(Boolean)).toBe(false);
+    expect(s.levels).toEqual({ start: 1, hardest: 5 });
+  });
+
+  it('reads version 2 settings whose directions or patterns were all off (rules that no longer exist)', () => {
+    const none = { right: false, down: false, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false };
+    expect(parseSettings({ ...storedV2(), directions: none })).not.toBeNull();
+  });
+
+  it('reads version 3 settings as they are', () => {
+    const v3 = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.levels = { start: 2, hardest: 4 })));
+    expect(parseSettings(JSON.parse(JSON.stringify(v3)))).toEqual(v3);
   });
 });

@@ -4,7 +4,8 @@
  * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
- * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern) and
+ * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern), `data-level`
+ * (the target's difficulty level, amendment 09) and
  * `data-hints` (its hint numbers), `data-queue` (the empty squares of a shape still to shoot after it), plus
  * `data-round-type` (untilHearts, goalCount or time), `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
  * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
@@ -47,6 +48,8 @@ export function messageText(message: MatchMessage | null): string {
       return f.outOfRange(message.min, message.max);
     case 'goal':
       return f.goal;
+    case 'levelUp':
+      return f.levelUp(t().levels.names[message.level]);
     case 'miss':
       return f.miss(message.number);
     case 'heartLost':
@@ -132,6 +135,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-shirt={shirt}
       data-ball-kind={ballKind(layout)}
       data-pattern={state.target?.pattern ?? ''}
+      data-level={state.target?.level ?? ''}
       data-hints={state.target?.hints.join(',') ?? ''}
       data-round-type={state.roundType}
       data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}

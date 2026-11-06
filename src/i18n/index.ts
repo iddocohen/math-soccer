@@ -16,7 +16,7 @@ export function t(): Messages {
 export const forbiddenWords: readonly string[] = ['falsch', 'verloren', 'Fehler', 'schlecht'];
 
 /** Sections of the table a child reads or hears; the rest is for parents. */
-export const CHILD_SECTIONS = ['appName', 'start', 'match', 'feedback', 'help', 'roundEnd', 'lockerRoom', 'storage'] as const;
+export const CHILD_SECTIONS = ['appName', 'start', 'match', 'feedback', 'levels', 'help', 'roundEnd', 'lockerRoom', 'storage'] as const;
 
 /** True when `text` contains a forbidden word. */
 export function hasForbiddenWord(text: string): boolean {

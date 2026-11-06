@@ -16,9 +16,8 @@ export const SETTINGS_ERROR_KEYS = [
   'rangeSpan',
   'rangePresetMismatch',
   'noHintDistance',
-  'noDirection',
-  'noPattern',
-  'noShape',
+  'levelOrder',
+  'noLevel',
   'goalsPerRound',
 ] as const;
 
@@ -52,11 +51,13 @@ export function validateSettings(s: Settings): SettingsError[] {
     if (fixed.min !== min || fixed.max !== max) errors.push({ key: 'rangePresetMismatch', path: 'range.preset' });
   }
 
-  // hintDistance, directions, patterns: "at least one true"; shapes: at least one while "Formen" is on
+  // hintDistance: "at least one true"
   if (!Object.values(s.hintDistance).some(Boolean)) errors.push({ key: 'noHintDistance', path: 'hintDistance' });
-  if (!Object.values(s.directions).some(Boolean)) errors.push({ key: 'noDirection', path: 'directions' });
-  if (!Object.values(s.patterns).some(Boolean)) errors.push({ key: 'noPattern', path: 'patterns' });
-  if (s.patterns.shape && !Object.values(s.shapes).some(Boolean)) errors.push({ key: 'noShape', path: 'shapes' });
+
+  // levels (FR-085): the start level is not above the hardest level, and the range keeps at least one level. With every
+  // shape off, levels 3 and 4 are skipped, so a range of only those two levels would offer nothing.
+  if (s.levels.start > s.levels.hardest) errors.push({ key: 'levelOrder', path: 'levels' });
+  else if (s.levels.start >= 3 && s.levels.hardest <= 4 && !Object.values(s.shapes).some(Boolean)) errors.push({ key: 'noLevel', path: 'levels' });
 
   // goalsPerRound: "1 to 20"
   if (!isInt(s.goalsPerRound, GOALS_PER_ROUND_MIN, GOALS_PER_ROUND_MAX)) {

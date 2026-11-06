@@ -50,6 +50,8 @@ import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { MatchController, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
+import type { Level } from '../core/progress/levels';
+import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult } from '../core/records/records';
 import { lookOf, newStars } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
@@ -176,14 +178,19 @@ function createApp() {
     clear: () => void clearRound(kv),
   };
   const seed = seedFromUrl(window.location.search);
-  const controller = new MatchController({
+  const controller: MatchController = new MatchController({
     settings,
     store,
     newSeed: seed === undefined ? undefined : () => seed,
-    // The adaptive steps and mastered directions steer target selection (FR-040).
-    progress: () => targetProgress(persistence.progress(), settings()),
-    // One record per finished target (T043, FR-037), with the settings the round uses (FR-052).
-    onAttempt: (record) => saves.report(persistence.recordAttempt(record, controller.getRoundSettings())),
+    // The difficulty level and mastered directions steer target selection (FR-040, FR-086).
+    progress: (): TargetProgress => targetProgress(persistence.progress(), controller.getRoundSettings()),
+    // One record per finished target (T043, FR-037), with the settings the round uses (FR-052); a raised level goes
+    // back to the controller for "Neue Stufe" (FR-088).
+    onAttempt: (record): Level | null => {
+      const r = persistence.recordAttempt(record, controller.getRoundSettings());
+      saves.report(r);
+      return r.levelUp;
+    },
   });
   const sfx = createSfx({ sound: () => settings().sound, clips: (name) => assetUrl(CLIP_FILES[name]) });
   const speaker = createSpeaker();
@@ -196,6 +203,13 @@ function createApp() {
     const earned = newStars(seenStars, current);
     seenStars = current;
     if (earned > 0) saves.report(persistence.awardStars(earned));
+  });
+  // A small cheer, clapping on top of the goal's cheer, when a goal raised the level (FR-088).
+  let seenMessage = controller.getState().message;
+  controller.subscribe(() => {
+    const message = controller.getState().message;
+    if (message !== seenMessage && message?.kind === 'levelUp') sfx.clap();
+    seenMessage = message;
   });
   return { persistence, controller, sfx, speaker, settings, restored, saves };
 }

@@ -149,7 +149,7 @@ describe('the waiting keeper keeps the shape squares clear (FR-064, amendment 06
       number: 45,
       hints: [44, 35],
       directions: [],
-      difficultyStep: 7,
+      level: 4 as const,
       pattern: 'shape' as const,
       queue: [{ number: 46, directions: [] }],
     };
@@ -157,6 +157,6 @@ describe('the waiting keeper keeps the shape squares clear (FR-064, amendment 06
   });
 
   it('lists only the target and hints when nothing waits', () => {
-    expect(squaresToKeepClear({ number: 12, hints: [11], directions: [], difficultyStep: 0, pattern: 'shape' as const })).toEqual([12, 11]);
+    expect(squaresToKeepClear({ number: 12, hints: [11], directions: [], level: 1, pattern: 'shape' as const })).toEqual([12, 11]);
   });
 });

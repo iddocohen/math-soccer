@@ -4,7 +4,7 @@ import { CHART_RECT } from '../core/match/world';
 import type { Target } from '../core/types';
 import { boardKey, buildBoard, type BoardInput } from './board';
 
-const target: Target = { number: 46, hints: [45, 47, 36, 56], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' };
+const target: Target = { number: 46, hints: [45, 47, 36, 56], directions: ['right'], level: 1, pattern: 'neighbors' };
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
   return { layout: layoutChart(1, 100), goal: CHART_RECT, target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, ...over };
@@ -53,7 +53,7 @@ describe('buildBoard: the open goal (FR-013, FR-019)', () => {
 });
 
 describe('buildBoard: a shape with two empty squares (FR-072)', () => {
-  const shape: Target = { number: 34, hints: [24, 35], directions: ['down'], difficultyStep: 7, pattern: 'shape', queue: [{ number: 25, directions: ['up'] }] };
+  const shape: Target = { number: 34, hints: [24, 35], directions: ['down'], level: 4, pattern: 'shape', queue: [{ number: 25, directions: ['up'] }] };
 
   it('marks the waiting empty square, without a number, apart from the target outline', () => {
     const b = buildBoard(input({ target: shape }));

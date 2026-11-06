@@ -21,11 +21,36 @@ function settingsV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   return {
     ...rest,
     version: 2,
-    directions: raw.lineDirections ?? defaults.directions,
-    patterns: defaults.patterns,
+    directions: raw.lineDirections ?? {},
+    patterns: { neighbors: true, middle: true, row: true, shape: true },
     shapes: defaults.shapes,
     timeChallenge: defaults.timeChallenge,
   };
+}
+
+/**
+ * Settings version 2 to version 3 (amendment 09): the difficulty levels replace "Richtungen" (`directions`) and
+ * "Hinweis-Muster" (`patterns`). The levels start at 1 and go up to 5; the hint display and the shape switches stay. A
+ * parent who had turned the pattern "Formen" off gets every shape off, so levels 3 and 4 are skipped and the child still
+ * meets no shapes (design call, T095).
+ */
+function settingsV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...raw };
+  delete rest.directions;
+  delete rest.patterns;
+  const shapesOff = isRecord(raw.patterns) && raw.patterns.shape === false && isRecord(raw.shapes);
+  const shapes = shapesOff ? Object.fromEntries(Object.keys(raw.shapes as object).map((k) => [k, false])) : raw.shapes;
+  return { ...rest, version: 3, levels: defaultSettings().levels, shapes };
+}
+
+/**
+ * The level of a ladder step of amendment 05 (amendment 09, "Stored data"): steps 0 to 2 are level 1, 3 and 4 level 2,
+ * 5 level 3, and 6 and 7 level 4. Anything else is level 1.
+ */
+export function levelOfStep(step: unknown): 1 | 2 | 3 | 4 {
+  if (typeof step !== 'number' || !Number.isInteger(step) || step < 3) return 1;
+  if (step <= 4) return 2;
+  return step === 5 ? 3 : 4;
 }
 
 /**
@@ -72,6 +97,56 @@ function progressV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, version: 2, directions: moved };
 }
 
+/** Round version 2 to version 3 (amendment 09): the target's ladder step becomes its level. */
+function roundV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
+  let target = raw.target;
+  if (isRecord(target)) {
+    const t: Record<string, unknown> = { ...target, level: levelOfStep(target.difficultyStep) };
+    delete t.difficultyStep;
+    target = t;
+  }
+  return { ...raw, version: 3, target };
+}
+
+/**
+ * Progress version 2 to version 3 (amendment 09): the ladder steps per direction become one current level, from the
+ * highest keeper step (design call, T095: the level falls again after 2 helped targets in 3, so starting high costs
+ * little). Each attempt's step becomes its level, and the per-level counters start from the kept goalkeeper attempts.
+ * The level is clamped to the parent's range when it is used (core/progress/levels.ts `currentLevel`).
+ */
+function progressV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
+  const directions = isRecord(raw.directions) ? raw.directions : {};
+  const keeperSteps = Object.entries(directions)
+    .filter(([key, ds]) => key.startsWith('keeper|') && isRecord(ds) && typeof ds.step === 'number')
+    .map(([, ds]) => (ds as Record<string, unknown>).step as number);
+  // Damaged attempts stay as they are, so the schema refuses them.
+  const attempts: unknown = Array.isArray(raw.attempts)
+    ? raw.attempts.map((a: unknown) => {
+        if (!isRecord(a)) return a;
+        const moved: Record<string, unknown> = { ...a, level: levelOfStep(a.difficultyStep) };
+        delete moved.difficultyStep;
+        return moved;
+      })
+    : raw.attempts;
+  const levels: Record<string, { independent: number; assisted: number; guesses: number }> = {};
+  for (const a of Array.isArray(attempts) ? attempts : []) {
+    if (!isRecord(a) || a.mode !== 'keeper') continue;
+    const count = (levels[String(a.level)] ??= { independent: 0, assisted: 0, guesses: 0 });
+    if (a.guess === true) count.guesses += 1;
+    else if (a.solved === true && a.helpStep === 0 && a.misses === 0) count.independent += 1;
+    else count.assisted += 1;
+  }
+  return {
+    ...raw,
+    version: 3,
+    attempts,
+    level: keeperSteps.length > 0 ? levelOfStep(Math.max(...keeperSteps)) : null,
+    levelRecent: [],
+    levelWins: 0,
+    levels,
+  };
+}
+
 /** True for a round of version 1 in hole or line mode: the game discards it on load (FR-070). */
 export function isRemovedModeRound(raw: unknown): boolean {
   return isRecord(raw) && raw.version === 1 && (raw.mode === 'holes' || raw.mode === 'lines');
@@ -82,11 +157,11 @@ export function isRemovedModeRound(raw: unknown): boolean {
  * and adds a step here, as math-tank does. The storage keys keep their `.v1` names.
  */
 const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Record<string, unknown>>> = {
-  settings: [settingsV1toV2],
-  progress: [progressV1toV2],
+  settings: [settingsV1toV2, settingsV2toV3],
+  progress: [progressV1toV2, progressV2toV3],
   records: [],
   lockerRoom: [],
-  round: [roundV1toV2],
+  round: [roundV1toV2, roundV2toV3],
 };
 
 /**

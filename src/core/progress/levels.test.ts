@@ -1,0 +1,123 @@
+/** Difficulty levels 1 to 5 (T094, amendment 09, FR-085 to FR-089). */
+import { describe, expect, it } from 'vitest';
+import { layoutChart } from '../chart/layout';
+import { createRng } from '../rng';
+import { defaultSettings, type Level } from '../settings/defaults';
+import type { Settings } from '../settings/schema';
+import { nextTarget } from '../targets/nextTarget';
+import type { Direction } from '../types';
+import { clampLevel, currentLevel, LEVEL_DIRECTIONS, levelChoices, levelDown, levelRange, levelUp, startLevel, topLevel } from './levels';
+
+const chart = layoutChart(1, 100);
+const NO_SHAPES = { I: false, O: false, T: false, L: false, J: false, S: false, Z: false };
+const STRAIGHT: Direction[] = ['right', 'left', 'down', 'up'];
+const DIAGONAL: Direction[] = ['downRight', 'upLeft', 'downLeft', 'upRight'];
+
+function settings(extra: Partial<Settings> = {}): Settings {
+  return { ...defaultSettings(), ...extra };
+}
+
+function targetsAt(level: Level, s: Settings = settings(), xTwoEmpties = false, count = 150) {
+  const rng = createRng(100 + level);
+  return Array.from({ length: count }, () => nextTarget({ layout: chart, settings: s, progress: { mastered: [], level, xTwoEmpties }, rng }));
+}
+
+describe('each level offers only its targets', () => {
+  it('level 1 "Gerade Linien": Nachbarn, Mitte and Reihe across and down, forward and backward', () => {
+    const targets = targetsAt(1);
+    expect(new Set(targets.map((t) => t.pattern))).toEqual(new Set(['neighbors', 'middle', 'row']));
+    for (const t of targets) {
+      expect(t.level).toBe(1);
+      expect(t.directions.every((d) => STRAIGHT.includes(d))).toBe(true);
+    }
+    expect(new Set(targets.flatMap((t) => t.directions))).toEqual(new Set(STRAIGHT));
+  });
+
+  it('level 2 "Schräge Linien": Mitte and Reihe on the diagonals (and diagonal Nachbarn when allowed)', () => {
+    const targets = targetsAt(2);
+    for (const t of targets) {
+      expect(['middle', 'row', 'neighbors']).toContain(t.pattern);
+      expect(t.directions.length).toBeGreaterThan(0);
+      expect(t.directions.every((d) => DIAGONAL.includes(d))).toBe(true);
+    }
+    const noDiagonalNeighbors = settings({ hintDistance: { direct: true, vertical: true, diagonal: false, far: true } });
+    expect(new Set(targetsAt(2, noDiagonalNeighbors).map((t) => t.pattern))).toEqual(new Set(['middle', 'row']));
+  });
+
+  it('level 3 "Formen": shapes with one empty square; level 4: two empty squares', () => {
+    for (const t of targetsAt(3)) {
+      expect(t.pattern).toBe('shape');
+      expect(t.hints).toHaveLength(3);
+      expect(t.queue).toBeUndefined();
+    }
+    for (const t of targetsAt(4)) {
+      expect(t.pattern).toBe('shape');
+      expect(t.hints).toHaveLength(2);
+      expect(t.queue).toHaveLength(1);
+    }
+  });
+
+  it('level 5 "X-Form": the diagonal cross, one empty square, two after the X_TWO_EMPTIES_AFTER rule', () => {
+    for (const t of targetsAt(5)) {
+      expect(t.pattern).toBe('xshape');
+      expect(t.hints).toHaveLength(4);
+      expect(t.queue).toBeUndefined();
+      expect(t.directions.every((d) => DIAGONAL.includes(d))).toBe(true);
+    }
+    for (const t of targetsAt(5, settings(), true)) {
+      expect(t.pattern).toBe('xshape');
+      expect(t.hints).toHaveLength(3);
+      expect(t.queue).toHaveLength(1);
+    }
+  });
+
+  it('LEVEL_DIRECTIONS and levelChoices agree: no choices for a direction outside the level', () => {
+    const s = settings();
+    for (const level of [1, 2, 3, 4, 5] as const) {
+      for (const d of [...STRAIGHT, ...DIAGONAL]) {
+        const has = levelChoices(level, d, s).length > 0;
+        expect(has).toBe(LEVEL_DIRECTIONS[level].includes(d));
+      }
+    }
+  });
+});
+
+describe('the parent range (FR-085, FR-087)', () => {
+  it('clamps the level to the start and the hardest level', () => {
+    const s = settings({ levels: { start: 2, hardest: 4 } });
+    expect(levelRange(s)).toEqual([2, 3, 4]);
+    expect(startLevel(s)).toBe(2);
+    expect(topLevel(s)).toBe(4);
+    expect(clampLevel(1, s)).toBe(2);
+    expect(clampLevel(5, s)).toBe(4);
+    expect(clampLevel(null, s)).toBe(2);
+    expect(levelUp(4, s)).toBe(4);
+    expect(levelDown(2, s)).toBe(2);
+  });
+
+  it('keeps the start level with adaptive difficulty off', () => {
+    expect(currentLevel(4, settings({ adaptive: false, levels: { start: 2, hardest: 5 } }))).toBe(2);
+    expect(currentLevel(4, settings({ levels: { start: 2, hardest: 5 } }))).toBe(4);
+  });
+
+  it('turning off all shapes skips levels 3 and 4', () => {
+    const s = settings({ shapes: NO_SHAPES });
+    expect(levelRange(s)).toEqual([1, 2, 5]);
+    expect(levelUp(2, s)).toBe(5);
+    expect(levelDown(5, s)).toBe(2);
+    expect(clampLevel(3, s)).toBe(5);
+    expect(startLevel(settings({ shapes: NO_SHAPES, levels: { start: 3, hardest: 5 } }))).toBe(5);
+    // Only levels 3 and 4 in the range: the nearest level below stands in (settings validation refuses this range).
+    expect(levelRange(settings({ shapes: NO_SHAPES, levels: { start: 3, hardest: 4 } }))).toEqual([2]);
+  });
+
+  it('a level that does not fit the chart falls back to the nearest lower level that fits', () => {
+    const oneRow = layoutChart(1, 10);
+    const rng = createRng(5);
+    for (let i = 0; i < 30; i++) {
+      const t = nextTarget({ layout: oneRow, settings: settings(), progress: { mastered: [], level: 2, xTwoEmpties: false }, rng });
+      expect(t.level).toBe(1);
+      expect(t.directions.every((d) => d === 'right' || d === 'left')).toBe(true);
+    }
+  });
+});

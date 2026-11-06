@@ -4,10 +4,13 @@
  * Moving a save to another browser with a link or a QR code (FR-041, as math-tank). Engine-free: no React, no
  * Phaser, no storage access.
  *
- * The transfer holds the settings, the locker room, the personal bests and the progress per direction, without the
- * attempt history. It is compressed with `deflate-raw` through the browser's CompressionStream (or sent uncompressed
- * when there is none), encoded as base64url and put into the link's fragment as `#save=v1.<data>`. Browsers never send
- * the fragment to the server.
+ * The transfer holds the settings, the locker room, the personal bests, the progress per direction and the difficulty
+ * level with its counters per level, without the attempt history. It is compressed with `deflate-raw` through the
+ * browser's CompressionStream (or sent uncompressed when there is none), encoded as base64url and put into the link's
+ * fragment as `#save=v2.<data>`. Browsers never send the fragment to the server.
+ *
+ * Version 2 (amendment 09) drops the ladder step from each direction and adds the level. Codes of version 1, from the
+ * game before the levels, are still read: their steps become a level through the same migration as stored progress.
  *
  * Receiving checks every part with the same schemas and migrations as loading from storage, so a damaged or foreign
  * code is refused as a whole and changes nothing.
@@ -19,7 +22,7 @@ import { LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from '../storage/storage';
 
 export type { SaveData };
 
-export const TRANSFER_VERSION = 1;
+export const TRANSFER_VERSION = 2;
 /** The whole link, in bytes: below the 2331 bytes of a version 40 QR code with error correction M (as math-tank). */
 export const TRANSFER_MAX_LINK_BYTES = 2300;
 /** Longest code read: about 3.5 times the longest link written. */
@@ -30,15 +33,19 @@ const WINDOW_MAX = 10;
 const FRAGMENT = 'save=';
 const intMin0 = () => z.number().int().min(0);
 
-type DirectionTuple = [step: number, attempts: number, independent: number, assisted: number, guesses: number, window: string];
+type DirectionTuple = [attempts: number, independent: number, assisted: number, guesses: number, window: string];
+type LevelTuple = [independent: number, assisted: number, guesses: number];
 
 /** The transfer before it is compressed. */
 export interface TransferData {
-  v: 1;
+  v: 2;
   settings: SaveData['settings'];
   lockerRoom: SaveData['lockerRoom'];
   records: SaveData['records']['bests'];
   directions: Record<string, DirectionTuple>;
+  /** The current level, or null before the first target. */
+  level: number | null;
+  levels: Record<string, LevelTuple>;
 }
 
 /** What the receive dialog shows. */
@@ -58,7 +65,7 @@ export interface Codec {
 
 export interface EncodedTransfer {
   link: string;
-  /** `v1.<data>`, the part after `#save=`. */
+  /** `v2.<data>`, the part after `#save=`. */
   code: string;
   /** False when the link is longer than the limit even with empty mastery windows; `link` is then the shortest link. */
   fits: boolean;
@@ -71,14 +78,16 @@ export type DecodedTransfer = { ok: true; data: SaveData; summary: TransferSumma
 const LETTER: Record<Outcome, string> = { independent: 'i', assisted: 'a', unsolved: 'u' };
 const OUTCOME: Record<string, Outcome> = { i: 'independent', a: 'assisted', u: 'unsolved' };
 
-/** The transfer of a save, without the attempt history and the `recent` lists; windows cut to `windowLength`. */
+/** The transfer of a save, without the attempt history and the `levelRecent` list; windows cut to `windowLength`. */
 export function toTransfer(data: SaveData, windowLength = WINDOW_MAX): TransferData {
   const directions: Record<string, DirectionTuple> = {};
   for (const [key, ds] of Object.entries(data.progress.directions)) {
     const window = windowLength > 0 ? ds.masteryWindow.slice(-windowLength) : [];
-    directions[key] = [ds.step, ds.attempts, ds.independent, ds.assisted, ds.guesses, window.map((o) => LETTER[o]).join('')];
+    directions[key] = [ds.attempts, ds.independent, ds.assisted, ds.guesses, window.map((o) => LETTER[o]).join('')];
   }
-  return { v: 1, settings: data.settings, lockerRoom: data.lockerRoom, records: data.records.bests, directions };
+  const levels: Record<string, LevelTuple> = {};
+  for (const [key, c] of Object.entries(data.progress.levels)) levels[key] = [c.independent, c.assisted, c.guesses];
+  return { v: 2, settings: data.settings, lockerRoom: data.lockerRoom, records: data.records.bests, directions, level: data.progress.level, levels };
 }
 
 async function pipe(bytes: Uint8Array, stream: TransformStream<Uint8Array, Uint8Array>): Promise<Uint8Array> {
@@ -174,13 +183,47 @@ export async function encodeTransfer(
   return last!;
 }
 
-const transferSchema = z.object({
+const windowSchema = () => z.string().regex(/^[iau]{0,10}$/);
+
+/** Version 1, written before amendment 09: each direction starts with its ladder step. */
+const transferV1Schema = z.object({
   v: z.literal(1),
   settings: z.unknown(),
   lockerRoom: z.unknown(),
   records: z.unknown(),
-  directions: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0(), intMin0(), intMin0(), z.string().regex(/^[iau]{0,10}$/)])),
+  directions: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0(), intMin0(), intMin0(), windowSchema()])),
 });
+
+const transferV2Schema = z.object({
+  v: z.literal(2),
+  settings: z.unknown(),
+  lockerRoom: z.unknown(),
+  records: z.unknown(),
+  directions: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0(), intMin0(), windowSchema()])),
+  level: z.number().int().nullable(),
+  levels: z.record(z.string(), z.tuple([intMin0(), intMin0(), intMin0()])),
+});
+
+/** The progress a transfer carries, before the stored progress schema and its migrations check it. */
+function transferProgress(t: z.infer<typeof transferV1Schema> | z.infer<typeof transferV2Schema>): unknown {
+  const state = (attempts: number, independent: number, assisted: number, guesses: number, window: string) => ({
+    masteryWindow: [...window].map((c) => OUTCOME[c]),
+    attempts,
+    independent,
+    assisted,
+    guesses,
+  });
+  if (t.v === 1) {
+    // Version 2 progress with its ladder steps; migrate.ts turns the steps into a level.
+    const directions = Object.fromEntries(
+      Object.entries(t.directions).map(([key, [step, a, i, s, g, w]]) => [key, { step, recent: [], ...state(a, i, s, g, w) }]),
+    );
+    return { version: 2, attempts: [], directions };
+  }
+  const directions = Object.fromEntries(Object.entries(t.directions).map(([key, [a, i, s, g, w]]) => [key, state(a, i, s, g, w)]));
+  const levels = Object.fromEntries(Object.entries(t.levels).map(([key, [independent, assisted, guesses]]) => [key, { independent, assisted, guesses }]));
+  return { ...emptyProgress(), directions, level: t.level, levels };
+}
 
 function parseJson(bytes: Uint8Array): unknown {
   try {
@@ -204,26 +247,22 @@ async function readJson(bytes: Uint8Array, codec: Codec | null): Promise<unknown
   }
 }
 
-/** Reads `v1.<data>` with the same schemas and migrations as storage; any failure refuses the whole code. */
+/** Reads `v1.<data>` or `v2.<data>` with the same schemas and migrations as storage; any failure refuses the whole code. */
 export async function decodeTransfer(code: string, opts: { codec?: Codec | null } = {}): Promise<DecodedTransfer> {
   const codec = opts.codec === undefined ? browserCodec() : opts.codec;
   if (code.length > TRANSFER_MAX_CODE_LENGTH) return { ok: false };
-  const m = /^v1\.(.+)$/.exec(code);
+  const m = /^v([12])\.(.+)$/.exec(code);
   if (!m) return { ok: false };
-  const bytes = fromBase64url(m[1]!);
+  const bytes = fromBase64url(m[2]!);
   if (!bytes) return { ok: false };
-  const parsed = transferSchema.safeParse(await readJson(bytes, codec));
+  const parsed = (m[1] === '1' ? transferV1Schema : transferV2Schema).safeParse(await readJson(bytes, codec));
   if (!parsed.success) return { ok: false };
   const t = parsed.data;
 
   const settings = SETTINGS.parse(t.settings);
   const lockerRoom = LOCKER_ROOM.parse(t.lockerRoom);
   const records = RECORDS.parse({ version: 1, bests: t.records });
-  const directions: Record<string, unknown> = {};
-  for (const [key, [step, attempts, independent, assisted, guesses, window]] of Object.entries(t.directions)) {
-    directions[key] = { step, recent: [], masteryWindow: [...window].map((c) => OUTCOME[c]), attempts, independent, assisted, guesses };
-  }
-  const progress = PROGRESS.parse({ ...emptyProgress(), directions });
+  const progress = PROGRESS.parse(transferProgress(t));
   if (!settings || !lockerRoom || !records || !progress) return { ok: false };
 
   const data: SaveData = { settings, progress, records, lockerRoom };

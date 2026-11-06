@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import { memoryKeyValue } from '../core/storage/keyValue';
-import { emptyLockerRoom, emptyRecords, type AttemptRecord } from '../core/storage/schemas';
+import { emptyLockerRoom, emptyProgress, emptyRecords, type AttemptRecord } from '../core/storage/schemas';
 import { loadLockerRoom, loadProgress, loadRecords, saveLockerRoom, saveRecords } from '../core/storage/storage';
 import { t } from '../i18n';
 import { createPersistence } from './persistence';
@@ -25,7 +25,7 @@ function attempt(extra: Partial<AttemptRecord> = {}): AttemptRecord {
     directions: ['down'],
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
     hintDisplay: 'always',
-    difficultyStep: 0,
+    level: 1,
     solved: true,
     helpStep: 0,
     misses: 0,
@@ -56,20 +56,30 @@ function setup() {
 afterEach(cleanup);
 
 describe('ProgressPage (T045)', () => {
-  it('shows attempts, alone, with help, step and mastery per direction, and the earlier modes as one "früher" total', () => {
+  it('shows attempts, alone, with help and mastery per direction, and the earlier modes as one "früher" total', () => {
     setup();
     const table = screen.getByTestId('progress-table');
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toEqual(['Richtung', 'Versuche', 'allein', 'mit Hilfe', 'Stufe', 'gemeistert', 'früher']);
+    expect(headers).toEqual(['Richtung', 'Versuche', 'allein', 'mit Hilfe', 'gemeistert', 'früher']);
     const down = table.querySelector('tr[data-direction="down"]')!;
     const cells = [...down.children].map((c) => c.textContent);
     expect(cells.slice(0, 4)).toEqual([P.directions.down, '2', '1', '1']);
-    expect(cells[4]).toContain(P.stepOf(1, 8));
-    expect(cells[5]).toBe(P.masteredNo);
-    expect(cells[6]).toBe('2');
+    expect(cells[4]).toBe(P.masteredNo);
+    expect(cells[5]).toBe('2');
     // A direction played only in the removed modes still has a row, with no goalkeeper attempts.
     const right = [...table.querySelector('tr[data-direction="right"]')!.children].map((c) => c.textContent);
-    expect([right[1], right[6]]).toEqual(['0', '1']);
+    expect([right[1], right[5]]).toEqual(['0', '1']);
+  });
+
+  it('shows the current level and, per level, the targets solved alone and with help (FR-090)', () => {
+    setup();
+    const level = screen.getByTestId('progress-level');
+    expect(level.getAttribute('data-level')).toBe('1');
+    expect(level.textContent).toContain('Stufe jetzt: Stufe 1: Gerade Linien');
+    const rows = [...screen.getByTestId('progress-levels').querySelectorAll('tbody tr')].map((r) => [...r.children].map((c) => c.textContent));
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toEqual(['Stufe 1: Gerade Linien', '1', '1']);
+    expect(rows[4]).toEqual(['Stufe 5: X-Form', '0', '0']);
   });
 
   it('lists the personal bests, and the bests of the removed modes under "Früher"', () => {
@@ -88,7 +98,7 @@ describe('ProgressPage (T045)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: P.reset }));
     fireEvent.click(screen.getByRole('button', { name: P.resetYes }));
-    expect(loadProgress(kv).value).toEqual({ version: 2, attempts: [], directions: {} });
+    expect(loadProgress(kv).value).toEqual(emptyProgress());
     expect(loadLockerRoom(kv).value.stars).toBe(12);
     expect(screen.getByText(P.resetDone)).toBeTruthy();
     expect(screen.getByText(P.empty)).toBeTruthy();

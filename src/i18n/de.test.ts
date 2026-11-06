@@ -71,8 +71,6 @@ describe('texts from contracts/screens.md', () => {
     expect(Object.values(de.settings.groups)).toEqual([
       'Zahlenraum',
       'Hinweise',
-      'Hinweis-Muster',
-      'Richtungen',
       'Formen',
       'Runde',
       'Zeit-Challenge',
@@ -85,7 +83,8 @@ describe('texts from contracts/screens.md', () => {
     expect([de.settings.data.export, de.settings.data.import]).toEqual(['Daten sichern', 'Daten laden']);
     expect(de.progressPage.columns.mastered).toBe('gemeistert');
     expect(de.progressPage.columns.earlier).toBe('früher');
-    expect(Object.values(de.settings.options.patterns)).toEqual(['Nachbarn', 'Mitte', 'Reihe', 'Formen']);
+    expect(Object.values(de.levels.names)).toEqual(['Gerade Linien', 'Schräge Linien', 'Formen', 'Formen mit 2 Lücken', 'X-Form']);
+    expect(de.feedback.levelUp(de.levels.names[2])).toBe('Neue Stufe: Schräge Linien!');
     expect(Object.values(de.settings.options.shapes)).toEqual(['Stab', 'Quadrat', 'T', 'L', 'J', 'S', 'Z']);
     expect(Object.values(de.lockerRoom.groups)).toEqual(['Ball', 'Trikot', 'Nummer und Name', 'Fans']);
     expect(de.lockerRoom.stillNeeded(5)).toBe('noch 5 Sterne');

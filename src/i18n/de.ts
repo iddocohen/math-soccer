@@ -5,6 +5,8 @@
  * never contain a word from `forbiddenWords` (FR-023).
  */
 
+import type { Level } from '../core/settings/defaults';
+
 /** "1 Tor" or "n Tore". */
 function goalCount(n: number): string {
   return n === 1 ? '1 Tor' : `${n} Tore`;
@@ -79,6 +81,15 @@ export const de = {
     miss: (n: number) => `Hier ist ${n}. Nochmal!`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
+    /** A goal that raised the difficulty level (FR-088). */
+    levelUp: (name: string) => `Neue Stufe: ${name}!`,
+  },
+
+  /** The difficulty levels (amendment 09), easiest first. */
+  levels: {
+    names: { 1: 'Gerade Linien', 2: 'Schräge Linien', 3: 'Formen', 4: 'Formen mit 2 Lücken', 5: 'X-Form' } as Record<Level, string>,
+    /** "Stufe 2: Schräge Linien". */
+    label: (level: number, name: string) => `Stufe ${level}: ${name}`,
   },
 
   /** Help steps (spec US2): step 1 a hint, step 2 the full chart, step 3 the answer. */
@@ -201,8 +212,6 @@ export const de = {
     groups: {
       range: 'Zahlenraum',
       hints: 'Hinweise',
-      patterns: 'Hinweis-Muster',
-      directions: 'Richtungen',
       shapes: 'Formen',
       round: 'Runde',
       timeChallenge: 'Zeit-Challenge',
@@ -220,8 +229,11 @@ export const de = {
       hintDistance: 'Abstand der Hinweise',
       roundType: 'Rundenende',
       goalsPerRound: 'Tore pro Runde',
-      difficulty: 'Schwierigkeit',
+      difficulty: 'Schüsse pro Ball',
       adaptive: 'Passt sich dem Kind an',
+      startLevel: 'Stufe am Anfang',
+      hardestLevel: 'Schwerste Stufe',
+      levelExamples: 'Beispiele der Stufen',
       soundEffects: 'Geräusche',
       soundCrowd: 'Fans',
       soundOhh: '„Ohhh“ nach einem Schuss daneben',
@@ -238,21 +250,9 @@ export const de = {
       rangePreset: { '1-100': '1 bis 100', '0-1000': '0 bis 1000', custom: 'Eigener Zahlenraum' },
       hintDisplay: { always: 'immer', onRequest: 'auf Wunsch' },
       hintDistance: { direct: 'direkt daneben', vertical: 'darüber und darunter', diagonal: 'schräg', far: 'weiter weg' },
-      /** "Hinweis-Muster" (amendment 05, FR-066). */
-      patterns: { neighbors: 'Nachbarn', middle: 'Mitte', row: 'Reihe', shape: 'Formen' },
       /** The shapes of "Formen" (amendment 06, FR-074); the game shows shapes, not these names. */
       shapes: { I: 'Stab', O: 'Quadrat', T: 'T', L: 'L', J: 'J', S: 'S', Z: 'Z' },
       challengeMinutes: (n: number) => (n === 1 ? '1 Minute' : `${n} Minuten`),
-      directions: {
-        right: 'nach rechts',
-        left: 'nach links',
-        down: 'nach unten',
-        up: 'nach oben',
-        downRight: 'schräg nach rechts unten',
-        upLeft: 'schräg nach links oben',
-        downLeft: 'schräg nach links unten',
-        upRight: 'schräg nach rechts oben',
-      },
       roundType: { untilHearts: 'Bis die Bälle weg sind', goalCount: 'Feste Zahl an Toren' },
       difficulty: { easy: 'leicht (5 Schüsse pro Ball)', normal: 'normal (4 Schüsse pro Ball)', challenging: 'schwer (3 Schüsse pro Ball)' },
       numberPad: { auto: 'automatisch', always: 'immer', never: 'nie' },
@@ -286,9 +286,8 @@ export const de = {
     rangeSpan: 'Der Zahlenraum braucht mindestens 10 Zahlen.',
     rangePresetMismatch: 'Von und Bis passen nicht zum gewählten Zahlenraum.',
     noHintDistance: 'Mindestens ein Abstand muss an sein.',
-    noDirection: 'Mindestens eine Richtung muss an sein.',
-    noPattern: 'Mindestens ein Hinweis-Muster muss an sein.',
-    noShape: 'Mindestens eine Form muss an sein.',
+    levelOrder: 'Die Stufe am Anfang darf nicht schwerer sein als die schwerste Stufe.',
+    noLevel: 'Für Stufe 3 und 4 muss mindestens eine Form an sein.',
     goalsPerRound: 'Eine Runde hat 1 bis 20 Tore.',
   },
 
@@ -300,7 +299,6 @@ export const de = {
       attempts: 'Versuche',
       alone: 'allein',
       withHelp: 'mit Hilfe',
-      step: 'Stufe',
       mastered: 'gemeistert',
       /** Attempts in the removed hole and line modes (amendment 05, FR-070). */
       earlier: 'früher',
@@ -337,8 +335,11 @@ export const de = {
     resetAllFailed: 'Zurücksetzen hat nicht geklappt. Es wurde nichts geändert.',
     resetAllPartial: 'Ein Teil wurde gespeichert, der Rest nicht. Bitte die Daten prüfen oder eine Sicherung laden.',
     close: 'Schließen',
-    stepOf: (step: number, count: number) => `${step} von ${count}`,
+    /** The current level (FR-090). */
+    currentLevel: (label: string) => `Stufe jetzt: ${label}`,
     toRaise: (n: number) => (n === 1 ? 'noch 1 Treffer allein bis zur nächsten Stufe' : `noch ${n} Treffer allein bis zur nächsten Stufe`),
+    levelsTitle: 'Stufen',
+    levelColumn: 'Stufe',
     masteredYes: 'ja',
     masteredNo: 'noch nicht',
     noBests: 'Noch keine Rekorde.',

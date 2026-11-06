@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from './defaults';
+import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
 
 /**
- * Structural schema of the stored settings, version 2 (stored under `mathsoccer.settings.v1`, data-model.md
- * "Settings"; amendments 05 to 07). Version 1 had game modes, line directions and a line length; migrate.ts turns it
- * into version 2. Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of
+ * Structural schema of the stored settings, version 3 (stored under `mathsoccer.settings.v1`, data-model.md
+ * "Settings"; amendments 05 to 07 and 09). Version 1 had game modes, line directions and a line length; version 2 had
+ * "Richtungen" and "Hinweis-Muster", which the difficulty levels replace; migrate.ts turns both into version 3. Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of
  * goals per round and the challenge minutes are checked here too, so stored settings outside them are invalid on load.
  */
 
@@ -17,24 +17,13 @@ export const rangeSchema = z.object({
 });
 
 export const settingsSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   range: rangeSchema,
   hintDisplay: z.enum(['always', 'onRequest']),
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
-  /** "Richtungen" (FR-066): the directions targets may train; the line directions of version 1. */
-  directions: z.object({
-    right: z.boolean(),
-    down: z.boolean(),
-    downRight: z.boolean(),
-    downLeft: z.boolean(),
-    left: z.boolean(),
-    up: z.boolean(),
-    upLeft: z.boolean(),
-    upRight: z.boolean(),
-  }),
-  /** "Hinweis-Muster" (FR-066): Nachbarn, Mitte, Reihe, Formen. */
-  patterns: z.object({ neighbors: z.boolean(), middle: z.boolean(), row: z.boolean(), shape: z.boolean() }),
-  /** "Formen" (FR-074): the single shapes of the shape pattern. */
+  /** "Stufe am Anfang" and "Schwerste Stufe" (FR-085): the range of difficulty levels, 1 to 5. */
+  levels: z.object({ start: z.literal(LEVELS), hardest: z.literal(LEVELS) }),
+  /** "Formen" (FR-074): the single shapes of levels 3 and 4; with every shape off, those levels are skipped. */
   shapes: z.object({ I: z.boolean(), O: z.boolean(), T: z.boolean(), L: z.boolean(), J: z.boolean(), S: z.boolean(), Z: z.boolean() }),
   /** "Zeit-Challenge" (FR-075, FR-076): whether the start screen offers it, and its length in minutes. */
   timeChallenge: z.object({
@@ -57,3 +46,4 @@ export type Settings = z.infer<typeof settingsSchema>;
 export type SettingsRange = z.infer<typeof rangeSchema>;
 export type RangePreset = z.infer<typeof rangePresetSchema>;
 export type Difficulty = Settings['difficulty'];
+export type LevelRange = Settings['levels'];

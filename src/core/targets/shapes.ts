@@ -23,7 +23,7 @@ import { directionsOf } from './hints';
 export const SHAPE_IDS = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'] as const;
 export type ShapeId = (typeof SHAPE_IDS)[number];
 
-/** How many squares of a shape are empty: one at ladder step 6, two at step 7 and above (FR-072, counted from 1). */
+/** How many squares of a shape are empty: one at level 3 "Formen", two at level 4 "Formen mit 2 Lücken" (amendment 09). */
 export type ShapeEmpties = 1 | 2;
 
 /** The squares of each shape in its first turn, as [row, column] from the top left (amendment 06 table). */

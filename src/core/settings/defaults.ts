@@ -9,6 +9,9 @@ export const RANGE_SPAN_MIN = 9;
 export const CHALLENGE_MINUTES = [1, 2, 3, 5] as const;
 export type ChallengeMinutes = (typeof CHALLENGE_MINUTES)[number];
 export const GOALS_PER_ROUND_MIN = 1;
+/** The difficulty levels (amendment 09): 1 "Gerade Linien" to 5 "X-Form"; core/progress/levels.ts says what each offers. */
+export const LEVELS = [1, 2, 3, 4, 5] as const;
+export type Level = (typeof LEVELS)[number];
 export const GOALS_PER_ROUND_MAX = 20;
 
 /** The fixed ranges behind each preset; `custom` takes min and max as set. */
@@ -23,21 +26,11 @@ export const MISSES_PER_HEART: Record<Difficulty, 3 | 4 | 5> = { easy: 5, normal
 /** The defaults listed in data-model.md "Settings". A new object on every call. */
 export function defaultSettings(): Settings {
   return {
-    version: 2,
+    version: 3,
     range: { preset: '1-100', min: 1, max: 100 },
     hintDisplay: 'always',
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
-    directions: {
-      right: true,
-      down: true,
-      downRight: true,
-      downLeft: true,
-      left: false,
-      up: false,
-      upLeft: false,
-      upRight: false,
-    },
-    patterns: { neighbors: true, middle: true, row: true, shape: true },
+    levels: { start: 1, hardest: 5 },
     shapes: { I: true, O: true, T: true, L: true, J: true, S: true, Z: true },
     timeChallenge: { allowed: true, minutes: 2 },
     roundType: 'untilHearts',

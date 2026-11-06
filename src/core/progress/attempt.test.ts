@@ -6,7 +6,7 @@ import { directionKey, emptyDirectionState, recordAttempt } from './adaptive';
 import { attemptDirections, makeAttemptRecord, type FinishedTarget } from './attempt';
 import { parseRecordKey, summarize } from './summarize';
 
-const target: Target = { number: 46, hints: [36, 45], directions: ['down', 'right'], difficultyStep: 0, pattern: 'neighbors' };
+const target: Target = { number: 46, hints: [36, 45], directions: ['down', 'right'], level: 1, pattern: 'neighbors' };
 
 function finished(extra: Partial<FinishedTarget> = {}): FinishedTarget {
   return {
@@ -36,7 +36,7 @@ describe('makeAttemptRecord (T043, FR-037)', () => {
       directions: ['down', 'right'],
       hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
       hintDisplay: 'always',
-      difficultyStep: 0,
+      level: 1,
       solved: true,
       helpStep: 1,
       misses: 1,
@@ -55,17 +55,17 @@ describe('attemptDirections (FR-038)', () => {
     expect(attemptDirections(target, defaultSettings(), 0)).toEqual(['down', 'right']);
   });
 
-  it('counts a target whose hints never showed toward every direction the parent allows (Richtungen)', () => {
+  it('counts a target whose hints never showed toward every direction of its level (amendment 09)', () => {
     const s = { ...defaultSettings(), adaptive: false, hintDisplay: 'onRequest' as const };
-    s.directions = { ...s.directions, right: false, downRight: false, downLeft: false, down: true, up: true };
-    expect(attemptDirections(target, s, 0)).toEqual(['down', 'up']);
+    expect(attemptDirections(target, s, 0)).toEqual(['right', 'left', 'down', 'up']);
+    expect(attemptDirections({ ...target, level: 2 }, s, 0)).toEqual(['downRight', 'upLeft', 'downLeft', 'upRight']);
     // After help step 1 the hints showed, so the target's own directions count.
     expect(attemptDirections(target, s, 1)).toEqual(['down', 'right']);
   });
 });
 
 describe('summarize (FR-039)', () => {
-  it('gives one row per direction with the goalkeeper counters, step and mastery, and the earlier modes as one total', () => {
+  it('gives one row per direction with the goalkeeper counters and mastery, the earlier modes as one total, and the levels (FR-090)', () => {
     const s = defaultSettings();
     let p = emptyProgress();
     p = recordAttempt(p, makeAttemptRecord(finished()), s);
@@ -73,14 +73,17 @@ describe('summarize (FR-039)', () => {
     // Attempts from before amendment 05 (FR-070).
     p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), attempts: 4 };
     p.directions[directionKey('lines', 'down')] = { ...emptyDirectionState(), attempts: 3 };
-    p.directions[directionKey('lines', 'upLeft')] = { ...emptyDirectionState(), attempts: 2, step: 3 };
+    p.directions[directionKey('lines', 'upLeft')] = { ...emptyDirectionState(), attempts: 2 };
     p.directions[directionKey('keeper', 'up')] = emptyDirectionState();
     const summary = summarize(p, emptyRecords(), s);
     expect(summary.directions.map((r) => r.direction)).toEqual(['right', 'down', 'upLeft']);
-    expect(summary.directions[1]).toMatchObject({ attempts: 2, independent: 1, withHelp: 1, step: 0, stepCount: 8, toRaise: 3, mastered: false, earlier: 7 });
+    expect(summary.directions[1]).toMatchObject({ attempts: 2, independent: 1, withHelp: 1, mastered: false, earlier: 7 });
+    expect(summary.level).toEqual({ level: 1, toRaise: 3 });
+    expect(summary.levels[0]).toEqual({ level: 1, independent: 1, withHelp: 1, guesses: 0 });
+    expect(summary.levels.map((r) => r.level)).toEqual([1, 2, 3, 4, 5]);
     expect(summary.directions[0]).toMatchObject({ attempts: 2, earlier: 0 });
     // A direction played only in the removed modes shows its earlier total and a fresh goalkeeper state.
-    expect(summary.directions[2]).toMatchObject({ attempts: 0, step: 0, mastered: false, earlier: 2 });
+    expect(summary.directions[2]).toMatchObject({ attempts: 0, mastered: false, earlier: 2 });
   });
 
   it('keeps bests of the removed modes apart, under "früher"', () => {

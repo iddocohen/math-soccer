@@ -1,4 +1,5 @@
 /** Shared types of the engine-free core (data-model.md, contracts/core-api.md). */
+import type { Level } from './settings/defaults';
 import type { Pattern } from './targets/patterns';
 
 /** The 8 directions on the hundred chart. Steps: right +1, left -1, down +10, up -10, downRight +11, upLeft -11, downLeft +9, upRight -9. */
@@ -47,12 +48,12 @@ export interface Target {
   hints: number[];
   /** Directions trained, from the hint offsets (FR-038). */
   directions: Direction[];
-  /** 0 to 7, from the adaptive ladder (core/progress/ladder.ts). */
-  difficultyStep: number;
+  /** The difficulty level whose patterns the target uses, 1 to 5 (core/progress/levels.ts, amendment 09). */
+  level: Level;
   /** The hint pattern (FR-065). */
   pattern: Pattern;
   /**
-   * Formen with two empty squares (FR-072): the empty squares of the same shape still to be shot after this one, in
+   * Formen or the X shape with two empty squares (FR-072): the empty squares of the same shape still to be shot after this one, in
    * order, with the directions each trains. Missing or empty for every other target.
    */
   queue?: Array<{ number: number; directions: Direction[] }>;

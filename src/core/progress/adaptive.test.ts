@@ -1,11 +1,11 @@
-// Adapted from math-tank src/core/progress/adaptive.test.ts and mastery.test.ts, with `skill` renamed to `direction`.
+// Adapted from math-tank src/core/progress/adaptive.test.ts and mastery.test.ts, with `skill` renamed to `direction` and
+// one difficulty level for the child (amendment 09).
 import { describe, expect, it } from 'vitest';
-import { defaultSettings } from '../settings/defaults';
+import { defaultSettings, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { emptyProgress, type AttemptRecord, type DirectionState, type Outcome, type Progress } from '../storage/schemas';
 import type { Direction } from '../types';
-import { directionKey, emptyDirectionState, MAX_ATTEMPTS, recordAttempt, rowToRaise, targetProgress } from './adaptive';
-import { stepDown, stepUp, topStep } from './ladder';
+import { directionKey, emptyDirectionState, levelRaised, MAX_ATTEMPTS, recordAttempt, rowToRaise, targetProgress } from './adaptive';
 import { isMastered } from './mastery';
 
 type Kind = 'independent' | 'assisted' | 'unsolved' | 'guess';
@@ -20,7 +20,7 @@ function attempt(kind: Kind, directions: Direction[] = ['down'], extra: Partial<
     directions,
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
     hintDisplay: 'always',
-    difficultyStep: 0,
+    level: 1,
     solved: kind !== 'unsolved',
     helpStep: kind === 'unsolved' ? 3 : kind === 'assisted' ? 1 : 0,
     misses: 0,
@@ -32,6 +32,10 @@ function attempt(kind: Kind, directions: Direction[] = ['down'], extra: Partial<
 
 function settings(extra: Partial<Settings> = {}): Settings {
   return { ...defaultSettings(), ...extra };
+}
+
+function range(start: Level, hardest: Level, extra: Partial<Settings> = {}): Settings {
+  return settings({ levels: { start, hardest }, ...extra });
 }
 
 function play(p: Progress, kinds: Kind[], s: Settings, directions: Direction[] = ['down']): Progress {
@@ -47,73 +51,93 @@ function ds(p: Progress, direction: Direction = 'down'): DirectionState {
 const I: Outcome = 'independent';
 const A: Outcome = 'assisted';
 const U: Outcome = 'unsolved';
+const THREE: Kind[] = ['independent', 'independent', 'independent'];
 
-describe('ladder steps per direction (FR-067), clamped to the settings', () => {
-  it('right climbs Nachbarn 0, Mitte across 1, Reihe 3, Formen 5, Nachbarn two away and two-empty shapes 6, and 7 only with "auf Wunsch"', () => {
+describe('recordAttempt: the difficulty level (FR-087)', () => {
+  it('starts at the start level and rises one level after 3 targets in a row solved alone', () => {
     const s = settings();
-    expect([stepUp('right', 0, s), stepUp('right', 1, s), stepUp('right', 3, s), stepUp('right', 5, s)]).toEqual([1, 3, 5, 6]);
-    expect(topStep('right', s)).toBe(6);
-    const onRequest = settings({ hintDisplay: 'onRequest' });
-    expect(stepUp('right', 6, onRequest)).toBe(7);
-    expect(topStep('right', onRequest)).toBe(7);
+    const p = play(emptyProgress(), ['independent', 'independent'], s);
+    expect(p.level).toBe(1);
+    expect(rowToRaise(p, s)).toBe(1);
+    const raised = play(p, ['independent'], s);
+    expect(raised.level).toBe(2);
+    expect(raised.levelRecent).toEqual([]);
+    expect(levelRaised(p, raised, s)).toBe(2);
   });
 
-  it('down skips Mitte across: Nachbarn 0, Mitte down 2, Reihe down 3', () => {
+  it('goes down one level when 2 of the last 3 needed help, and a level going down is not a level up', () => {
     const s = settings();
-    expect([stepUp('down', 0, s), stepUp('down', 2, s)]).toEqual([2, 3]);
-    // As math-tank: down to the nearest step that looks different; step 1 falls back to Nachbarn like step 0.
-    expect(stepDown('down', 2, s)).toBe(1);
+    const start = play(emptyProgress(), [...THREE, ...THREE], s);
+    expect(start.level).toBe(3);
+    const lowered = play(start, ['assisted', 'independent'], s);
+    expect(lowered.level).toBe(3);
+    const down = play(lowered, ['unsolved'], s);
+    expect(down.level).toBe(2);
+    expect(levelRaised(lowered, down, s)).toBeNull();
   });
 
-  it('a diagonal goes from its Nachbarn straight to Mitte or Reihe diagonal', () => {
-    expect(stepUp('downRight', 0, settings())).toBe(4);
+  it('stays within the parent range: never below the start level, never above the hardest level', () => {
+    const s = range(2, 3);
+    const p = play(emptyProgress(), ['assisted', 'assisted', 'assisted'], s);
+    expect(p.level).toBe(2);
+    const top = play(p, [...THREE, ...THREE, ...THREE], s);
+    expect(top.level).toBe(3);
+    expect(rowToRaise(top, s)).toBeNull();
   });
 
-  it('skips patterns the parent turned off: without Mitte, right goes from 0 to Reihe at 3', () => {
-    const s = settings({ patterns: { neighbors: true, middle: false, row: true, shape: true } });
-    expect(stepUp('right', 0, s)).toBe(3);
+  it('a stored level outside a narrowed range is clamped when it is used', () => {
+    const p = { ...emptyProgress(), level: 5 as const };
+    expect(targetProgress(p, range(1, 2)).level).toBe(2);
+    expect(targetProgress({ ...emptyProgress(), level: 1 }, range(3, 5)).level).toBe(3);
   });
 
-  it('never rises with only Nachbarn and only direct hints allowed', () => {
-    const s = settings({
-      patterns: { neighbors: true, middle: false, row: false, shape: false },
-      hintDistance: { direct: true, vertical: false, diagonal: false, far: false },
-    });
-    expect(topStep('right', s)).toBe(0);
-    expect(stepUp('right', 0, s)).toBe(0);
-  });
-});
-
-describe('recordAttempt (FR-037, FR-040)', () => {
-  it('starts at step 0 and rises one step after 3 independent targets in a row', () => {
+  it('is kept across rounds: the stored level is where the next round starts (FR-086)', () => {
     const s = settings();
-    const p = play(emptyProgress(), ['independent', 'independent'], s, ['right']);
-    expect(ds(p, 'right').step).toBe(0);
-    expect(rowToRaise(ds(p, 'right'), 'right', s)).toBe(1);
-    const raised = play(p, ['independent'], s, ['right']);
-    expect(ds(raised, 'right').step).toBe(1);
-    expect(ds(raised, 'right').recent).toEqual([]);
+    const afterRound = play(emptyProgress(), [...THREE, ...THREE], s);
+    // A new round reads the same stored progress.
+    expect(targetProgress(afterRound, s).level).toBe(3);
+    expect(targetProgress(emptyProgress(), s).level).toBe(1);
+    expect(targetProgress(emptyProgress(), range(2, 5)).level).toBe(2);
   });
 
-  it('goes down one step when 2 of the last 3 needed help', () => {
-    const s = settings();
-    const start = play(emptyProgress(), ['independent', 'independent', 'independent'], s, ['right']);
-    expect(ds(start, 'right').step).toBe(1);
-    const lowered = play(start, ['assisted', 'independent', 'unsolved'], s, ['right']);
-    expect(ds(lowered, 'right').step).toBe(0);
+  it('skips levels 3 and 4 when every shape is off', () => {
+    const noShapes = settings({ shapes: { I: false, O: false, T: false, L: false, J: false, S: false, Z: false } });
+    const p = play(emptyProgress(), [...THREE, ...THREE], noShapes);
+    expect(p.level).toBe(5);
+    const down = play(p, ['assisted', 'assisted'], noShapes);
+    expect(down.level).toBe(2);
   });
 
   it('counts guesses without letting them into the row or the windows', () => {
     const s = settings();
     const p = play(emptyProgress(), ['independent', 'independent', 'guess', 'guess'], s);
-    expect(ds(p)).toMatchObject({ attempts: 4, guesses: 2, independent: 2, step: 0, recent: [I, I] });
+    expect(ds(p)).toMatchObject({ attempts: 4, guesses: 2, independent: 2, masteryWindow: [I, I] });
+    expect(p.levelRecent).toEqual([I, I]);
+    expect(p.levels['1']).toEqual({ independent: 2, assisted: 0, guesses: 2 });
   });
 
-  it('keeps the step with adaptive difficulty off', () => {
-    const s = settings({ adaptive: false });
-    const p = play(emptyProgress(), ['independent', 'independent', 'independent', 'independent'], s);
-    expect(ds(p).step).toBe(0);
-    expect(rowToRaise(ds(p), 'down', s)).toBeNull();
+  it('keeps the start level with adaptive difficulty off', () => {
+    const s = settings({ adaptive: false, levels: { start: 2, hardest: 5 } });
+    const p = play(emptyProgress(), [...THREE, ...THREE], s);
+    expect(targetProgress(p, s).level).toBe(2);
+    expect(rowToRaise(p, s)).toBeNull();
+  });
+
+  it('counts targets per level, alone and with help (FR-090)', () => {
+    const s = settings();
+    let p = recordAttempt(emptyProgress(), attempt('independent', ['downRight'], { level: 2 }), s);
+    p = recordAttempt(p, attempt('unsolved', ['downRight'], { level: 2 }), s);
+    expect(p.levels['2']).toEqual({ independent: 1, assisted: 1, guesses: 0 });
+  });
+
+  it('gives the X shape two empty squares after 2 targets solved alone at level 5', () => {
+    const s = range(5, 5);
+    const one = play(emptyProgress(), ['independent'], s, ['downRight']);
+    expect(targetProgress(one, s).xTwoEmpties).toBe(false);
+    const two = play(one, ['independent'], s, ['downRight']);
+    expect(targetProgress(two, s).xTwoEmpties).toBe(true);
+    // Never with adaptive difficulty off.
+    expect(targetProgress(two, { ...s, adaptive: false }).xTwoEmpties).toBe(false);
   });
 
   it('updates each direction of the attempt, by mode', () => {
@@ -148,20 +172,10 @@ describe('isMastered (FR-039): 10 independent attempts and 8 of the last 10 inde
 });
 
 describe('targetProgress', () => {
-  it('lists mastered directions and clamps steps to what the settings allow now', () => {
+  it('lists mastered directions of the goalkeeper game only (amendment 05)', () => {
     const p = emptyProgress();
-    p.directions[directionKey('keeper', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
-    p.directions[directionKey('keeper', 'right')] = { ...emptyDirectionState(), step: 1 };
-    const tp = targetProgress(p, settings());
-    expect(tp.mastered).toEqual(['down']);
-    // With hints always shown, step 7 looks like step 6 (Nachbarn two squares away), so down is clamped to 6.
-    expect(tp.steps).toEqual({ right: 1, down: 6 });
-  });
-
-  it('does not read the progress of the removed hole and line modes (amendment 05)', () => {
-    const p = emptyProgress();
-    p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
-    p.directions[directionKey('lines', 'right')] = { ...emptyDirectionState(), step: 3 };
-    expect(targetProgress(p, settings())).toEqual({ mastered: [], steps: {} });
+    p.directions[directionKey('keeper', 'down')] = { ...emptyDirectionState(), independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    p.directions[directionKey('holes', 'right')] = { ...emptyDirectionState(), independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    expect(targetProgress(p, settings())).toEqual({ mastered: ['down'], level: 1, xTwoEmpties: false });
   });
 });

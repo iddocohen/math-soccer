@@ -17,7 +17,7 @@ import {
 import type { Digit } from './entry';
 
 function target(number: number): Target {
-  return { number, hints: [number - 1], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' };
+  return { number, hints: [number - 1], directions: ['right'], level: 1, pattern: 'neighbors' };
 }
 
 function makeController(answer = 46) {
@@ -430,7 +430,7 @@ describe('attempt records (T043, FR-037)', () => {
       settings,
       newSeed: () => 7,
       nextTarget: () => target(46),
-      onAttempt: (r) => records.push(r),
+      onAttempt: (r) => void records.push(r),
       now: () => new Date('2026-11-06T12:00:00.000Z'),
     });
     c.start();
@@ -533,7 +533,7 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
     let settings: Settings = { ...defaultSettings(), ...over };
     const records: AttemptRecord[] = [];
     const store = memoryStore();
-    const c = new MatchController({ settings: () => settings, newSeed: () => 5, onAttempt: (r) => records.push(r), store });
+    const c = new MatchController({ settings: () => settings, newSeed: () => 5, onAttempt: (r) => void records.push(r), store });
     c.start();
     const save = (next: Partial<Settings>) => {
       settings = { ...settings, ...next };
@@ -694,7 +694,7 @@ describe('shape targets with two empty squares (FR-072)', () => {
     number: 44,
     hints: [34, 54],
     directions: ['down', 'up'],
-    difficultyStep: 6,
+    level: 4,
     pattern: 'shape',
     queue: [{ number: 55, directions: ['right'] }],
   };
@@ -744,7 +744,7 @@ describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
       newSeed: () => 7,
       nextTarget: () => target(next++),
       store,
-      onAttempt: (r) => onAttempt.push(r),
+      onAttempt: (r) => void onAttempt.push(r),
     });
     c.start('time');
     return { c, onAttempt };
@@ -830,5 +830,31 @@ describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
     expect(remainingMs(again.getState())).toBe(40_000);
     again.tick(40_000);
     expect(again.getState().phase).toBe('roundOver');
+  });
+});
+
+describe('a goal that raises the level (FR-088, amendment 09)', () => {
+  function withLevelUp(raised: Array<1 | 2 | 3 | 4 | 5 | null>) {
+    const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target(46), onAttempt: () => raised.shift() ?? null });
+    c.start();
+    return c;
+  }
+
+  function goal(c: MatchController) {
+    type(c, '46');
+    c.shoot();
+    c.ballLanded();
+  }
+
+  it('shows "levelUp" with the new level instead of the goal message', () => {
+    const c = withLevelUp([2]);
+    goal(c);
+    expect(c.getState().message).toEqual({ kind: 'levelUp', level: 2 });
+  });
+
+  it('shows the plain goal message when the level did not rise', () => {
+    const c = withLevelUp([null]);
+    goal(c);
+    expect(c.getState().message).toEqual({ kind: 'goal' });
   });
 });

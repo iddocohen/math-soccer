@@ -9,16 +9,13 @@
  */
 import { cellOf, type ChartLayout } from '../chart/layout';
 import type { Settings } from '../settings/schema';
-import { ON_REQUEST_STEP } from '../progress/ladder';
+import { topLevel } from '../progress/levels';
 import { MOVE } from '../targets/hints';
 import { DIRECTIONS, type DeepReadonly, type Direction, type Target } from '../types';
 
 export const HINT_STEP = 1;
 export const CHART_STEP = 2;
 export const ANSWER_STEP = 3;
-/** The adaptive step at which hints wait for a request (FR-040, FR-067: the top of core/progress/ladder.ts). */
-export { ON_REQUEST_STEP };
-
 /** The way from a hint number to the target. `direction` is null when the hint is not a neighbor of the target. */
 export interface HelpHint {
   from: number;
@@ -34,16 +31,16 @@ export function hintsVisible(hintDisplay: Settings['hintDisplay'], helpStep: num
 
 /**
  * How the hints of `target` show (FR-013, FR-040). The parent's "auf Wunsch" is the hardest the game may go: with
- * adaptive difficulty on, hints wait for a request only at the ladder's top step and show always on the easier steps; with
- * adaptive off, the parent's choice applies as it is.
+ * adaptive difficulty on, hints wait for a request only at the hardest level the parent allows ("Schwerste Stufe",
+ * amendment 09) and show always on the easier levels; with adaptive off, the parent's choice applies as it is.
  */
 export function targetHintDisplay(
-  settings: Pick<Settings, 'hintDisplay' | 'adaptive'>,
-  target: Pick<Target, 'difficultyStep'> | null,
+  settings: Pick<Settings, 'hintDisplay' | 'adaptive' | 'levels' | 'shapes'>,
+  target: Pick<Target, 'level'> | null,
 ): Settings['hintDisplay'] {
   if (settings.hintDisplay === 'always') return 'always';
   if (!settings.adaptive) return 'onRequest';
-  return target !== null && target.difficultyStep >= ON_REQUEST_STEP ? 'onRequest' : 'always';
+  return target !== null && target.level >= topLevel(settings) ? 'onRequest' : 'always';
 }
 
 /**

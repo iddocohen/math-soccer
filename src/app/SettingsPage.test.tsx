@@ -38,14 +38,12 @@ afterEach(() => {
 });
 
 describe('SettingsPage (T044, FR-035)', () => {
-  it('shows the twelve groups in order, without "Spielarten" or a line length (FR-069)', () => {
+  it('shows the ten groups in order, without "Spielarten", "Hinweis-Muster" or "Richtungen" (FR-069, amendment 09)', () => {
     setup();
     const legends = screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toEqual([
       'Zahlenraum',
       'Hinweise',
-      'Hinweis-Muster',
-      'Richtungen',
       'Formen',
       'Runde',
       'Zeit-Challenge',
@@ -78,30 +76,39 @@ describe('SettingsPage (T044, FR-035)', () => {
     expect(saveButton().disabled).toBe(false);
   });
 
-  it('needs at least one direction', () => {
-    setup();
-    const directions = group('Richtungen');
-    for (const name of ['nach rechts', 'nach unten', 'schräg nach rechts unten', 'schräg nach links unten']) {
-      fireEvent.click(within(directions).getByLabelText(name));
-    }
-    expect(within(directions).getByText(t().settingsErrors.noDirection)).toBeTruthy();
-    expect(saveButton().disabled).toBe(true);
-  });
-
-  it('"Hinweis-Muster" lists Nachbarn, Mitte, Reihe and Formen, all on, and needs at least one (FR-066)', () => {
+  it('"Schwierigkeit" sets "Stufe am Anfang" and "Schwerste Stufe" with an example drawing per level (FR-085)', () => {
     const { kv } = setup();
-    const patterns = group('Hinweis-Muster');
-    const names = ['Nachbarn', 'Mitte', 'Reihe', 'Formen'];
-    for (const name of names) expect((within(patterns).getByLabelText(name) as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(within(patterns).getByLabelText('Mitte'));
+    const difficulty = group('Schwierigkeit');
+    const start = within(difficulty).getByLabelText(S.labels.startLevel) as HTMLSelectElement;
+    const hardest = within(difficulty).getByLabelText(S.labels.hardestLevel) as HTMLSelectElement;
+    expect([...start.options].map((o) => o.textContent)).toEqual([
+      'Stufe 1: Gerade Linien',
+      'Stufe 2: Schräge Linien',
+      'Stufe 3: Formen',
+      'Stufe 4: Formen mit 2 Lücken',
+      'Stufe 5: X-Form',
+    ]);
+    expect([start.value, hardest.value]).toEqual(['1', '5']);
+    // The shots per ball stay in the same group.
+    expect(within(difficulty).getByLabelText(S.labels.difficulty)).toBeTruthy();
+    const examples = within(difficulty).getByTestId('level-examples');
+    expect(examples.querySelectorAll('li svg')).toHaveLength(5);
+    fireEvent.change(hardest, { target: { value: '2' } });
+    expect(examples.querySelector('li[data-level="3"]')?.getAttribute('data-in-range')).toBe('false');
     fireEvent.click(saveButton());
-    expect(loadSettings(kv).value.patterns).toEqual({ neighbors: true, middle: false, row: true, shape: true });
-    for (const name of ['Nachbarn', 'Reihe', 'Formen']) fireEvent.click(within(patterns).getByLabelText(name));
-    expect(within(patterns).getByText(t().settingsErrors.noPattern)).toBeTruthy();
+    expect(loadSettings(kv).value.levels).toEqual({ start: 1, hardest: 2 });
+  });
+
+  it('refuses a start level above the hardest level', () => {
+    setup();
+    const difficulty = group('Schwierigkeit');
+    fireEvent.change(within(difficulty).getByLabelText(S.labels.startLevel), { target: { value: '4' } });
+    fireEvent.change(within(difficulty).getByLabelText(S.labels.hardestLevel), { target: { value: '3' } });
+    expect(within(difficulty).getByText(t().settingsErrors.levelOrder)).toBeTruthy();
     expect(saveButton().disabled).toBe(true);
   });
 
-  it('"Formen" lists the seven shapes as switches, all on, and needs at least one (FR-074)', () => {
+  it('"Formen" lists the seven shapes as switches, all on; all off skips levels 3 and 4 (FR-074, amendment 09)', () => {
     const { kv } = setup();
     const shapes = group('Formen');
     const names = ['Stab', 'Quadrat', 'T', 'L', 'J', 'S', 'Z'];
@@ -111,7 +118,12 @@ describe('SettingsPage (T044, FR-035)', () => {
     fireEvent.click(saveButton());
     expect(loadSettings(kv).value.shapes.L).toBe(false);
     for (const name of names.filter((n) => n !== 'L')) fireEvent.click(within(shapes).getByLabelText(name));
-    expect(within(shapes).getByText(t().settingsErrors.noShape)).toBeTruthy();
+    expect(saveButton().disabled).toBe(false);
+    // Only levels 3 and 4 with no shape would offer nothing.
+    const difficulty = group('Schwierigkeit');
+    fireEvent.change(within(difficulty).getByLabelText(S.labels.startLevel), { target: { value: '3' } });
+    fireEvent.change(within(difficulty).getByLabelText(S.labels.hardestLevel), { target: { value: '4' } });
+    expect(within(difficulty).getByText(t().settingsErrors.noLevel)).toBeTruthy();
     expect(saveButton().disabled).toBe(true);
   });
 
@@ -191,7 +203,7 @@ describe('data group (T046, FR-041)', () => {
   it('shows a transfer link with #save= and a QR code', async () => {
     setup();
     const transfer = screen.getByTestId('transfer');
-    await waitFor(() => expect(transfer.getAttribute('data-transfer-link')).toMatch(/#save=v1\./));
+    await waitFor(() => expect(transfer.getAttribute('data-transfer-link')).toMatch(/#save=v2\./));
     expect(screen.getByTestId('transfer-qr')).toBeTruthy();
   });
 });

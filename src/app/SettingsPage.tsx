@@ -2,8 +2,9 @@
 /**
  * Settings page for parents (FR-035, FR-041, contracts/screens.md "Settings").
  *
- * The fields of data-model "Settings", grouped as Zahlenraum, Hinweise, Hinweis-Muster, Richtungen, Formen, Runde,
- * Zeit-Challenge, Schwierigkeit, Ton, Bedienung, Kabine and Daten (FR-066, FR-069, FR-074, FR-076). The form is checked
+ * The fields of data-model "Settings", grouped as Zahlenraum, Hinweise, Formen, Runde, Zeit-Challenge, Schwierigkeit,
+ * Ton, Bedienung, Kabine and Daten (FR-069, FR-074, FR-076, FR-085). "Schwierigkeit" holds the shots per ball, the
+ * adaptive switch, "Stufe am Anfang" and "Schwerste Stufe", with a small example drawing per level. The form is checked
  * with `validateSettings` on every change; errors appear next to their fields and "Speichern" stays disabled while any
  * error exists. Saving writes through persistence.ts and hands the
  * settings to the app; they apply from the next round (applying them to a running round is amendment 01, T070/T071).
@@ -13,19 +14,25 @@
  * again after "Speichern" and after "Daten laden".
  */
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, RANGE_PRESETS, type ChallengeMinutes } from '../core/settings/defaults';
+import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS, RANGE_PRESETS, type ChallengeMinutes, type Level } from '../core/settings/defaults';
 import type { RangePreset, Settings } from '../core/settings/schema';
 import { validateSettings } from '../core/settings/validate';
-import { PATTERNS } from '../core/targets/patterns';
 import { SHAPE_IDS } from '../core/targets/shapes';
 import { qrMatrix, qrPath, type QrMatrix } from '../core/transfer/qr';
 import { encodeTransfer, type EncodedTransfer } from '../core/transfer/transfer';
-import { DIRECTIONS, HINT_DISTANCES } from '../core/types';
+import { HINT_DISTANCES } from '../core/types';
 import { t } from '../i18n';
 import { BUILD_DATE, BUILD_VERSION } from './buildInfo';
+import { LevelExamples } from './LevelExamples';
 import type { Persistence } from './persistence';
 
 const PRESETS: RangePreset[] = ['1-100', '0-1000', 'custom'];
+
+/** "Stufe 1: Gerade Linien" to "Stufe 5: X-Form", for both level selects. */
+function levelOptionsOf(): Array<{ value: string; label: string }> {
+  const T = t().levels;
+  return LEVELS.map((l) => ({ value: String(l), label: T.label(l, T.names[l]) }));
+}
 
 
 interface Props {
@@ -91,7 +98,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
   };
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => update({ ...draft, [key]: value });
   /** A switch inside one of the on/off groups. */
-  const flag = <G extends 'hintDistance' | 'patterns' | 'directions' | 'shapes' | 'sound'>(group: G, key: keyof Settings[G] & string) => ({
+  const flag = <G extends 'hintDistance' | 'shapes' | 'sound'>(group: G, key: keyof Settings[G] & string) => ({
     checked: (draft[group] as Record<string, boolean>)[key] === true,
     onChange: (v: boolean) => set(group, { ...draft[group], [key]: v }),
   });
@@ -145,6 +152,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
   };
 
   const custom = draft.range.preset === 'custom';
+  const levelOptions = levelOptionsOf();
 
   return (
     <div className="settings-page" role="dialog" aria-modal="true" aria-label={S.title} data-testid="settings-page" lang="de">
@@ -207,19 +215,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Check label={L.pointAfterFullHelp} checked={draft.pointAfterFullHelp} onChange={(v) => set('pointAfterFullHelp', v)} />
         </Group>
 
-        <Group title={S.groups.patterns} errors={errorsAt('patterns')}>
-          {PATTERNS.map((p) => (
-            <Check key={p} label={O.patterns[p]} {...flag('patterns', p)} />
-          ))}
-        </Group>
-
-        <Group title={S.groups.directions} errors={errorsAt('directions')}>
-          {DIRECTIONS.map((d) => (
-            <Check key={d} label={O.directions[d]} {...flag('directions', d)} />
-          ))}
-        </Group>
-
-        <Group title={S.groups.shapes} errors={errorsAt('shapes')}>
+        <Group title={S.groups.shapes}>
           {SHAPE_IDS.map((k) => (
             <Check key={k} label={O.shapes[k]} {...flag('shapes', k)} />
           ))}
@@ -260,7 +256,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           />
         </Group>
 
-        <Group title={S.groups.difficulty}>
+        <Group title={S.groups.difficulty} errors={errorsAt('levels')}>
           <Select
             label={L.difficulty}
             value={draft.difficulty}
@@ -268,6 +264,19 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             onChange={(v) => set('difficulty', v as Settings['difficulty'])}
           />
           <Check label={L.adaptive} checked={draft.adaptive} onChange={(v) => set('adaptive', v)} />
+          <Select
+            label={L.startLevel}
+            value={String(draft.levels.start)}
+            options={levelOptions}
+            onChange={(v) => set('levels', { ...draft.levels, start: Number(v) as Level })}
+          />
+          <Select
+            label={L.hardestLevel}
+            value={String(draft.levels.hardest)}
+            options={levelOptions}
+            onChange={(v) => set('levels', { ...draft.levels, hardest: Number(v) as Level })}
+          />
+          <LevelExamples label={L.levelExamples} start={draft.levels.start} hardest={draft.levels.hardest} />
         </Group>
 
         <Group title={S.groups.sound}>
