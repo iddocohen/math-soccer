@@ -1,12 +1,12 @@
 /**
  * The React overlay over the match scene (contracts/screens.md "Match"): the goal counter, the hearts as three balls
- * (with "Bis die Bälle weg sind"), the clock when the parent turned it on, the help button and the pause button at the
+ * (with "Bis die Bälle weg sind"), the clock when the parent turned it on (in a time challenge the countdown instead), the help button and the pause button at the
  * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
  * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern) and
  * `data-hints` (its hint numbers), `data-queue` (the empty squares of a shape still to shoot after it), plus
- * `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
+ * `data-round-type` (untilHearts, goalCount or time), `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
  * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
  * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
@@ -133,6 +133,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-ball-kind={ballKind(layout)}
       data-pattern={state.target?.pattern ?? ''}
       data-hints={state.target?.hints.join(',') ?? ''}
+      data-round-type={state.roundType}
       data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}
       data-keeper={keeper}
       data-number-pad={pad !== undefined}
@@ -149,7 +150,11 @@ export const MatchOverlay = memo(function MatchOverlay({
               ))}
             </span>
           )}
-          {settings.showClock && <Clock source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />}
+          {state.challengeMinutes !== null ? (
+            <Countdown totalMs={state.challengeMinutes * 60_000} source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />
+          ) : (
+            settings.showClock && <Clock source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />
+          )}
         </div>
         <div className="overlay-buttons">
           <button type="button" className="icon-button" aria-label={text.match.help} data-testid="help-button" onClick={onHelp}>
@@ -223,6 +228,23 @@ function Clock({ source }: { source: ClockSource }) {
   return (
     <span className="clock" data-testid="clock">
       {formatClock(useElapsedMs(source))}
+    </span>
+  );
+}
+
+/** The countdown shows its last seconds in kit yellow, with a gentle pulse (FR-081). */
+export const LAST_SECONDS_MS = 10_000;
+
+/**
+ * The countdown of a time challenge (FR-077, FR-081): the time left, rounded up to whole seconds, so it shows 0:00
+ * only at the end. In the last 10 seconds it turns kit yellow and pulses gently (`data-last="true"`); no red, no sound.
+ */
+function Countdown({ totalMs, source }: { totalMs: number; source: ClockSource }) {
+  const left = Math.max(0, totalMs - useElapsedMs(source));
+  const last = left <= LAST_SECONDS_MS;
+  return (
+    <span className={last ? 'clock countdown countdown-last' : 'clock countdown'} data-testid="countdown" data-last={last} data-left={Math.ceil(left / 1000)}>
+      {formatClock(Math.ceil(left / 1000) * 1000)}
     </span>
   );
 }

@@ -7,10 +7,13 @@
  * and nothing says "verloren". `record` is null when the parent turned off "Rekorde zeigen".
  * "Nochmal" (or Enter or Space, handled by the app's keyboard listener) starts a new round without a page reload;
  * "Zurück" goes back to the start screen.
+ * A time challenge (amendment 07, FR-080) shows "2 Tore in 1 Minute" and its record by goals ("Dein Rekord: 9"), per
+ * range and challenge time.
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
  */
 import type { BestResult } from '../core/records/records';
 import { t } from '../i18n';
+import type { RoundType } from '../core/types';
 
 export interface RoundRecord {
   newRecord: boolean;
@@ -20,7 +23,9 @@ export interface RoundRecord {
 interface Props {
   goals: number;
   elapsedMs: number;
-  roundType: 'untilHearts' | 'goalCount';
+  roundType: RoundType;
+  /** The challenge time of a time challenge; null for the other round types. */
+  challengeMinutes?: number | null;
   /** The personal best after this round, or null when records are not shown. */
   record: RoundRecord | null;
   /** Stars earned in the round, or null when the locker room is off (FR-044). */
@@ -29,13 +34,13 @@ interface Props {
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, record, stars = null, onAgain, onBack }: Props) {
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, onAgain, onBack }: Props) {
   const text = t().roundEnd;
   return (
     <div className="round-end" data-testid="round-end" role="dialog" aria-modal="true" aria-label={text.cheer}>
       <h2>{text.cheer}</h2>
       <p className="round-result" data-testid="round-result">
-        {text.summary(goals, elapsedMs)}
+        {challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs)}
       </p>
       {stars !== null && (
         <p className="round-stars" data-testid="round-stars">

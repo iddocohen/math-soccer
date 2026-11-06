@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { STARTER } from '../rewards/items';
-import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
+import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
 import { PATTERNS } from '../targets/patterns';
-import { DIRECTIONS, MODES } from '../types';
+import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
 /**
  * Schemas of the stored kinds other than settings (data-model.md). These are first versions: later tasks extend them
@@ -143,7 +143,9 @@ export const roundSchema = z
   .object({
     version: z.literal(2),
     seed: z.number().int(),
-    roundType: z.enum(['untilHearts', 'goalCount']),
+    roundType: z.enum(ROUND_TYPES),
+    /** The length of a time challenge in minutes (FR-076); null for the other round types. */
+    challengeMinutes: z.literal(CHALLENGE_MINUTES).nullable().default(null),
     /** Goals per round at the round start (FR-052); missing in rounds stored before it was kept. */
     goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX).optional(),
     min: z.number().int(),
@@ -170,12 +172,20 @@ export type StoredRound = z.infer<typeof roundSchema>;
 
 /** Rules between the fields of a stored round: the range goes up, an aiming round has a target, and it lies in the range. */
 function roundRules(
-  r: { phase: string; min: number; max: number; target: { number: number; queue?: Array<{ number: number }> } | null },
+  r: {
+    phase: string;
+    min: number;
+    max: number;
+    roundType: string;
+    challengeMinutes: number | null;
+    target: { number: number; queue?: Array<{ number: number }> } | null;
+  },
   ctx: z.RefinementCtx,
 ): void {
   const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
   if (r.min >= r.max) issue('min must be below max', 'max');
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
+  if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number)] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

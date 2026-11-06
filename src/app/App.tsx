@@ -6,10 +6,11 @@
  *
  * Phaser loads in its own chunk when a match starts, so the start screen shows quickly. A round stored before a refresh
  * continues on load (T029). Test query parameters: `?start=play|time` makes Enter and Space start that kind of round,
- * `?seed=` fixes the round seed (contracts/screens.md).
+ * `?seed=` fixes the round seed, and `?speed=N` (the test speed-up hook, T092) makes play time run N times as fast;
+ * with it, a test can change the speed while the page runs through `window.mathSoccerSpeed` (contracts/screens.md).
  *
  * Start (amendment 05, FR-068, FR-075): "Spielen" starts the goalkeeper game; "Zeit-Challenge" shows when the parent
- * allows it. Until the time round type exists (T092), it starts a normal round.
+ * allows it, and starts a time challenge (amendment 07, FR-075 to FR-081).
  *
  * Parent screens (US3, FR-034): the gear on the start screen and in the match opens the parent menu after a 2-second
  * press. While the menu, the settings page or the progress page is open, a running round pauses (useAutoPause) and keys
@@ -102,6 +103,21 @@ export function seedFromUrl(search: string): number | undefined {
   return Number(raw) >>> 0;
 }
 
+/** The `speed` query parameter (test speed-up hook) as a factor from 0 to 1000, or undefined without it. */
+export function speedFromUrl(search: string): number | undefined {
+  const raw = new URLSearchParams(search).get('speed');
+  if (raw === null || !/^\d{1,4}(\.\d+)?$/.test(raw)) return undefined;
+  return Math.min(1000, Number(raw));
+}
+
+/** The factor play time runs at: 1, unless the page was opened with the test hook `?speed=`. */
+function playSpeed(): number {
+  const fromUrl = speedFromUrl(window.location.search);
+  if (fromUrl === undefined) return 1;
+  const live = window.mathSoccerSpeed;
+  return typeof live === 'number' && live >= 0 && Number.isFinite(live) ? live : fromUrl;
+}
+
 /** The `start` query parameter when it names a start button (`play` or `time`), or undefined. */
 export function startFromUrl(search: string): StartKind | undefined {
   const raw = new URLSearchParams(search).get('start');
@@ -187,7 +203,7 @@ function createApp() {
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
 function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
-  const key = recordKey(s.min, s.max, s.roundType);
+  const key = recordKey(s.min, s.max, s.roundType, s.challengeMinutes);
   const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
   if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
@@ -323,7 +339,7 @@ export function App() {
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      if (!document.hidden) controller.tick(now - last);
+      if (!document.hidden) controller.tick((now - last) * playSpeed());
       last = now;
     }, TICK_MS);
     return () => window.clearInterval(id);
@@ -349,15 +365,14 @@ export function App() {
   const finePointer = useFinePointer();
   const showPad = numberPadShown(settings().numberPad, finePointer);
 
-  // What the last round started as, for "Nochmal". The time challenge starts a normal round until T092 builds its
-  // round type.
-  const lastStart = useRef<StartKind>('play');
+  // What the last round started as, for "Nochmal"; a restored time challenge counts as one.
+  const lastStart = useRef<StartKind>(controller.getState().roundType === 'time' ? 'time' : 'play');
   const startMatch = useCallback(
     (kind: StartKind) => {
       lastStart.current = kind;
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
       if (speech) speaker.prime();
-      controller.start();
+      controller.start(kind);
       setScreen('match');
     },
     [controller, speech, speaker],
@@ -517,6 +532,7 @@ export function App() {
           goals={state.goals}
           elapsedMs={state.elapsedMs}
           roundType={state.roundType}
+          challengeMinutes={state.challengeMinutes}
           record={record}
           stars={lockerOn ? state.starsThisRound : null}
           onAgain={playAgain}

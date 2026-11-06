@@ -19,6 +19,14 @@ export const PLAYED_MODE = 'keeper' satisfies Mode;
 export const EARLIER_MODES = ['holes', 'lines'] as const satisfies readonly Mode[];
 export type EarlierMode = (typeof EARLIER_MODES)[number];
 
+/**
+ * The round types (FR-026, FR-077): until the hearts are gone, a fixed number of goals, or the time challenge, which
+ * counts goals until its countdown ends. The parent chooses between the first two for "Spielen"; "Zeit-Challenge"
+ * starts the third.
+ */
+export const ROUND_TYPES = ['untilHearts', 'goalCount', 'time'] as const;
+export type RoundType = (typeof ROUND_TYPES)[number];
+
 /** How far the hint numbers sit from the target. */
 export const HINT_DISTANCES = ['direct', 'vertical', 'diagonal', 'far'] as const;
 export type HintDistance = (typeof HINT_DISTANCES)[number];

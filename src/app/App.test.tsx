@@ -12,7 +12,7 @@ import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } f
 import { encodeTransfer } from '../core/transfer/transfer';
 import { MatchController as Controller } from '../core/match/MatchController';
 import { t } from '../i18n';
-import { App, seedFromUrl, startFromUrl } from './App';
+import { App, seedFromUrl, speedFromUrl, startFromUrl } from './App';
 
 const game = vi.hoisted(() => ({ created: 0, destroyed: 0, looks: 0, controller: null as MatchController | null }));
 
@@ -103,6 +103,13 @@ describe('App', () => {
     render(<App />);
     expect(screen.getByTestId('match').getAttribute('data-target')).toBe(target);
     expect(screen.getByTestId('match').getAttribute('data-goals')).toBe('0');
+  });
+
+  it('reads the test speed-up hook ?speed= (T092)', () => {
+    expect(speedFromUrl('?speed=30')).toBe(30);
+    expect(speedFromUrl('?speed=0.5')).toBe(0.5);
+    expect(speedFromUrl('?speed=-1')).toBeUndefined();
+    expect(speedFromUrl('')).toBeUndefined();
   });
 
   it('reads ?seed= and ?start= for tests', () => {

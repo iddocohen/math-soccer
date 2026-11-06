@@ -109,8 +109,9 @@ export function ProgressPage({ persistence, onClose }: Props) {
         ) : (
           <ul className="progress-bests" data-testid="progress-bests">
             {summary.bests.map((b) => (
-              <li key={`${b.min}-${b.max}|${b.roundType}`}>
-                {P.range(b.min, b.max)}, {P.roundTypes[b.roundType]}: {P.bestLine(b.goals, b.timeMs)}
+              <li key={`${b.min}-${b.max}|${b.roundType}|${b.challengeMinutes ?? ''}`}>
+                {P.range(b.min, b.max)}, {P.roundTypes[b.roundType]}:{' '}
+                {b.challengeMinutes === null ? P.bestLine(b.goals, b.timeMs) : P.challengeBestLine(b.goals, b.challengeMinutes)}
               </li>
             ))}
           </ul>

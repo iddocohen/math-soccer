@@ -18,6 +18,25 @@ describe('recordKey (data-model "PersonalBest")', () => {
   });
 });
 
+describe('time challenge bests (amendment 07, FR-080)', () => {
+  it('are kept per range and challenge time, apart from normal rounds', () => {
+    expect(recordKey(1, 100, 'time', 2)).toBe('1-100|keeper|time|2');
+    expect(recordKey(1, 100, 'time', 1)).not.toBe(recordKey(1, 100, 'time', 2));
+    expect(recordKey(0, 1000, 'time', 2)).not.toBe(recordKey(1, 100, 'time', 2));
+    expect(recordKey(1, 100, 'time', 2)).not.toBe(recordKey(1, 100, 'untilHearts'));
+  });
+
+  it('more goals in the same challenge time is a new record; as many goals is not', () => {
+    const key = recordKey(1, 100, 'time', 1);
+    const first = submitResult(emptyRecords(), key, { goals: 4, timeMs: 60_000, at: '2026-11-06T10:00:00.000Z' });
+    expect(first.newRecord).toBe(true);
+    expect(submitResult(first.records, key, { goals: 4, timeMs: 60_000, at: '2026-11-06T11:00:00.000Z' }).newRecord).toBe(false);
+    expect(submitResult(first.records, key, { goals: 5, timeMs: 60_000, at: '2026-11-06T11:00:00.000Z' }).newRecord).toBe(true);
+    // A best of another challenge time is not compared.
+    expect(submitResult(first.records, recordKey(1, 100, 'time', 2), { goals: 1, timeMs: 120_000, at: 'x' }).newRecord).toBe(true);
+  });
+});
+
 describe('submitResult (FR-028)', () => {
   const key = '1-100|keeper|untilHearts';
   const result = (goals: number, timeMs = 60_000, at = '2026-11-06T10:00:00.000Z') => ({ goals, timeMs, at });

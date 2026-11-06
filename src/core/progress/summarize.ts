@@ -6,7 +6,7 @@
 import type { Settings } from '../settings/schema';
 import type { Progress, Records } from '../storage/schemas';
 import { STEP_COUNT } from './ladder';
-import { DIRECTIONS, EARLIER_MODES, MODES, PLAYED_MODE, type Direction, type EarlierMode, type Mode } from '../types';
+import { DIRECTIONS, EARLIER_MODES, MODES, PLAYED_MODE, type Direction, type EarlierMode, type Mode, type RoundType } from '../types';
 import { directionKey, emptyDirectionState, rowToRaise } from './adaptive';
 import { isMastered } from './mastery';
 
@@ -36,7 +36,9 @@ export interface BestRow {
   min: number;
   max: number;
   mode: Mode;
-  roundType: 'untilHearts' | 'goalCount';
+  roundType: RoundType;
+  /** The challenge time of a time challenge best; null for the other round types. */
+  challengeMinutes: number | null;
   goals: number;
   timeMs: number;
 }
@@ -54,11 +56,13 @@ function isEarlier(b: BestRow): b is BestRow & { mode: EarlierMode } {
   return (EARLIER_MODES as readonly Mode[]).includes(b.mode);
 }
 
-/** A record key `${min}-${max}|${mode}|${roundType}` (records.ts recordKey), or null. */
+/** A record key `${min}-${max}|${mode}|${roundType}`, with `|${minutes}` for a time challenge (records.ts recordKey), or null. */
 export function parseRecordKey(key: string): Omit<BestRow, 'goals' | 'timeMs'> | null {
-  const m = /^(\d+)-(\d+)\|(holes|lines|keeper)\|(untilHearts|goalCount)$/.exec(key);
+  const m = /^(\d+)-(\d+)\|(holes|lines|keeper)\|(?:(untilHearts|goalCount)|time\|(\d+))$/.exec(key);
   if (!m) return null;
-  return { min: Number(m[1]), max: Number(m[2]), mode: m[3] as Mode, roundType: m[4] as BestRow['roundType'] };
+  const base = { min: Number(m[1]), max: Number(m[2]), mode: m[3] as Mode };
+  if (m[4] !== undefined) return { ...base, roundType: m[4] as BestRow['roundType'], challengeMinutes: null };
+  return { ...base, roundType: 'time', challengeMinutes: Number(m[5]) };
 }
 
 /** `settings` gives each row its `toRaise`. */
@@ -87,6 +91,6 @@ export function summarize(p: Progress, records: Records, settings?: Settings): P
     const parsed = parseRecordKey(key);
     if (parsed) all.push({ ...parsed, goals: best.goals, timeMs: best.timeMs });
   }
-  all.sort((a, b) => a.min - b.min || a.max - b.max || MODES.indexOf(a.mode) - MODES.indexOf(b.mode) || a.roundType.localeCompare(b.roundType));
+  all.sort((a, b) => a.min - b.min || a.max - b.max || MODES.indexOf(a.mode) - MODES.indexOf(b.mode) || a.roundType.localeCompare(b.roundType) || (a.challengeMinutes ?? 0) - (b.challengeMinutes ?? 0));
   return { directions, bests: all.filter((b) => b.mode === PLAYED_MODE), earlierBests: all.filter(isEarlier) };
 }

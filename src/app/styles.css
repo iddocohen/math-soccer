@@ -282,6 +282,27 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* Time challenge countdown (FR-081): kit yellow with a gentle pulse in the last 10 seconds; no red. */
+.countdown {
+  font-size: 1.5rem;
+}
+
+.countdown-last {
+  color: var(--kit);
+  animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+@keyframes countdown-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 /* Personal best on the round end */
 .round-end .new-record {
   color: var(--kit);
@@ -297,6 +318,10 @@ button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto;
+  }
+
+  .countdown-last {
+    animation: none;
   }
 }
 

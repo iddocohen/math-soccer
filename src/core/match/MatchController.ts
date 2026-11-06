@@ -5,7 +5,14 @@
  *
  * Phases: aiming --shoot(n in range)--> ballInFlight --ballLanded--> a goal goes on to celebrating, and
  * celebrationDone gives the next target or ends the round; a miss returns to aiming. roundOver ends the round, at 0
- * hearts (`untilHearts`) or at `goalsPerRound` goals (`goalCount`).
+ * hearts (`untilHearts`), at `goalsPerRound` goals (`goalCount`), or when the countdown of a time challenge ends
+ * (`time`).
+ *
+ * Time challenge (amendment 07, FR-075 to FR-080): `start('time')` starts a round of `challengeMinutes` from the
+ * parent's settings. The countdown is the challenge time minus the time played, so it stops exactly when the round
+ * clock does (FR-078: paused, a parent screen or the locker room open, or the tab hidden) and a refresh continues it from
+ * the stored time played. There are no hearts, so misses cost only time. At zero a round that aims ends at once; a ball
+ * in flight still lands and counts, and a goal is still celebrated, and then the round ends.
  *
  * The goalkeeper game (T029, T053, amendment 05, FR-019, FR-020): targets come from `nextTarget`, with the hint numbers
  * of a hint pattern lit in the grid around an empty target square. The target number is a goal worth GOAL_STARS; any
@@ -32,12 +39,12 @@
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
 import { GOAL_STARS } from '../rewards/lockerRoom';
-import { MISSES_PER_HEART } from '../settings/defaults';
+import { MISSES_PER_HEART, type ChallengeMinutes } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { nextInShape, NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
-import type { DeepReadonly, Target } from '../types';
+import type { DeepReadonly, RoundType, Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
@@ -87,7 +94,9 @@ export interface FinishedAttempt {
 export interface MatchState {
   /** False before the first `start()`. */
   started: boolean;
-  roundType: Settings['roundType'];
+  roundType: RoundType;
+  /** The length of a time challenge in minutes (FR-076); null for the other round types. */
+  challengeMinutes: ChallengeMinutes | null;
   seed: number;
   min: number;
   max: number;
@@ -187,6 +196,7 @@ export const START_HEARTS = 3;
 const STORED_KEYS = [
   'seed',
   'roundType',
+  'challengeMinutes',
   'min',
   'max',
   'goals',
@@ -217,10 +227,30 @@ const TARGET_RESET = {
   shown: null,
 } as const satisfies Partial<MatchState>;
 
-function freshState(s: Settings, seed: number, started: boolean): MatchState {
+/** What `start` begins: a normal round ("Spielen") or a time challenge ("Zeit-Challenge"). */
+export type StartKind = 'play' | 'time';
+
+/** The length of the time challenge of `s` in milliseconds, or null for another round type. */
+export function challengeMs(s: Pick<MatchState, 'challengeMinutes'>): number | null {
+  return s.challengeMinutes === null ? null : s.challengeMinutes * 60_000;
+}
+
+/** The time left of a time challenge, never below 0; null for another round type. */
+export function remainingMs(s: Pick<MatchState, 'challengeMinutes' | 'elapsedMs'>): number | null {
+  const total = challengeMs(s);
+  return total === null ? null : Math.max(0, total - s.elapsedMs);
+}
+
+/** True when the countdown of a time challenge has reached zero. */
+function timeUp(s: MatchState): boolean {
+  return remainingMs(s) === 0;
+}
+
+function freshState(s: Settings, seed: number, started: boolean, kind: StartKind = 'play'): MatchState {
   return {
     started,
-    roundType: s.roundType,
+    roundType: kind === 'time' ? 'time' : s.roundType,
+    challengeMinutes: kind === 'time' ? s.timeChallenge.minutes : null,
     seed,
     min: s.range.min,
     max: s.range.max,
@@ -339,13 +369,13 @@ export class MatchController {
     return () => this.listeners.delete(fn);
   }
 
-  /** Starts a new round with the current settings. */
-  start(): void {
+  /** Starts a new round with the current settings: a normal round, or a time challenge with `'time'` (FR-075). */
+  start(kind: StartKind = 'play'): void {
     this.newTargetPending = false;
     this.feedbackMs = 0;
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
-    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true)));
+    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind)));
   }
 
   /**
@@ -365,7 +395,8 @@ export class MatchController {
     this.feedbackMs = 0;
     // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
     // they were kept uses the current goals per round.
-    this.roundSettings = { ...s, roundType: stored.roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
+    const roundType = stored.roundType === 'time' ? s.roundType : stored.roundType;
+    this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
     const state: MatchState = { ...freshState(this.roundSettings, stored.seed, true), ...storedFields(stored) };
     // A round saved during the celebration goes on as if the celebration had ended.
     if (stored.phase === 'celebrating') this.set(this.afterCelebration(state));
@@ -473,6 +504,13 @@ export class MatchController {
       if (next.phase === 'roundOver') this.recordAttempt(next, { solved: false, endedAt: next.elapsedMs });
       return;
     }
+    if (timeUp(s)) {
+      // The time ran out while the ball flew: it landed and missed, and the round ends (FR-077).
+      const over: MatchState = { ...missed, shown: null, phase: 'roundOver', helpChartOpen: false, message: { kind: 'miss', number } };
+      this.set(over);
+      this.recordAttempt(over, { solved: false, endedAt: over.elapsedMs });
+      return;
+    }
     this.set({
       ...missed,
       shown,
@@ -527,12 +565,29 @@ export class MatchController {
   tick(ms: number): void {
     const s = this.state;
     if (!s.started || s.paused || s.phase === 'roundOver' || !(ms > 0)) return;
-    const elapsedMs = s.elapsedMs + ms;
+    // A time challenge's time played stops at its length, so the countdown shows 0:00 while a last ball lands.
+    const total = challengeMs(s);
+    const elapsedMs = total === null ? s.elapsedMs + ms : Math.min(total, s.elapsedMs + ms);
+
     const remaining = s.shown ? s.shown.remainingMs - ms : 0;
     const shown = s.shown && remaining > 0 ? { ...s.shown, remainingMs: remaining } : null;
     const save = Math.floor(elapsedMs / SAVE_TIME_EVERY_MS) !== Math.floor(s.elapsedMs / SAVE_TIME_EVERY_MS);
     this.feedbackMs = Math.max(0, this.feedbackMs - ms);
-    this.set({ ...s, elapsedMs, shown }, { save });
+    const next: MatchState = { ...s, elapsedMs, shown };
+    // Also a round restored at zero ends here, on its first tick.
+    if (timeUp(next) && next.phase === 'aiming') {
+      this.endAtZero(next);
+      return;
+    }
+    if (elapsedMs === s.elapsedMs && shown === s.shown) return;
+    this.set(next, { save });
+  }
+
+  /** Ends a time challenge whose countdown reached zero while the child aimed; the current target counts as not solved. */
+  private endAtZero(s: MatchState): void {
+    const over: MatchState = { ...s, ...TARGET_RESET, entry: '', phase: 'roundOver' };
+    this.set(over);
+    this.recordAttempt(over, { solved: false, endedAt: over.elapsedMs });
   }
 
   /** The help step after `step`, capped at 3; the help chart is open exactly at step 2. */
@@ -544,6 +599,8 @@ export class MatchController {
   private afterCelebration(s: MatchState): MatchState {
     const next: MatchState = { ...s, ...TARGET_RESET, ball: null, message: null };
     if (s.roundType === 'goalCount' && s.goals >= this.roundSettings.goalsPerRound) return { ...next, phase: 'roundOver' };
+    // The last goal of a time challenge was shot before zero and celebrated; now the round ends (FR-077).
+    if (timeUp(s)) return { ...next, phase: 'roundOver' };
     return this.withNextTarget({ ...next, phase: 'aiming' });
   }
 

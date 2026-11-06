@@ -90,16 +90,18 @@ describe('summarize (FR-039)', () => {
     records.bests['1-100|keeper|untilHearts'] = { goals: 3, timeMs: 100_000, at: '2026-11-06T12:00:00.000Z' };
     records.bests['broken'] = { goals: 1, timeMs: 1, at: '' };
     const summary = summarize(emptyProgress(), records);
-    expect(summary.bests).toEqual([{ min: 1, max: 100, mode: 'keeper', roundType: 'untilHearts', goals: 3, timeMs: 100_000 }]);
+    expect(summary.bests).toEqual([{ min: 1, max: 100, mode: 'keeper', roundType: 'untilHearts', challengeMinutes: null, goals: 3, timeMs: 100_000 }]);
     expect(summary.earlierBests).toEqual([
-      { min: 1, max: 100, mode: 'holes', roundType: 'untilHearts', goals: 8, timeMs: 340_000 },
-      { min: 1, max: 100, mode: 'lines', roundType: 'goalCount', goals: 5, timeMs: 200_000 },
+      { min: 1, max: 100, mode: 'holes', roundType: 'untilHearts', challengeMinutes: null, goals: 8, timeMs: 340_000 },
+      { min: 1, max: 100, mode: 'lines', roundType: 'goalCount', challengeMinutes: null, goals: 5, timeMs: 200_000 },
     ]);
   });
 
   it('parses record keys', () => {
-    expect(parseRecordKey('200-500|keeper|goalCount')).toEqual({ min: 200, max: 500, mode: 'keeper', roundType: 'goalCount' });
-    expect(parseRecordKey('1-100|holes|untilHearts')).toEqual({ min: 1, max: 100, mode: 'holes', roundType: 'untilHearts' });
+    expect(parseRecordKey('200-500|keeper|goalCount')).toEqual({ min: 200, max: 500, mode: 'keeper', roundType: 'goalCount', challengeMinutes: null });
+    expect(parseRecordKey('1-100|holes|untilHearts')).toEqual({ min: 1, max: 100, mode: 'holes', roundType: 'untilHearts', challengeMinutes: null });
+    expect(parseRecordKey('1-100|keeper|time|2')).toEqual({ min: 1, max: 100, mode: 'keeper', roundType: 'time', challengeMinutes: 2 });
+    expect(parseRecordKey('1-100|keeper|time')).toBeNull();
     expect(parseRecordKey('1-100|tank|goalCount')).toBeNull();
   });
 });

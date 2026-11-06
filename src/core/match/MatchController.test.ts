@@ -8,7 +8,9 @@ import {
   MatchController,
   matchInvariantErrors,
   MAX_HELP_STEP,
+  remainingMs,
   SHOWN_MS,
+  START_HEARTS,
   type MatchState,
   type RoundStore,
 } from './MatchController';
@@ -729,5 +731,93 @@ describe('shape targets with two empty squares (FR-072)', () => {
     shootAndLand(again, 44);
     again.celebrationDone();
     expect(again.getState().target).toMatchObject({ number: 55, hints: [34, 54, 44] });
+  });
+});
+
+describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
+  function challenge(over: Partial<Settings> = {}, store?: RoundStore) {
+    const settings: Settings = { ...defaultSettings(), timeChallenge: { allowed: true, minutes: 1 }, difficulty: 'challenging', ...over };
+    let next = 46;
+    const onAttempt: AttemptRecord[] = [];
+    const c = new MatchController({
+      settings: () => settings,
+      newSeed: () => 7,
+      nextTarget: () => target(next++),
+      store,
+      onAttempt: (r) => onAttempt.push(r),
+    });
+    c.start('time');
+    return { c, onAttempt };
+  }
+
+  it('starts a time round with the challenge minutes and the countdown at the full time', () => {
+    const { c } = challenge();
+    expect(c.getState()).toMatchObject({ roundType: 'time', challengeMinutes: 1, hearts: START_HEARTS });
+    expect(remainingMs(c.getState())).toBe(60_000);
+    // A normal round has no countdown.
+    const normal = fixed();
+    expect(normal.getState().challengeMinutes).toBeNull();
+    expect(remainingMs(normal.getState())).toBeNull();
+  });
+
+  it('counts down only while playing: not while paused', () => {
+    const { c } = challenge();
+    c.tick(10_000);
+    c.pause();
+    c.tick(30_000);
+    expect(remainingMs(c.getState())).toBe(50_000);
+    c.resume();
+    c.tick(5_000);
+    expect(remainingMs(c.getState())).toBe(45_000);
+  });
+
+  it('loses no hearts on misses: misses cost only time', () => {
+    const { c } = challenge();
+    for (let i = 0; i < 3 * MISSES_PER_HEART.challenging; i++) shootAndLand(c, 1);
+    expect(c.getState()).toMatchObject({ hearts: START_HEARTS, phase: 'aiming' });
+  });
+
+  it('ends at zero while aiming, and the open target counts as not solved', () => {
+    const { c, onAttempt } = challenge();
+    shootAndLand(c, 46);
+    c.celebrationDone();
+    c.tick(70_000);
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 1, elapsedMs: 60_000 });
+    expect(remainingMs(c.getState())).toBe(0);
+    expect(onAttempt.map((r) => r.solved)).toEqual([true, false]);
+  });
+
+  it('a ball in flight at zero still lands and counts, then the round ends after the celebration', () => {
+    const { c } = challenge();
+    type(c, '46');
+    c.shoot();
+    c.tick(61_000);
+    expect(c.getState().phase).toBe('ballInFlight');
+    c.ballLanded();
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1 });
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 1 });
+  });
+
+  it('a ball in flight at zero that misses ends the round when it lands', () => {
+    const { c } = challenge();
+    type(c, '12');
+    c.shoot();
+    c.tick(61_000);
+    c.ballLanded();
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 0, shown: null });
+  });
+
+  it('a refresh continues the countdown from the stored time played; saved minutes apply from the next round', () => {
+    const store = memoryStore();
+    const { c } = challenge({}, store);
+    c.tick(20_000);
+    expect(store.round).toMatchObject({ roundType: 'time', challengeMinutes: 1, elapsedMs: 20_000 });
+    const again = new MatchController({ settings: () => ({ ...defaultSettings(), timeChallenge: { allowed: true, minutes: 5 } }), store });
+    expect(again.restore()).toBe(true);
+    expect(again.getState()).toMatchObject({ roundType: 'time', challengeMinutes: 1 });
+    expect(remainingMs(again.getState())).toBe(40_000);
+    again.tick(40_000);
+    expect(again.getState().phase).toBe('roundOver');
   });
 });

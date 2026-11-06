@@ -8,9 +8,12 @@
  * (amendment 05, FR-070). A best is the most goals in one round, with the time of that round. With the same number of
  * goals a faster round is better, so a "Feste Zahl an Toren" round, where every finished round has the same goals,
  * keeps its fastest time. A round with no goal is never a record.
+ *
+ * Time challenges (amendment 07, FR-080) have their own bests per range and challenge time, apart from normal rounds:
+ * every challenge of the same length has the same time, so the best is the most goals.
  */
 import { emptyRecords, recordsSchema, type Records } from '../storage/schemas';
-import { PLAYED_MODE } from '../types';
+import { PLAYED_MODE, type RoundType } from '../types';
 
 export { emptyRecords, recordsSchema, type Records };
 
@@ -21,9 +24,13 @@ export interface BestResult {
   at: string;
 }
 
-/** `${min}-${max}|keeper|${roundType}` (data-model "PersonalBest"). */
-export function recordKey(min: number, max: number, roundType: 'untilHearts' | 'goalCount'): string {
-  return `${min}-${max}|${PLAYED_MODE}|${roundType}`;
+/**
+ * `${min}-${max}|keeper|${roundType}` (data-model "PersonalBest"); a time challenge adds its minutes:
+ * `${min}-${max}|keeper|time|${minutes}`.
+ */
+export function recordKey(min: number, max: number, roundType: RoundType, challengeMinutes: number | null = null): string {
+  const base = `${min}-${max}|${PLAYED_MODE}|${roundType}`;
+  return roundType === 'time' ? `${base}|${challengeMinutes ?? 0}` : base;
 }
 
 export interface SubmitOutcome {

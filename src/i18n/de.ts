@@ -15,6 +15,16 @@ function starCount(n: number): string {
   return n === 1 ? '1 Stern' : `${n} Sterne`;
 }
 
+/** "1 Minute" or "n Minuten". */
+function minuteCount(n: number): string {
+  return n === 1 ? '1 Minute' : `${n} Minuten`;
+}
+
+/** The result of a time challenge: "2 Tore in 1 Minute" (FR-080). */
+function challengeResult(goals: number, minutes: number): string {
+  return `${goalCount(goals)} in ${minuteCount(minutes)}`;
+}
+
 /** Minutes and seconds, "5:40". */
 function clock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -98,6 +108,8 @@ export const de = {
   roundEnd: {
     cheer: 'Super gespielt!',
     summary: (goals: number, timeMs: number) => `${goalCount(goals)} in ${clock(timeMs)}`,
+    /** The time challenge result (FR-080): "N Tore in M Minuten". */
+    challengeSummary: challengeResult,
     newRecord: 'Neuer Rekord!',
     record: (n: number) => `Dein Rekord: ${n}`,
     recordTime: (goals: number, timeMs: number) => `Dein Rekord: ${goalCount(goals)} in ${clock(timeMs)}`,
@@ -308,6 +320,7 @@ export const de = {
     bests: 'Rekorde',
     earlierBests: 'Früher',
     bestLine: (goals: number, timeMs: number) => `${goalCount(goals)} in ${clock(timeMs)}`,
+    challengeBestLine: challengeResult,
     empty: 'Noch keine Versuche.',
     reset: 'Fortschritt zurücksetzen',
     resetConfirm: 'Fortschritt wirklich zurücksetzen? Die Sterne bleiben.',
@@ -329,7 +342,7 @@ export const de = {
     masteredYes: 'ja',
     masteredNo: 'noch nicht',
     noBests: 'Noch keine Rekorde.',
-    roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren' },
+    roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren', time: 'Zeit-Challenge' },
     range: (min: number, max: number) => `${min} bis ${max}`,
   },
 
