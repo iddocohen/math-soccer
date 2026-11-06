@@ -26,3 +26,10 @@ export const STANDS_BOTTOM = 260;
 
 /** Where the ball waits before a shot, below the goal line so it never covers a chart square (FR-056). */
 export const KICK_SPOT = { x: 860, y: 940 } as const;
+
+/**
+ * The help line, the typed number and the message start at this world x, just right of the ball at the kick spot, so
+ * the player standing to the lower left of the ball never lies under them (amendment 08, FR-083). The overlay turns it
+ * into screen pixels with the canvas scale (src/app/styles.css `.overlay-bottom`).
+ */
+export const OVERLAY_LEFT = 894;

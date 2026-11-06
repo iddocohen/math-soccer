@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { cellRect, layoutChart } from '../core/chart/layout';
 import { CHART_RECT, GOAL_FRAME } from '../core/match/world';
-import type { Target } from '../core/types';
-import { buildScales, scalesKey } from './scales';
+import type { Rect, Target } from '../core/types';
+import { buildScales, COLUMN_STRIP, ROW_STRIP, scalesKey } from './scales';
 
 const target: Target = { number: 46, hints: [36], directions: ['down'], level: 1, pattern: 'neighbors' };
 const layout = layoutChart(1, 100);
@@ -57,6 +57,35 @@ describe('buildScales', () => {
       expect(Math.abs(l.y - s.rowLabels.find((r) => r.lit)!.y)).toBeGreaterThanOrEqual(s.rowFontSize);
     }
     expect(s.rowFontSize).toBeGreaterThanOrEqual(14);
+  });
+
+  it('puts each scale on one dark strip that holds all its labels and fits its texture (FR-101a)', () => {
+    const inside = (r: Rect, outer: Rect) => r.x >= outer.x && r.y >= outer.y && r.x + r.width <= outer.x + outer.width && r.y + r.height <= outer.y + outer.height;
+    for (const [chart, n] of [
+      [layout, 46],
+      [layoutChart(0, 1000), 463],
+      [layoutChart(0, 9), 4],
+    ] as const) {
+      for (const step of [0, 1, 2]) {
+        const s = buildScales(chart, CHART_RECT, { ...target, number: n }, step, true);
+        const row = s.rowBacking!;
+        const column = s.columnBacking!;
+        expect(inside(row, ROW_STRIP)).toBe(true);
+        expect(inside(column, COLUMN_STRIP)).toBe(true);
+        for (const l of s.rowLabels) expect(l.x > row.x && l.x < row.x + row.width && l.y > row.y && l.y < row.y + row.height).toBe(true);
+        for (const l of s.columnLabels) expect(l.x > column.x && l.x < column.x + column.width && l.y > column.y && l.y < column.y + column.height).toBe(true);
+        // The strips stay out of the chart.
+        expect(row.x).toBeGreaterThanOrEqual(CHART_RECT.x + CHART_RECT.width);
+        expect(column.y + column.height).toBeLessThanOrEqual(CHART_RECT.y);
+      }
+    }
+  });
+
+  it('shows no strip for a scale without labels, and a short one around a single lit label', () => {
+    expect(buildScales(layout, CHART_RECT, target, 0, false)).toMatchObject({ rowBacking: null, columnBacking: null });
+    const s = buildScales(layout, CHART_RECT, target, 2, false);
+    expect(s.columnBacking!.width).toBeLessThan(CHART_RECT.width / 5);
+    expect(s.rowBacking!.height).toBeLessThan(CHART_RECT.height / 5);
   });
 
   it('the key changes with the lit row and column and the switch, not with the help step past 2', () => {

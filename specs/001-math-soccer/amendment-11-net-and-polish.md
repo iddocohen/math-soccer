@@ -22,6 +22,7 @@
   - thin lines, a faint dark fill and rounded cell corners;
   - lit hint squares and the target outline stay as they are;
   - the net shows behind the panel at reduced opacity.
+  - The cell panel shows only from help step 2 until the target is solved (parent feedback).
 - **FR-098**: The net MUST react when a goal goes in: it bulges out around the ball's landing point for about 0.4 s, then settles. A caught ball does not move the net.
 - The net is drawn once into a texture (with its sag). Only the bulge animates.
 
@@ -30,6 +31,7 @@
 - **FR-099**: Nothing from the scene's floodlights or stands MUST show through or around the top bar buttons and counters. The overlay bars get a solid background matching the night sky, or the floodlights move out from under them.
 - **FR-100**: Before the child types, the number box MUST show a faint placeholder (a small ball icon or "?"). It never shows the answer.
 - **FR-101**: The "Spielen" button MUST show its key hint "Enter", like "Zeit-Challenge" shows "Z".
+- **FR-101a**: The column scale labels above the crossbar sit over the fans and are hard to read (found in the screenshot after amendment 10). The column scale and the row scale MUST each lie on one calm dark strip in the night color, slightly transparent, so their labels read clearly. There is no box per label.
 
 ## Tests
 

@@ -1,7 +1,9 @@
 /**
  * The React overlay over the match scene (contracts/screens.md "Match"): the goal counter, the hearts as three balls
  * (with "Bis die Bälle weg sind"), the clock when the parent turned it on (in a time challenge the countdown instead), the help button and the pause button at the
- * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
+ * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom, right of
+ * the ball at the kick spot, so they never lie over the player standing to its lower left (amendment 08). Before the
+ * child types, the number box shows a faint "?" (FR-100).
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
  * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern), `data-level`
@@ -26,7 +28,7 @@
  * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
  * these icons never take focus, so Enter and Space keep shooting.
  */
-import { memo, type ReactNode } from 'react';
+import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ballKind, cellOf, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { ANSWER_STEP, columnLabel, COLUMN_STEP, HINT_STEP, helpHint, rowColumnHelp, rowLabel } from '../core/match/help';
@@ -39,7 +41,17 @@ import { noFocus } from './noFocus';
 import { NumberPad } from './NumberPad';
 import { useElapsedMs, type ClockSource } from './useController';
 import { requestFullscreen } from './StartScreen';
+import { OVERLAY_LEFT, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 
+/**
+ * The world size and where the bottom lines start, for the CSS that places them right of the ball and the player
+ * (amendment 08): `.overlay-bottom` turns world x into screen pixels with the canvas scale.
+ */
+const WORLD_STYLE = {
+  '--world-w': WORLD_WIDTH,
+  '--world-h': WORLD_HEIGHT,
+  '--overlay-left': OVERLAY_LEFT - WORLD_WIDTH / 2,
+} as CSSProperties;
 
 /** German text of a match message. */
 export function messageText(message: MatchMessage | null): string {
@@ -144,6 +156,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   return (
     <div
       className="overlay"
+      style={WORLD_STYLE}
       data-testid="match"
       data-target={state.target?.number ?? ''}
       data-phase={state.phase}
@@ -236,12 +249,15 @@ export const MatchOverlay = memo(function MatchOverlay({
             {help}
           </p>
         )}
-        <output className="entry" data-testid="entry" aria-label={text.match.entryLabel}>
-          {state.entry}
-        </output>
-        <p className="message" data-testid="message" aria-live="polite">
-          {state.paused ? text.match.paused : messageText(state.message)}
-        </p>
+        <div className="shot-line">
+          {/* Empty, the box shows a faint "?" from the CSS (FR-100). */}
+          <output className="entry" data-testid="entry" aria-label={text.match.entryLabel}>
+            {state.entry}
+          </output>
+          <p className="message" data-testid="message" aria-live="polite">
+            {state.paused ? text.match.paused : messageText(state.message)}
+          </p>
+        </div>
       </div>
       {pad && <NumberPad disabled={state.paused || state.phase !== 'aiming'} onDigit={pad.onDigit} onBackspace={pad.onBackspace} onShoot={pad.onShoot} />}
     </div>

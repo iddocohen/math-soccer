@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cellRect, layoutChart } from '../core/chart/layout';
 import { CHART_RECT } from '../core/match/world';
 import type { Target } from '../core/types';
-import { boardKey, buildBoard, type BoardInput } from './board';
+import { boardKey, buildBoard, cellPanelVisible, type BoardInput } from './board';
 
 const target: Target = { number: 46, hints: [45, 47, 36, 56], directions: ['right'], level: 1, pattern: 'neighbors' };
 
@@ -115,5 +115,26 @@ describe('buildBoard: help on the board (T040)', () => {
 
   it('the board key changes with the arrow start', () => {
     expect(boardKey(input({ helpStep: 1, hintFrom: 36 }))).not.toBe(boardKey(input({ helpStep: 1, hintFrom: 45 })));
+  });
+});
+
+describe('cellPanelVisible: the cell panel (amendment 11, FR-097, parent feedback)', () => {
+  const layout = layoutChart(1, 100);
+
+  it('is hidden normally and at help step 1, and shows from help step 2 while the row and column bands are lit', () => {
+    expect(cellPanelVisible(layout, target, 0)).toBe(false);
+    expect(cellPanelVisible(layout, target, 1)).toBe(false);
+    expect(cellPanelVisible(layout, target, 2)).toBe(true);
+    expect(cellPanelVisible(layout, target, 3)).toBe(true);
+    expect(buildBoard(input()).panel).toBe(false);
+    expect(buildBoard(input({ helpStep: 2 })).panel).toBe(true);
+  });
+
+  it('goes as soon as the target is scored, and a new target starts without it', () => {
+    expect(cellPanelVisible(layout, target, 2, true)).toBe(false);
+    expect(buildBoard(input({ helpStep: 2, solved: true })).panel).toBe(false);
+    expect(boardKey(input({ helpStep: 2, solved: true }))).not.toBe(boardKey(input({ helpStep: 2 })));
+    expect(cellPanelVisible(layout, { ...target, number: 47 }, 0)).toBe(false);
+    expect(cellPanelVisible(layout, null, 2)).toBe(false);
   });
 });

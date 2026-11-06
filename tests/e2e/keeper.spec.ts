@@ -8,6 +8,7 @@
 import { expect, seedStorage, startRound, targetNumber, test, typeAndShoot } from './fixtures';
 import { defaultSettings } from '../../src/core/settings/defaults';
 import { SETTINGS_KEY } from '../../src/core/storage/storage';
+import { OVERLAY_LEFT, WORLD_WIDTH } from '../../src/core/match/world';
 import { t } from '../../src/i18n';
 
 const text = t();
@@ -49,11 +50,45 @@ test('a wrong number is caught by the keeper and shows the miss message', async 
   await expect(match).toHaveAttribute('data-keeper', 'idle');
 });
 
+test('the number box shows a faint "?" before the child types; the first digit replaces it (FR-100)', async ({ page }) => {
+  const match = await startRound(page);
+  const entry = page.getByTestId('entry');
+  const placeholder = () => entry.evaluate((el) => getComputedStyle(el, '::before').content);
+  await expect(entry).toHaveText('');
+  expect(await placeholder()).toBe('"?"');
+  const n = await targetNumber(match);
+  await page.keyboard.press(String(n)[0]!);
+  await expect(entry).toHaveText(String(n)[0]!);
+  expect(await placeholder()).toBe('none');
+});
+
+test('the help line, the typed number and the message lie right of the player and the ball (amendment 08)', async ({ page }) => {
+  const match = await startRound(page);
+  await page.keyboard.press('h');
+  await page.keyboard.press('h');
+  await expect(match).toHaveAttribute('data-help', '2');
+  await page.keyboard.press('1');
+  const canvas = await page.locator('canvas').boundingBox();
+  expect(canvas).not.toBeNull();
+  // World x to screen x with the canvas scale.
+  const minX = canvas!.x + (OVERLAY_LEFT * canvas!.width) / WORLD_WIDTH - 1;
+  for (const id of ['help-text', 'entry']) {
+    const box = await page.getByTestId(id).boundingBox();
+    expect(box, id).not.toBeNull();
+    expect(box!.x, `${id} right of the ball`).toBeGreaterThanOrEqual(minX);
+    expect(box!.x + box!.width, `${id} inside the screen`).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
+});
+
 test('the start screen has "Spielen" and "Zeit-Challenge"; keys 1 to 3 start nothing (FR-068)', async ({ page }) => {
   const start = page.getByTestId('start');
   await expect(start).toBeVisible();
   await expect(page.locator('[data-mode]')).toHaveCount(0);
-  await expect(page.locator('[data-start="play"]')).toHaveText(text.start.play);
+  await expect(page.locator('[data-start="play"]')).toContainText(text.start.play);
+  // Both buttons show their key hint (FR-101); the hint is not part of the button's name.
+  await expect(page.locator('[data-start="play"] .start-key')).toHaveText('Enter');
+  await expect(page.locator('[data-start="time"] .start-key')).toHaveText('Z');
+  await expect(page.getByRole('button', { name: text.start.play, exact: true })).toBeVisible();
   await expect(page.locator('[data-start="time"]')).toContainText(text.start.timeChallenge);
   for (const key of ['1', '2', '3']) await page.keyboard.press(key);
   await expect(start).toBeVisible();

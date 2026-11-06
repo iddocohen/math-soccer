@@ -52,7 +52,9 @@ describe('App', () => {
     expect(screen.getByTestId('start')).toBeTruthy();
     const buttons = Array.from(document.querySelectorAll('[data-start]')).map((b) => b.getAttribute('data-start'));
     expect(buttons).toEqual(['play', 'time']);
-    expect(document.querySelector('[data-start="play"]')!.textContent).toBe('Spielen');
+    expect(document.querySelector('[data-start="play"]')!.textContent).toBe('SpielenEnter');
+    // The key hint shows like "Z" on "Zeit-Challenge" (FR-101) and is hidden from screen readers.
+    expect(document.querySelector('[data-start="play"] .start-key')!.getAttribute('aria-hidden')).toBe('true');
     expect(document.querySelector('[data-mode]')).toBeNull();
     // Keys 1 to 3 no longer start a round.
     for (const k of ['1', '2', '3']) fireEvent.keyDown(window, { key: k });

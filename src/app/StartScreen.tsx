@@ -1,7 +1,7 @@
 // Structure adapted from math-tank src/app/StartScreen.tsx.
 /**
  * Start screen (contracts/screens.md "Start", FR-068, FR-075): one big "Spielen" button (Enter or Space) and, when the
- * parent allows it, a "Zeit-Challenge" button (Z). The keys, and `?start=` in tests, are handled by the app's keyboard
+ * parent allows it, a "Zeit-Challenge" button (Z). Each button shows its key in small muted text (FR-101). The keys, and `?start=` in tests, are handled by the app's keyboard
  * listener (src/app/keyboard.ts).
  *
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a
@@ -68,6 +68,9 @@ export function StartScreen({ timeChallenge, onPlay, gear, lockerRoom = null, no
       <div className="start-buttons">
         <button type="button" className="start-button" data-start="play" aria-keyshortcuts="Enter Space" onClick={() => onPlay('play')}>
           {text.start.play}
+          <span className="start-key" aria-hidden="true">
+            Enter
+          </span>
         </button>
         {timeChallenge && (
           <button type="button" className="start-button" data-start="time" aria-keyshortcuts="Z" onClick={() => onPlay('time')}>

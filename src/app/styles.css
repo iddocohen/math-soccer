@@ -116,6 +116,8 @@ button:focus-visible {
   position: relative;
   width: 100%;
   height: 100%;
+  /* The canvas fits this box, so the overlay can place things at world positions (cqw, cqh). */
+  container-type: size;
 }
 
 .game-parent {
@@ -144,20 +146,40 @@ button:focus-visible {
   align-items: center;
 }
 
+/* The top bar's counters and buttons are solid night sky, so no floodlight or fan shows through them (FR-099). */
 .goal-count {
   padding: 6px 14px;
   border-radius: 10px;
-  background: rgb(15 29 43 / 80%);
+  background: var(--night);
   color: var(--kit);
   font-weight: 800;
   font-size: 1.4rem;
 }
 
+/*
+ * The help line above the typed number and the message, at the bottom right of the ball at the kick spot. The player
+ * stands to the lower left of the ball (amendment 08), so nothing here ever lies over him. `--u` is the canvas scale
+ * (screen pixels per world pixel, as Phaser's FIT mode sets it); `--overlay-left` is OVERLAY_LEFT from the center of the
+ * world (src/core/match/world.ts), set by MatchOverlay.
+ */
 .overlay-bottom {
+  --u: min(calc(100cqw / var(--world-w)), calc(100cqh / var(--world-h)));
+
+  position: absolute;
+  left: calc(50cqw + var(--overlay-left) * var(--u));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
+}
+
+.shot-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
 }
 
 .entry {
@@ -171,8 +193,12 @@ button:focus-visible {
   font-weight: 800;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  /* Right of the ball at the kick spot, so the box never covers the ball. */
-  transform: translateX(12vw);
+}
+
+/* Before the child types: a faint "?", never the answer (FR-100). */
+.entry:empty::before {
+  content: '?';
+  opacity: 0.3;
 }
 
 .message {
@@ -239,7 +265,7 @@ button:focus-visible {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgb(15 29 43 / 80%);
+  background: var(--night);
   font-size: 1.4rem;
   line-height: 1;
 }
@@ -257,7 +283,7 @@ button:focus-visible {
   gap: 6px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: rgb(15 29 43 / 80%);
+  background: var(--night);
 }
 
 /* A heart is a small ball; a lost one fades. */
@@ -276,7 +302,7 @@ button:focus-visible {
 .clock {
   padding: 6px 12px;
   border-radius: 10px;
-  background: rgb(15 29 43 / 80%);
+  background: var(--night);
   font-weight: 800;
   font-size: 1.2rem;
   font-variant-numeric: tabular-nums;
@@ -988,6 +1014,11 @@ button:focus-visible {
   opacity: 0.5;
 }
 
+/* Beside the pad, not under it (iPad landscape). */
+.overlay[data-number-pad='true'] .overlay-bottom {
+  right: calc(max(16px, env(safe-area-inset-right, 0px)) + 3 * 56px + 2 * 8px + 12px);
+}
+
 @media (orientation: portrait) {
   .number-pad {
     --pad-key: 58px;
@@ -1000,6 +1031,7 @@ button:focus-visible {
   }
 
   .overlay[data-number-pad='true'] .overlay-bottom {
-    margin-bottom: calc(2 * 58px + 8px + 12px);
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 2 * 58px + 8px + 12px);
   }
 }

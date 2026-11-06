@@ -7,7 +7,8 @@
  *   applies on every draw, so a changed look shows without a new round (FR-043).
  * - Subscribes to the controller in create() and unsubscribes on shutdown.
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
- *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the fans cheer, and after
+ *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the net bulges around it
+ *   (FR-098), the fans cheer, and after
  *   CELEBRATION_MS the scene calls `celebrationDone()`.
  * - The keeper (T054, FR-020): on every shot he leaps toward the ball, timed with its flight. A wrong number lands in
  *   his gloves: he holds it, the ball fades, and the fans slump with a soft "ohhh" and then clap. The correct number
@@ -20,7 +21,7 @@
  *   A file that fails to load leaves the drawn pitch or the drawn ball in its place.
  */
 import Phaser from 'phaser';
-import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
+import { ballKind, cellRect, center, layoutChart } from '../core/chart/layout';
 import { onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
@@ -28,6 +29,7 @@ import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
 import { HelperView } from './HelperView';
+import { startsBulge } from './net';
 import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
@@ -160,7 +162,9 @@ export class MatchScene extends Phaser.Scene {
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
-    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom });
+    // A scored target loses its cell panel at once (FR-097, parent feedback).
+    const solved = s.ball?.outcome === 'goal';
+    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved });
     this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper);
 
     this.setPaused(s.paused);
@@ -223,6 +227,8 @@ export class MatchScene extends Phaser.Scene {
     this.flying = false;
     this.controller.ballLanded();
     const s = this.controller.getState();
+    // Only a goal moves the net (FR-098); a caught ball never reaches it.
+    if (s.ball && startsBulge(s.ball.outcome)) this.goal.bulge(center(cellRect(layoutChart(s.min, s.max), CHART_RECT, s.ball.number)));
     if (s.ball?.outcome === 'goal') {
       this.ballInNet = true;
       this.ball.intoNet();
@@ -276,15 +282,15 @@ function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource
   sky.addColorStop(1, '#1b3247');
   g.fillStyle = sky;
   g.fillRect(0, 0, W, top);
+  // The floodlights stand above the top edge, out of view: only their soft light falls in, so no bright lamp shows
+  // around the counters and buttons of the top bar (FR-099).
   for (const x of [130, W - 130]) {
-    g.fillStyle = '#fff8d6';
-    g.fillRect(x - 36, 26, 72, 16);
     g.fillStyle = 'rgb(255 248 214 / 6%)';
     g.beginPath();
-    g.moveTo(x - 36, 42);
+    g.moveTo(x - 50, 0);
     g.lineTo(x - 230, top);
     g.lineTo(x + 230, top);
-    g.lineTo(x + 36, 42);
+    g.lineTo(x + 50, 0);
     g.fill();
   }
   for (let row = 0; row < 4; row++) {

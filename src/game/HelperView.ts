@@ -1,7 +1,7 @@
 /**
  * The row and column helper beside the goal (T096, amendment 10, FR-091 to FR-095), drawn from `buildScales`
  * (src/game/scales.ts) into two canvas textures: the row scale right of the goal and the column scale above the
- * crossbar. Calm chalk numbers with a thin dark edge and no boxes; a lit label is larger and in the kit color, and the
+ * crossbar. Calm chalk numbers with a thin dark edge on one dark strip per scale (FR-101a), no box per label; a lit label is larger and in the kit color, and the
  * help arrows from the scales point at the target's row and column. Like the board, the textures are redrawn only when
  * `scalesKey` changes. They sit in front of the posts, so an arrow crosses the post or the crossbar into the goal.
  */
@@ -12,16 +12,12 @@ import type { DeepReadonly, Rect, Target } from '../core/types';
 import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 import { paintArrow, POSTS_DEPTH } from './GoalView';
 import { COLOR, css } from './palette';
-import { buildScales, scalesKey, type ScaleText } from './scales';
+import { buildScales, COLUMN_STRIP, LIT_LABEL_SCALE, ROW_STRIP, scalesKey, type ScaleText } from './scales';
 
 export const HELPER_DEPTH = POSTS_DEPTH + 0.5;
 
 /** Canvas pixels per world pixel. */
 const RESOLUTION = 2;
-/** The strip right of the goal that holds the row scale and its arrow. */
-const ROW_STRIP: Rect = { x: CHART_RECT.x + CHART_RECT.width - 6, y: CHART_RECT.y - 20, width: 360, height: CHART_RECT.height + 40 };
-/** The strip above the crossbar that holds the column scale and its arrow. */
-const COLUMN_STRIP: Rect = { x: CHART_RECT.x - 30, y: 120, width: CHART_RECT.width + 60, height: CHART_RECT.y - 120 + 2 };
 const ARROW_WIDTH = 7;
 
 interface Strip {
@@ -50,11 +46,13 @@ export class HelperView {
     this.key = key;
     const scales = buildScales(layout, CHART_RECT, target, helpStep, helperOn);
     drawStrip(this.rows, (ctx) => {
+      if (scales.rowBacking) paintBacking(ctx, scales.rowBacking);
       if (scales.rowArrow) paintArrow(ctx, scales.rowArrow, ARROW_WIDTH);
       ctx.textAlign = 'left';
       for (const label of scales.rowLabels) drawLabel(ctx, label, scales.rowFontSize);
     });
     drawStrip(this.columns, (ctx) => {
+      if (scales.columnBacking) paintBacking(ctx, scales.columnBacking);
       if (scales.columnArrow) paintArrow(ctx, scales.columnArrow, ARROW_WIDTH);
       ctx.textAlign = 'center';
       for (const label of scales.columnLabels) drawLabel(ctx, label, scales.columnFontSize);
@@ -89,9 +87,18 @@ function drawStrip(strip: Strip, paint: (ctx: CanvasRenderingContext2D) => void)
   strip.texture.refresh();
 }
 
+/** The calm dark strip behind a scale's labels: night color, slightly transparent, with round ends (FR-101a). */
+function paintBacking(ctx: CanvasRenderingContext2D, r: Rect): void {
+  const radius = Math.min(r.width, r.height) / 2;
+  ctx.fillStyle = css(COLOR.night, 0.8);
+  ctx.beginPath();
+  ctx.roundRect(r.x, r.y, r.width, r.height, radius);
+  ctx.fill();
+}
+
 /** Chalk text with a thin dark edge so it reads over the fans and the grass; a lit label is larger, in the kit color. */
 function drawLabel(ctx: CanvasRenderingContext2D, label: ScaleText, fontSize: number): void {
-  const size = label.lit ? Math.round(fontSize * 1.25) : fontSize;
+  const size = label.lit ? Math.round(fontSize * LIT_LABEL_SCALE) : fontSize;
   ctx.font = `${GAME_FONT_WEIGHT} ${size}px ${GAME_FONT}`;
   ctx.lineJoin = 'round';
   ctx.lineWidth = label.lit ? 5 : 4;

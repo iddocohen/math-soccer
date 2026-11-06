@@ -28,6 +28,8 @@ export interface BoardInput {
   shown: number | null;
   /** The hint number the help arrow starts at (help steps 1 to 3), or null for no arrow. */
   hintFrom: number | null;
+  /** The target was just scored (the celebration runs), so the cell panel is gone. False when left out. */
+  solved?: boolean;
 }
 
 /** The help arrow in world pixels, from the center of the hint square to the center of the target square. */
@@ -65,6 +67,19 @@ export interface Board {
   arrow: Arrow | null;
   /** The soft bands over the target's row (help step 1 on) and column (help step 2 on), in world pixels. */
   bands: { row: Rect | null; column: Rect | null };
+  /** The soft panel of cells shows (`cellPanelVisible`); otherwise the goal shows only the net, the hints and the target. */
+  panel: boolean;
+}
+
+/**
+ * The cell panel (amendment 11, FR-097) shows only while both the row band and the column band are lit for the current
+ * target, that is from help step 2, and goes as soon as that target is scored (parent feedback). A new target starts
+ * at help step 0, so it starts without the panel.
+ */
+export function cellPanelVisible(layout: ChartLayout, target: DeepReadonly<Target> | null, helpStep: number, solved = false): boolean {
+  if (!target || solved) return false;
+  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false);
+  return litRow !== null && litColumn !== null;
 }
 
 /** Changes exactly when the drawn grid changes; GoalView compares it to skip redrawing (plan decision 9). */
@@ -72,7 +87,7 @@ export function boardKey(input: BoardInput): string {
   const t = input.target;
   const target = t ? `${t.number}:${t.hints.join(',')}:${(t.queue ?? []).map((q) => q.number).join(',')}` : '-';
   const { min, max } = input.layout;
-  return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-'].join('|');
+  return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-', input.solved ? 1 : 0].join('|');
 }
 
 export function buildBoard(input: BoardInput): Board {
@@ -109,7 +124,7 @@ export function buildBoard(input: BoardInput): Board {
     row: litRow === null ? null : { x: goal.x, y: goal.y + litRow * cellHeight, width: goal.width, height: cellHeight },
     column: litColumn === null ? null : { x: goal.x + litColumn * cellWidth, y: goal.y, width: cellWidth, height: goal.height },
   };
-  return { squares, fontSize, numbersFit, arrow: helpArrow(input), bands };
+  return { squares, fontSize, numbersFit, arrow: helpArrow(input), bands, panel: cellPanelVisible(layout, target, helpStep, input.solved) };
 }
 
 function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {
