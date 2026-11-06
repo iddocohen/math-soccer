@@ -123,8 +123,11 @@ Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|mi
 | `shirtNumber` | 1 to 99 |
 | `shirtName` | up to 10 letters |
 | `scarfColor` | chosen scarf color id |
+| `celebration` | chosen goal celebration id (amendment 13, FR-113); `celebration.armsUp` ("Arme hoch") by default |
 
-Stars: 2 per goal, also each goal of a two-empty shape and each goal in a time challenge. Items cost 5 to 40 stars; the starter ball, white shirt and yellow scarves are free. Decision (T057): the yellow shirt in the game's kit color is free too and is the shirt a new player wears; `owned` lists bought items only. Item ids are `ball.<design>`, `shirt.<color>` and `scarf.<color>` (src/core/rewards/items.ts).
+Stars: 2 per goal, also each goal of a two-empty shape and each goal in a time challenge. Items cost 5 to 40 stars; the starter ball, white shirt and yellow scarves are free. Decision (T057): the yellow shirt in the game's kit color is free too and is the shirt a new player wears; `owned` lists bought items only. Item ids are `ball.<design>`, `shirt.<color>`, `scarf.<color>` and `celebration.<name>` (src/core/rewards/items.ts).
+
+Version 2 (T103) adds `celebration`. The celebrations are `armsUp` ("Arme hoch", free), `slide` ("Rutschen", 10), `dance` ("Tanz", 15), `airplane` ("Flugzeug", 15), `heart` ("Herz", 20) and `backflip` ("Salto", 30). Decision (parent): no migration for now; stored version 1 data is not read and loads as the defaults, like any unreadable data. A migration is a separate final step.
 
 ## Not stored: update state (amendment 12)
 

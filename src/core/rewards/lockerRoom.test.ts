@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { LOCKER_ROOM } from '../storage/storage';
 import { emptyLockerRoom } from '../storage/schemas';
-import { BALL_DESIGNS, ITEMS, ITEM_KINDS, STARTER, ballDesign, isFree, itemById } from './items';
+import { BALL_DESIGNS, CELEBRATIONS, ITEMS, ITEM_KINDS, STARTER, ballDesign, celebrationOf, isFree, itemById } from './items';
 import {
   award,
   buy,
@@ -34,13 +34,13 @@ describe('items', () => {
   });
 
   it('gives the classic ball, the yellow and white shirts and the yellow scarves for free', () => {
-    expect(ITEMS.filter((i) => i.price === 0).map((i) => i.id)).toEqual(['ball.classic', 'shirt.yellow', 'shirt.white', 'scarf.yellow']);
+    expect(ITEMS.filter((i) => i.price === 0).map((i) => i.id)).toEqual(['ball.classic', 'shirt.yellow', 'shirt.white', 'scarf.yellow', 'celebration.armsUp']);
     for (const id of Object.values(STARTER)) expect(isFree(id)).toBe(true);
   });
 
   it('has one ball item per ball design, and colors for shirts and scarves', () => {
     expect(ITEMS.filter((i) => i.kind === 'ball').map((i) => ballDesign(i.id))).toEqual([...BALL_DESIGNS]);
-    for (const item of ITEMS) expect(item.color === null).toBe(item.kind === 'ball');
+    for (const item of ITEMS) expect(item.color === null).toBe(item.kind === 'ball' || item.kind === 'celebration');
     expect(ballDesign('ball.nothing')).toBe('classic');
     expect(ballDesign('shirt.gold')).toBe('classic');
   });
@@ -142,7 +142,62 @@ describe('stored locker room', () => {
 describe('look', () => {
   it('turns the chosen items into the colors and the ball design the scene draws', () => {
     const l = { ...buy(award(emptyLockerRoom(), 40), 'ball.flames'), shirtColor: 'shirt.white', shirtName: 'Mia', shirtNumber: 7 };
-    expect(lookOf(l)).toEqual({ ball: 'flames', shirtColor: itemById('shirt.white')!.color, shirtNumber: 7, shirtName: 'Mia', scarfColor: 0xe8b923 });
+    expect(lookOf(l)).toEqual({
+      ball: 'flames',
+      shirtColor: itemById('shirt.white')!.color,
+      shirtNumber: 7,
+      shirtName: 'Mia',
+      scarfColor: 0xe8b923,
+      celebration: 'armsUp',
+    });
     expect(lookKey(lookOf(l))).not.toBe(lookKey(lookOf(emptyLockerRoom())));
+  });
+});
+
+describe('celebrations (amendment 13, FR-113)', () => {
+  it('has the group "Jubel": "Arme hoch" free and chosen by default, the others for 10 to 30 stars', () => {
+    const items = ITEMS.filter((i) => i.kind === 'celebration');
+    expect(items.map((i) => celebrationOf(i.id)).sort()).toEqual([...CELEBRATIONS].sort());
+    expect(itemById('celebration.armsUp')!.price).toBe(0);
+    for (const item of items.filter((i) => i.id !== 'celebration.armsUp')) {
+      expect(item.price).toBeGreaterThanOrEqual(10);
+      expect(item.price).toBeLessThanOrEqual(30);
+    }
+    expect(emptyLockerRoom().celebration).toBe('celebration.armsUp');
+    expect(lookOf(emptyLockerRoom()).celebration).toBe('armsUp');
+  });
+
+  it('buys a celebration for its price and chooses it; another tap chooses an owned one again', () => {
+    const bought = buy(award(emptyLockerRoom(), 12), 'celebration.slide');
+    expect(bought).toMatchObject({ stars: 2, owned: ['celebration.slide'], celebration: 'celebration.slide' });
+    expect(lookOf(bought).celebration).toBe('slide');
+    const back = equip(bought, 'celebration', 'celebration.armsUp');
+    expect(chosen(back, 'celebration')).toBe('celebration.armsUp');
+    expect(chosen(equip(back, 'celebration', 'celebration.slide'), 'celebration')).toBe('celebration.slide');
+  });
+
+  it('does not buy or choose a celebration without the stars, and not one of another kind', () => {
+    const poor = award(emptyLockerRoom(), 29);
+    expect(canBuy(poor, 'celebration.backflip')).toBe(false);
+    expect(buy(poor, 'celebration.backflip')).toBe(poor);
+    expect(equip(poor, 'celebration', 'celebration.backflip')).toBe(poor);
+    expect(equip(poor, 'celebration', 'ball.classic')).toBe(poor);
+    expect(starsNeeded(poor, 'celebration.backflip')).toBe(1);
+  });
+
+  it('loads a chosen celebration that is not owned or unknown as "Arme hoch"', () => {
+    expect(cleanLockerRoom({ ...emptyLockerRoom(), celebration: 'celebration.heart' }).celebration).toBe('celebration.armsUp');
+    expect(cleanLockerRoom({ ...emptyLockerRoom(), celebration: 'celebration.moonwalk' }).celebration).toBe('celebration.armsUp');
+    expect(cleanLockerRoom({ ...emptyLockerRoom(), owned: ['celebration.heart'], celebration: 'celebration.heart' }).celebration).toBe('celebration.heart');
+    expect(celebrationOf('ball.gold')).toBe('armsUp');
+  });
+
+  it('stores the celebration in version 2; version 1 data is not read (no migration)', () => {
+    const stored = { ...emptyLockerRoom(), stars: 3, owned: ['celebration.dance'], celebration: 'celebration.dance' };
+    expect(LOCKER_ROOM.version).toBe(2);
+    expect(LOCKER_ROOM.parse(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+    const v1: Record<string, unknown> = { ...stored, version: 1 };
+    delete v1.celebration;
+    expect(LOCKER_ROOM.parse(v1)).toBeNull();
   });
 });

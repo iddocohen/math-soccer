@@ -19,7 +19,7 @@ Scene additions after amendments 08 to 14:
 | Parent gate | React | Gear held 2 s | Menu: "Einstellungen", "Fortschritt". No key opens it |
 | Settings | React | Parent menu | All Settings fields, grouped: Zahlenraum, Hinweise (including "Zeilen- und Spaltenhilfe"), Formen, Runde, Zeit-Challenge, Schwierigkeit ("Stufe am Anfang", "Schwerste Stufe" with an example drawing per level, FR-085), Ton, Bedienung, Kabine, Daten (sichern, laden, QR); the build version and date; "Kopie wiederherstellen" when a kept copy of data this version can read exists |
 | Progress | React | Parent menu | The current level and the targets solved alone still needed for the next level; a table per level: alone, with help (FR-090); a table per direction: attempts, alone, with help, "gemeistert" of the goalkeeper game, and "früher" (attempts in the removed hole and line modes, FR-070); personal bests (a time challenge best reads "Zeit-Challenge: 5 Tore in 2 Minuten"), and the bests of the removed modes under "Früher"; "Fortschritt zurücksetzen" with confirmation (keeps stars and bests); "Alles zurücksetzen" with confirmation (progress, bests, stars and locker room; the settings stay) |
-| Locker room | React | "Kabine" or K | Preview player and ball; groups Ball, Trikot, Nummer und Name, Fans, Pokale (the trophy shelf with "Pokal 1", "Pokal 2" …, `data-testid="trophy-shelf"`, amendment 13); locked items show "noch N Sterne"; Escape back |
+| Locker room | React | "Kabine" or K | Preview player and ball; groups Ball, Trikot, Nummer und Name, Fans, Jubel (goal celebrations; a tap plays one on the preview player, which carries `data-celebration` while it plays), Pokale (the trophy shelf with "Pokal 1", "Pokal 2" …, `data-testid="trophy-shelf"`, amendment 13); locked items show "noch N Sterne"; Escape back |
 | Transfer dialog | React | Link with `#save=` | As math-tank |
 
 ## Test query parameters
@@ -37,7 +37,7 @@ These parameters exist for the end-to-end tests, as in math-tank. A child never 
 
 | Event | Scene | Sound | Message (German) |
 |-------|-------|-------|------------------|
-| Goal | ball into net, the net bulges around it; the keeper dives toward the ball and falls short; fans jump, wave scarves; with a two-empty shape the next empty square becomes the target and the scored square lights up as a hint | cheer | "TOR!" |
+| Goal | ball into net, the net bulges around it; the keeper dives toward the ball and falls short; fans jump, wave scarves; the player plays the celebration chosen in the locker room (about 1.2 s, 0.6 s in the time challenge; Enter or a tap skips it without a shot; `data-celebration` on the match while it plays, amendment 13); with a two-empty shape the next empty square becomes the target and the scored square lights up as a hint | cheer | "TOR!" |
 | Miss | the keeper jumps to the ball's square and catches it; the square of the typed number shows its number in a warm orange for 1.5 s or more | soft "ohhh" then clapping (clapping only if "ohhh" is off) | "Hier ist 56. Nochmal!" |
 | Out of range | no shot | none | "Zahlen von 1 bis 100" |
 | Heart lost (not in a time challenge) | one ball icon fades | soft clapping | "Weiter geht's!" |

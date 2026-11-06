@@ -110,7 +110,8 @@ export function emptyRecords(): Records {
  * starter item back where a chosen item is not owned (`cleanLockerRoom`).
  */
 export const lockerRoomSchema = z.object({
-  version: z.literal(1),
+  // Version 2 (amendment 13, T103) adds the chosen celebration. Older data resets to the defaults (no migration).
+  version: z.literal(2),
   stars: z.number().int().min(0),
   totalEarned: z.number().int().min(0),
   owned: z.array(z.string()),
@@ -119,13 +120,14 @@ export const lockerRoomSchema = z.object({
   shirtNumber: z.number().int().min(1).max(99),
   shirtName: z.string().max(10).regex(/^[\p{L} -]*$/u),
   scarfColor: z.string(),
+  celebration: z.string(),
 });
 export type LockerRoom = z.infer<typeof lockerRoomSchema>;
 
-/** A new player: no stars, the starter items, shirt number 10 and no name. */
+/** A new player: no stars, the starter items, shirt number 10, no name and the celebration "Arme hoch". */
 export function emptyLockerRoom(): LockerRoom {
   return {
-    version: 1,
+    version: 2,
     stars: 0,
     totalEarned: 0,
     owned: [],
@@ -134,6 +136,7 @@ export function emptyLockerRoom(): LockerRoom {
     shirtNumber: 10,
     shirtName: '',
     scarfColor: STARTER.scarf,
+    celebration: STARTER.celebration,
   };
 }
 

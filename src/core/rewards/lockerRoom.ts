@@ -8,14 +8,15 @@
  *   none twice.
  * - `award` adds stars to the balance and the total ever earned. Only `buy` takes stars away; nothing in the game does
  *   after a miss (FR-023).
- * - `buy` takes the price and equips the item; `equip` chooses an owned or free item.
+ * - `buy` takes the price and equips the item; `equip` chooses an owned or free item. Celebrations ("Jubel",
+ *   amendment 13, FR-113) are bought and chosen like the other items.
  * - The shirt number is 1 to 99 and the shirt name up to 10 letters.
  *
  * Nothing here reaches target selection or the difficulty: looks never change the math (FR-043, plan "Rewards never
  * make the math easier").
  */
 import type { LockerRoom } from '../storage/schemas';
-import { ballDesign, isFree, itemById, STARTER, type BallDesign, type ItemKind } from './items';
+import { ballDesign, celebrationOf, isFree, itemById, STARTER, type BallDesign, type Celebration, type ItemKind } from './items';
 
 /** Stars for a goal. */
 export const GOAL_STARS = 2;
@@ -56,7 +57,7 @@ export function canBuy(locker: LockerRoom, id: string): boolean {
 }
 
 /** The locker room field that holds the chosen item of a kind. */
-const FIELD = { ball: 'ball', shirt: 'shirtColor', scarf: 'scarfColor' } as const satisfies Record<ItemKind, keyof LockerRoom>;
+const FIELD = { ball: 'ball', shirt: 'shirtColor', scarf: 'scarfColor', celebration: 'celebration' } as const satisfies Record<ItemKind, keyof LockerRoom>;
 
 /** The chosen item id of a kind. */
 export function chosen(locker: LockerRoom, kind: ItemKind): string {
@@ -105,7 +106,7 @@ export function cleanLockerRoom(locker: LockerRoom): LockerRoom {
     const item = itemById(id);
     return item && item.kind === kind && (item.price === 0 || owned.includes(id)) ? id : STARTER[kind];
   };
-  return { ...locker, owned, ball: pick('ball'), shirtColor: pick('shirt'), scarfColor: pick('scarf') };
+  return { ...locker, owned, ball: pick('ball'), shirtColor: pick('shirt'), scarfColor: pick('scarf'), celebration: pick('celebration') };
 }
 
 /** What the scene draws from the locker room. */
@@ -116,6 +117,8 @@ export interface Look {
   /** Shown on the shirt in capitals; empty for no name. */
   shirtName: string;
   scarfColor: number;
+  /** Played after every goal (FR-114). */
+  celebration: Celebration;
 }
 
 export function lookOf(locker: LockerRoom): Look {
@@ -126,10 +129,11 @@ export function lookOf(locker: LockerRoom): Look {
     shirtNumber: locker.shirtNumber,
     shirtName: locker.shirtName,
     scarfColor: color(locker.scarfColor, STARTER.scarf),
+    celebration: celebrationOf(locker.celebration),
   };
 }
 
-/** One string per look, so a view redraws only when the look changed. */
+/** One string per drawn look, so a view redraws only when the look changed; the celebration is read at each goal. */
 export function lookKey(look: Look): string {
   return `${look.ball}|${look.shirtColor}|${look.shirtNumber}|${look.shirtName}|${look.scarfColor}`;
 }

@@ -8,8 +8,10 @@
  * - Subscribes to the controller in create() and unsubscribes on shutdown.
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
  *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the net bulges around it
- *   (FR-098), the fans cheer, and after
- *   CELEBRATION_MS the scene calls `celebrationDone()`.
+ *   (FR-098), the fans cheer, the player plays the celebration chosen in the locker room (FR-113, FR-114), and after
+ *   `celebrationMs` (1.2 s, 0.6 s in the time challenge) the scene calls `celebrationDone()`. A celebration the child
+ *   skipped (the controller left `celebrating` first, with Enter or a tap) stops at once. `onCelebration` hears the
+ *   celebration that plays and null when it ends (`data-celebration` for tests).
  * - The keeper (T054, FR-020): on every shot he leaps toward the ball, timed with its flight. A wrong number lands in
  *   his gloves: he holds it, the ball fades, and the fans slump with a soft "ohhh" and then clap. The correct number
  *   goes past his gloves into the net and he lands on the grass. The keeper's phase goes to `onKeeper`.
@@ -41,6 +43,8 @@ import { hexColor, HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
 import { emptyLockerRoom } from '../core/storage/schemas';
+import type { Celebration } from '../core/rewards/items';
+import { celebrationMs } from './celebrationPose';
 import { COLOR, css } from './palette';
 import { PlayerView } from './PlayerView';
 import { StandsView } from './StandsView';
@@ -48,8 +52,6 @@ import { ensureTextures } from './textures';
 import { ASSET, assetUrl } from '../assets';
 import { BALL_SPRITE, SPRITE_FRAME_SIZE } from './ballArt';
 
-/** How long the goal celebration lasts before the next target (game time). */
-export const CELEBRATION_MS = 1400;
 
 /** The sounds the scene plays (src/audio/sfx.ts). */
 export interface MatchSounds {
@@ -94,6 +96,8 @@ export interface MatchSceneOptions {
   cup?: () => CupScene | null;
   /** Hears what the scene shows of the cup. */
   onCupShow?: (show: CupShow) => void;
+  /** Hears the goal celebration that starts, and null when it ends or is skipped. */
+  onCelebration?: (celebration: Celebration | null) => void;
 }
 
 const BACKDROP_TEXTURE = 'stadium';
@@ -172,6 +176,7 @@ export class MatchScene extends Phaser.Scene {
     this.unsubscribe = null;
     this.celebration?.remove();
     this.celebration = null;
+    this.options.onCelebration?.(null);
     this.finalShow?.stop();
   }
 
@@ -184,8 +189,7 @@ export class MatchScene extends Phaser.Scene {
     const layout = layoutChart(s.min, s.max);
 
     if (prev === null || this.isNewRound(prev, s)) {
-      this.celebration?.remove();
-      this.celebration = null;
+      this.endCelebration();
       this.flying = false;
       this.ballInNet = false;
       this.ball.reset();
@@ -207,6 +211,8 @@ export class MatchScene extends Phaser.Scene {
     this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper, solved);
 
     this.setPaused(s.paused);
+    // The child skipped the celebration (Enter or a tap): the controller already went on, so the dance stops here.
+    if (this.celebration !== null && s.phase !== 'celebrating') this.endCelebration();
 
     if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
 
@@ -315,16 +321,33 @@ export class MatchScene extends Phaser.Scene {
       this.keeper.beaten();
       this.stands.cheer();
       this.options.sounds?.cheer();
-      this.celebration = this.time.delayedCall(CELEBRATION_MS, () => {
-        this.celebration = null;
-        this.controller.celebrationDone();
-      });
+      this.startCelebration(s.roundType === 'time');
     } else if (s.ball?.outcome === 'miss') {
       this.keeper.catchBall();
       this.ball.caught(HOLD_MS);
       this.stands.ohh();
       this.options.sounds?.ohh();
     }
+  }
+
+  /** The chosen celebration plays on the player; when it ends the controller gives the next target (FR-114). */
+  private startCelebration(timeChallenge: boolean): void {
+    const celebration = this.currentLook().celebration;
+    const ms = celebrationMs(timeChallenge);
+    this.player.celebrate(celebration, ms);
+    this.options.onCelebration?.(celebration);
+    this.celebration = this.time.delayedCall(ms, () => {
+      this.endCelebration();
+      this.controller.celebrationDone();
+    });
+  }
+
+  private endCelebration(): void {
+    const running = this.celebration !== null;
+    this.celebration?.remove();
+    this.celebration = null;
+    this.player.stopCelebration();
+    if (running) this.options.onCelebration?.(null);
   }
 
   private setPaused(paused: boolean): void {

@@ -44,7 +44,11 @@ function pointsUnderKeeper(n: number): Array<{ x: number; y: number }> {
   return points;
 }
 
-/** The screen colours at the world points, read from a screenshot. */
+/**
+ * The screen colours at the world points, read from a screenshot. The screenshot has device pixels: WebKit's "Desktop
+ * Safari" draws at 2 device pixels per CSS pixel, so the CSS points are scaled by the screenshot's width over the
+ * page's width (1 in Chromium and Firefox).
+ */
 async function coloursAt(page: Page, points: Array<{ x: number; y: number }>): Promise<Array<[number, number, number]>> {
   const box = (await page.locator('canvas').boundingBox())!;
   const scale = box.width / WORLD_WIDTH;
@@ -60,8 +64,9 @@ async function coloursAt(page: Page, points: Array<{ x: number; y: number }>): P
       c.height = img.height;
       const g = c.getContext('2d')!;
       g.drawImage(img, 0, 0);
+      const ratio = img.width / window.innerWidth;
       return screen.map(({ x, y }) => {
-        const d = g.getImageData(x, y, 1, 1).data;
+        const d = g.getImageData(Math.round(x * ratio), Math.round(y * ratio), 1, 1).data;
         return [d[0]!, d[1]!, d[2]!] as [number, number, number];
       });
     },

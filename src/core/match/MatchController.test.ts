@@ -71,6 +71,37 @@ describe('MatchController skeleton', () => {
     expect(c.getState()).toMatchObject({ phase: 'aiming', ball: null, helpStep: 0 });
   });
 
+  it('skips the goal celebration with Enter and shoots nothing, also with a number typed (FR-114)', () => {
+    const c = makeController();
+    type(c, '46');
+    c.typeKey('enter');
+    c.ballLanded();
+    // Digits typed during the celebration are not taken, so nothing is typed when it is skipped.
+    type(c, '46');
+    c.typeKey('enter');
+    expect(c.getState()).toMatchObject({ phase: 'aiming', ball: null, entry: '', goals: 1 });
+    // The next Enter with nothing typed shoots nothing either.
+    c.typeKey('enter');
+    expect(c.getState()).toMatchObject({ phase: 'aiming', ball: null });
+  });
+
+  it('skips the celebration with skipCelebration (a tap), not while paused, and not outside a celebration', () => {
+    const c = makeController();
+    const aiming = c.getState();
+    c.skipCelebration();
+    expect(c.getState()).toBe(aiming);
+    type(c, '46');
+    c.shoot();
+    c.ballLanded();
+    c.pause();
+    c.skipCelebration();
+    c.shoot();
+    expect(c.getState().phase).toBe('celebrating');
+    c.resume();
+    c.skipCelebration();
+    expect(c.getState()).toMatchObject({ phase: 'aiming', ball: null, goals: 1 });
+  });
+
   it('lands a wrong number as a miss: back to aiming, help step +1, the square named', () => {
     const c = makeController();
     type(c, '56');

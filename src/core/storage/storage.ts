@@ -82,7 +82,7 @@ export const RECORDS: StoredKind<Records> = {
 export const LOCKER_ROOM: StoredKind<LockerRoom> = {
   name: 'lockerRoom',
   key: LOCKER_ROOM_KEY,
-  version: 1,
+  version: 2,
   parse: (raw) => {
     const locker = schemaParser('lockerRoom', lockerRoomSchema)(raw);
     return locker && cleanLockerRoom(locker);

@@ -163,7 +163,7 @@ export const de = {
     title: 'Kabine',
     back: 'Zurück',
     preview: 'Dein Spieler',
-    groups: { ball: 'Ball', shirt: 'Trikot', numberName: 'Nummer und Name', fans: 'Fans', trophies: 'Pokale' },
+    groups: { ball: 'Ball', shirt: 'Trikot', numberName: 'Nummer und Name', fans: 'Fans', celebration: 'Jubel', trophies: 'Pokale' },
     /** The trophy shelf (amendment 13, FR-111). */
     trophy: (n: number) => `Pokal ${n}`,
     emptyShelf: 'Hier stehen deine Pokale.',
@@ -199,6 +199,12 @@ export const de = {
       'scarf.green': 'Grün',
       'scarf.white': 'Weiß',
       'scarf.purple': 'Lila',
+      'celebration.armsUp': 'Arme hoch',
+      'celebration.slide': 'Rutschen',
+      'celebration.dance': 'Tanz',
+      'celebration.airplane': 'Flugzeug',
+      'celebration.heart': 'Herz',
+      'celebration.backflip': 'Salto',
     } as Record<string, string>,
   },
 

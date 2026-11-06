@@ -2,13 +2,16 @@
 /**
  * The locker room ("Kabine", FR-043, FR-044; contracts/screens.md "Locker room"). Opened from the start screen with
  * the "Kabine" button or K, only when the parent turned the locker room on. It shows a preview of the player and the
- * ball, the star balance, and four groups: Ball, Trikot, Nummer und Name, Fans.
+ * ball, the star balance, and the groups Ball, Trikot, Nummer und Name, Fans, Jubel and Pokale.
  *
  * - An owned or free item is chosen with one tap, at no cost.
  * - An item not owned shows its price. When the balance reaches it, a tap asks "Für N Sterne kaufen?" with "Ja" and
  *   "Nein"; "Ja" buys and chooses it. Otherwise the item shows "noch N Sterne" and does nothing.
  * - The shirt number takes 1 to 99, the shirt name up to 10 letters; both save as the child types.
  * - Escape goes back (or answers "Nein" while the question shows); "Zurück" goes back.
+ *
+ * "Jubel" (amendment 13, FR-113): the goal celebrations. A tap on one plays it on the preview player (also before it is
+ * bought), besides choosing or buying it as with the other items. The preview shows `data-celebration` while it plays.
  *
  * The trophy shelf (amendment 13, FR-111) shows every won cup as "Pokal 1", "Pokal 2" and so on
  * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
@@ -19,7 +22,8 @@
  */
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
 import { COLOR, css } from '../game/palette';
-import { BALL_COLORS, ballDesign, ITEMS, ITEM_KINDS, type BallDesign, type ItemKind, type LockerItem } from '../core/rewards/items';
+import { CELEBRATION_MS, poseAt, REST, armPoints, HEART_CENTER, TURN_CENTER_Y, type CelebrationPose } from '../game/celebrationPose';
+import { BALL_COLORS, ballDesign, celebrationOf, ITEMS, type BallDesign, type Celebration, type ItemKind, type LockerItem } from '../core/rewards/items';
 import {
   buy,
   canBuy,
@@ -46,7 +50,58 @@ interface Props {
   trophies?: ReadonlyArray<{ cup: number }>;
 }
 
-const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans'> = { ball: 'ball', shirt: 'shirt', scarf: 'fans' };
+/** For each celebration's small picture: the moment of its pose that shows it best. */
+const ICON_MOMENT: Record<Celebration, number> = { armsUp: 0.3, slide: 0.65, airplane: 0.4, backflip: 0.45, dance: 0.17, heart: 0.45 };
+
+/** The arms of a pose (and the heart of "Herz"), in the figure units of src/game/celebrationPose.ts. */
+function PoseArms({ pose, shirt }: { pose: CelebrationPose; shirt: string }): ReactElement {
+  const skin = css(COLOR.skin);
+  const r = 13 * pose.heart;
+  return (
+    <g>
+      {([-1, 1] as const).map((side) => {
+        const p = armPoints(side, side < 0 ? pose.left : pose.right);
+        const mid = { x: (p.shoulder.x + p.elbow.x) / 2, y: (p.shoulder.y + p.elbow.y) / 2 };
+        return (
+          <g key={side} strokeLinecap="round">
+            <line x1={p.shoulder.x} y1={p.shoulder.y} x2={mid.x} y2={mid.y} stroke={shirt} strokeWidth={26} />
+            <polyline points={`${mid.x},${mid.y} ${p.elbow.x},${p.elbow.y} ${p.hand.x},${p.hand.y}`} fill="none" stroke={skin} strokeWidth={16} />
+            <circle cx={p.hand.x} cy={p.hand.y} r={11} fill={skin} />
+          </g>
+        );
+      })}
+      {pose.heart > 0.05 && (
+        <g fill="#e0344a">
+          <circle cx={HEART_CENTER.x - r} cy={HEART_CENTER.y} r={r} />
+          <circle cx={HEART_CENTER.x + r} cy={HEART_CENTER.y} r={r} />
+          <polygon
+            points={`${HEART_CENTER.x - 2 * r},${HEART_CENTER.y + r * 0.35} ${HEART_CENTER.x + 2 * r},${HEART_CENTER.y + r * 0.35} ${HEART_CENTER.x},${HEART_CENTER.y + 2.4 * r}`}
+          />
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** The SVG rotation in degrees of a pose's turn around the figure's middle. */
+const degrees = (turn: number) => (turn * 180) / Math.PI;
+
+/** A small figure in one moment of a celebration, for the item button. */
+function CelebrationIcon({ celebration, shirt }: { celebration: Celebration; shirt: string }): ReactElement {
+  const pose = poseAt(celebration, ICON_MOMENT[celebration]);
+  return (
+    <svg width={40} height={40} viewBox="-160 -350 320 360" aria-hidden="true">
+      <g transform={`translate(${pose.x * 0.3} ${pose.y * 0.3}) rotate(${degrees(pose.turn)} 0 ${TURN_CENTER_Y})`}>
+        <rect x={-44} y={-114} width={88} height={60} rx={8} fill={css(COLOR.chalk)} />
+        <rect x={-46} y={-200} width={92} height={92} rx={12} fill={shirt} />
+        <PoseArms pose={pose} shirt={shirt} />
+        <circle cx={0} cy={-237} r={34} fill={css(COLOR.hair)} />
+      </g>
+    </svg>
+  );
+}
+
+const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration'> = { ball: 'ball', shirt: 'shirt', scarf: 'fans', celebration: 'celebration' };
 
 /** True for colors where dark text reads better than light text. */
 function isLight(color: number): boolean {
@@ -95,17 +150,65 @@ export function BallIcon({ design, size = 40 }: { design: BallDesign; size?: num
   );
 }
 
-/** The player from behind with the shirt color, the name and the number, and the ball at his feet. */
-function Preview({ look, label }: { look: Look; label: string }): ReactElement {
+/** Plays `celebration` once over CELEBRATION_MS whenever `play` changes; null while nothing plays. */
+function useCelebrationPose(play: { celebration: Celebration; n: number } | null): { celebration: Celebration; pose: CelebrationPose } | null {
+  const [now, setNow] = useState<{ celebration: Celebration; pose: CelebrationPose } | null>(null);
+  useEffect(() => {
+    if (play === null) return;
+    const started = performance.now();
+    let frame = 0;
+    const step = () => {
+      const t = (performance.now() - started) / CELEBRATION_MS;
+      if (t >= 1) {
+        setNow(null);
+        return;
+      }
+      setNow({ celebration: play.celebration, pose: poseAt(play.celebration, t) });
+      frame = requestAnimationFrame(step);
+    };
+    step();
+    return () => cancelAnimationFrame(frame);
+  }, [play]);
+  return now;
+}
+
+/** Figure units (src/game/celebrationPose.ts) in the preview: the feet below the picture, the shirt top at y 60. */
+const PREVIEW_FIGURE = { x: 70, y: 234, scale: 0.87 } as const;
+
+/**
+ * The player from behind with the shirt color, the name and the number, and the ball at his feet. While a celebration
+ * plays (`playing`), he moves and his arms follow its pose.
+ */
+function Preview({ look, label, playing }: { look: Look; label: string; playing: { celebration: Celebration; pose: CelebrationPose } | null }): ReactElement {
   const shirt = css(look.shirtColor);
   const ink = isLight(look.shirtColor) ? css(COLOR.ink) : css(COLOR.chalk);
+  const pose = playing?.pose ?? REST;
+  const { x, y, scale } = PREVIEW_FIGURE;
+  // The preview moves half as far as the game, so a jump stays near the picture.
+  const move = `translate(${pose.x * scale * 0.5} ${pose.y * scale * 0.5}) rotate(${degrees(pose.turn)} ${x} ${y + TURN_CENTER_Y * scale})`;
   return (
-    <figure className="locker-preview" data-testid="locker-preview" data-ball={`ball.${look.ball}`} aria-label={label}>
-      <svg width="160" height="200" viewBox="0 0 160 200" aria-hidden="true">
-        <circle cx="70" cy="34" r="24" fill={css(COLOR.hair)} />
+    <figure
+      className="locker-preview"
+      data-testid="locker-preview"
+      data-ball={`ball.${look.ball}`}
+      data-celebration={playing?.celebration ?? ''}
+      aria-label={label}
+    >
+      <svg width="160" height="200" viewBox="0 0 160 200" overflow="visible" aria-hidden="true">
+        <g transform={move}>
+        {playing === null && (
+          <>
+            <rect x="20" y="64" width="14" height="30" fill={shirt} />
+            <rect x="106" y="64" width="14" height="30" fill={shirt} />
+          </>
+        )}
         <rect x="30" y="60" width="80" height="80" rx="12" fill={shirt} />
-        <rect x="20" y="64" width="14" height="30" fill={shirt} />
-        <rect x="106" y="64" width="14" height="30" fill={shirt} />
+        {playing !== null && (
+          <g transform={`translate(${x} ${y}) scale(${scale})`}>
+            <PoseArms pose={pose} shirt={shirt} />
+          </g>
+        )}
+        <circle cx="70" cy="34" r="24" fill={css(COLOR.hair)} />
         <text x="70" y="80" textAnchor="middle" fontSize="12" fontWeight="800" fill={ink} data-testid="preview-name">
           {look.shirtName.toUpperCase()}
         </text>
@@ -116,14 +219,16 @@ function Preview({ look, label }: { look: Look; label: string }): ReactElement {
         <rect x="74" y="140" width="30" height="30" fill={css(COLOR.chalk)} />
         <rect x="40" y="170" width="22" height="26" fill={css(COLOR.skin)} />
         <rect x="78" y="170" width="22" height="26" fill={css(COLOR.skin)} />
+        </g>
       </svg>
       <BallIcon design={look.ball} size={48} />
     </figure>
   );
 }
 
-function ItemPicture({ item }: { item: LockerItem }): ReactElement {
+function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): ReactElement {
   if (item.kind === 'ball') return <BallIcon design={ballDesign(item.id)} />;
+  if (item.kind === 'celebration') return <CelebrationIcon celebration={celebrationOf(item.id)} shirt={shirt} />;
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
@@ -131,6 +236,9 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   const L = t().lockerRoom;
   const [question, setQuestion] = useState<LockerItem | null>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
+  const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
+  const playing = useCelebrationPose(play);
+  const look = lookOf(locker);
   const latest = useRef({ question, onBack });
   latest.current = { question, onBack };
 
@@ -146,6 +254,8 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   }, []);
 
   const choose = (item: LockerItem) => {
+    // A celebration plays on the preview with every tap, also before it is bought (FR-113).
+    if (item.kind === 'celebration') setPlay((p) => ({ celebration: celebrationOf(item.id), n: (p?.n ?? 0) + 1 }));
     if (isOwned(locker, item.id)) onChange(equip(locker, item.kind, item.id));
     else if (canBuy(locker, item.id)) setQuestion(item);
   };
@@ -181,7 +291,7 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
             aria-pressed={owned ? isChosen : undefined}
             onClick={() => choose(item)}
           >
-            <ItemPicture item={item} />
+            <ItemPicture item={item} shirt={css(look.shirtColor)} />
             <span className="locker-item-name">{L.items[item.id]}</span>
             {!owned && <span className="locker-item-price">{open ? L.price(item.price) : L.stillNeeded(starsNeeded(locker, item.id))}</span>}
             {isChosen && <span className="locker-item-chosen">{L.chosen}</span>}
@@ -203,9 +313,9 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
         </button>
       </header>
       <div className="locker-body">
-        <Preview look={lookOf(locker)} label={L.preview} />
+        <Preview look={look} label={L.preview} playing={playing} />
         <div className="locker-groups">
-          {ITEM_KINDS.filter((k) => k !== 'scarf').map((kind) => (
+          {(['ball', 'shirt'] as const).map((kind) => (
             <section key={kind} className="locker-group" aria-label={L.groups[GROUP[kind]]}>
               <h2>{L.groups[GROUP[kind]]}</h2>
               {items(kind)}
@@ -250,6 +360,10 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
           <section className="locker-group" aria-label={L.groups.fans}>
             <h2>{L.groups.fans}</h2>
             {items('scarf')}
+          </section>
+          <section className="locker-group" aria-label={L.groups.celebration}>
+            <h2>{L.groups.celebration}</h2>
+            {items('celebration')}
           </section>
           <section className="locker-group" aria-label={L.groups.trophies}>
             <h2>{L.groups.trophies}</h2>

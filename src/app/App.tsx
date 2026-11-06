@@ -46,6 +46,10 @@
  * after a loss "Nochmal" replays the match and "Zurück" goes to the bracket. The scene reads the opponent and whether
  * it is the final from `cupScene` (team colors, keeper quirk, the final's full stand, chant and celebration).
  *
+ * Goal celebrations (amendment 13, T103, FR-114): after every goal the scene plays the celebration chosen in the
+ * locker room; `data-celebration` on the match names it while it plays. Enter (through `shoot`) or a tap on the match,
+ * away from buttons and fields, skips it (MatchController.skipCelebration) and shoots nothing.
+ *
  * Pause and home (amendment 14, FR-116 to FR-118): while the child paused the round, PauseScreen offers "Weiter" and
  * "Zum Start"; the home button pauses and asks "Runde beenden?" with the same two buttons. "Zum Start" goes through
  * `abandonRound`: the controller drops the round (MatchController.abandon) and the start screen shows.
@@ -60,7 +64,7 @@
  * speaker icon repeats it. There is no help sentence to read (amendment 14, FR-119). The start tap
  * speaks a short greeting, since tablet browsers speak only after a user tap.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
@@ -72,6 +76,7 @@ import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult } from '../core/records/records';
+import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
 import { clearRound, loadRound, saveRound } from '../core/storage/storage';
@@ -318,6 +323,8 @@ export function App() {
   const cupScene = useRef<CupScene | null>(controller.getState().roundType === 'cup' ? cupSceneOf(persistence) : null);
   // What the scene shows of the cup, as `data-*` attributes for tests.
   const [cupShow, setCupShow] = useState<CupShow | null>(null);
+  // The goal celebration that plays (FR-114), as `data-celebration` for tests.
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
   // The match intro card of a cup match: "Gruppenspiel 1 gegen FC Blitz" (T102).
   const [intro, setIntro] = useState<{ stage: number; team: CupTeam } | null>(null);
   const introShown = useRef(false);
@@ -341,6 +348,7 @@ export function App() {
           look: () => lookOf(persistence.lockerRoom()),
           cup: () => cupScene.current,
           onCupShow: setCupShow,
+          onCelebration: setCelebration,
         });
         gameHandle.current = handle;
       },
@@ -664,8 +672,15 @@ export function App() {
     );
   }
 
+  // A tap anywhere on the match but a button or a field skips the goal celebration and shoots nothing (FR-114).
+  const skipCelebration = (event: ReactPointerEvent<HTMLElement>) => {
+    if (state.phase !== 'celebrating') return;
+    if (event.target instanceof Element && event.target.closest('button, input, a, [role="dialog"]')) return;
+    controller.skipCelebration();
+  };
+
   return (
-    <main className="match" lang="de">
+    <main className="match" lang="de" data-celebration={celebration ?? ''} onPointerDown={skipCelebration}>
       <div className="game-parent" ref={gameParent} />
       <MatchOverlay
         state={state}

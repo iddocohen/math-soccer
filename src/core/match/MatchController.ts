@@ -472,9 +472,16 @@ export class MatchController {
     if (entry !== this.state.entry) this.set({ ...this.state, entry }, { save: false });
   }
 
-  /** Shoots the typed number. A number outside the range is not shot; the message names the range (FR-005). */
+  /**
+   * Shoots the typed number. A number outside the range is not shot; the message names the range (FR-005). During the
+   * goal celebration, Enter (or a tap) skips it and shoots nothing (FR-114).
+   */
   shoot(): void {
     const s = this.state;
+    if (s.started && !s.paused && s.phase === 'celebrating') {
+      this.skipCelebration();
+      return;
+    }
     if (!s.started || s.paused || s.phase !== 'aiming') return;
     // Enter closes the open help chart and does not also shoot.
     if (s.helpChartOpen) {
@@ -566,6 +573,12 @@ export class MatchController {
     const solved = s.helpStep < MAX_HELP_STEP;
     const levelUp = this.recordAttempt(s, { solved, endedAt: ball.atMs });
     return { attempt: { number: ball.number, solved, helpStep: s.helpStep }, levelUp };
+  }
+
+  /** Enter or a tap during the goal celebration (FR-114): it ends now, as if it had played to the end. */
+  skipCelebration(): void {
+    if (this.state.paused) return;
+    this.celebrationDone();
   }
 
   /** Called by the scene when the goal celebration ends: the next target, or the end of the round. */
