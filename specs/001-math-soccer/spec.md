@@ -4,11 +4,14 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) [amendment 02](./amendment-02-visible-goal.md) and [amendment 03](./amendment-03-free-assets.md)
+**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) [amendment 02](./amendment-02-visible-goal.md) [amendment 03](./amendment-03-free-assets.md), [amendment 04](./amendment-04-keeper-scale.md), [amendment 05](./amendment-05-keeper-main-game.md), [amendment 06](./amendment-06-tetris-shapes.md) and [amendment 07](./amendment-07-time-challenge.md)
 
 **Input**: User description: "Build the browser game described in docs/superpowers/specs/2026-11-06-math-soccer-design.md. Copy that document verbatim into the feature directory as source-prd.md and treat it as the full requirements. Follow math-tank (~/dev/private/math-tank) wherever the document says "as math-tank"." The design document is stored verbatim in [source-prd.md](./source-prd.md).
 
 ## Overview
+
+> **Changed by amendment 05**: the goalkeeper game is now the only game. Hole mode and line mode below are replaced by hint patterns (Nachbarn, Mitte, Reihe, Formen) in the goalkeeper game. Amendment 07 adds a time challenge.
+
 
 A child (about 6 to 9 years old, with low frustration tolerance) plays a 2D soccer game in the browser. The view is from behind the player, facing the goal. The goal shows a number chart with rows of 10 numbers, by default the hundred chart 1 to 100 (Hundertertafel). The child shoots by typing a number and pressing Enter. The ball always flies to the square of the typed number, so even a wrong number shows the child where that number sits on the chart.
 

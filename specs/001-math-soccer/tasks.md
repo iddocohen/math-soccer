@@ -192,6 +192,23 @@ description: "Task list for Math Soccer"
 
 ---
 
+## Phase 8d: Amendments 04 to 07 (keeper size, keeper as the only game, shapes, time challenge)
+
+See [amendment 04](./amendment-04-keeper-scale.md), [05](./amendment-05-keeper-main-game.md), [06](./amendment-06-tetris-shapes.md), [07](./amendment-07-time-challenge.md).
+
+- [ ] T084 [US5] Keeper one size, about half the goal mouth height, feet on the goal line, no scaling during the dive; waiting spot shuffles so target and hint squares stay visible, 50% opacity when no free spot (FR-062 to FR-064); tests in `src/game/keeperDive.test.ts`
+- [ ] T085 [US1] Hint patterns in `src/core/targets/patterns.ts`: Nachbarn, Mitte, Reihe with a direction, all on the chart, target placement per pattern, trained directions (FR-065); tests in `patterns.test.ts`
+- [ ] T086 [US3] Settings version bump with migration: drop modes and lineLength, keep line directions as `directions`, add `patterns` (Nachbarn, Mitte, Reihe, Formen; all on) and `shapes` (all on), add `timeChallenge { allowed: true, minutes: 2 }` with minutes in {1, 2, 3, 5} (FR-066, FR-070, FR-076); tests
+- [ ] T087 [US3] Adaptive ladder per FR-067 in `src/core/progress/ladder.ts` choosing pattern and direction within the parent's choices; random with equal weight when adaptive is off; tests
+- [ ] T088 [US1] MatchController and nextTarget: keeper game only; remove hole and line logic, `lines.ts` parts not reused by Reihe, patched holes; stored hole or line rounds discarded on load (FR-070); progress keeps old attempts and shows a "früher" total; old bests kept under "früher"; update unit tests
+- [ ] T089 [US1] Start screen: "Spielen" (Enter, Space) and "Zeit-Challenge" (Z, when allowed); remove mode buttons and keys 1 to 3; settings page groups "Hinweis-Muster", "Richtungen", "Formen", "Zeit-Challenge"; remove "Spielarten", line length and hole settings (FR-068, FR-069); remove the hole board drawing from `GoalView` and `board.ts`
+- [ ] T090 [US1] e2e in Chromium: remove `holes.spec.ts` and `lines.spec.ts`; add `patterns.spec.ts` (one round per pattern forced via settings); update every spec that used `?mode=` or key 1 to start (keeper, help, settings, settingsLive, lockerroom, lockerMatch, persistence, devices, offline, basePath, performance)
+- [ ] T091 [US5] Shapes in `src/core/targets/shapes.ts`: I, O, T, L, J, S, Z in four turns placed fully on the chart; one empty square at ladder step 6, two at step 7 and above, shot one after the other, each a goal; trained directions from shape neighbors; parent can turn single shapes off (FR-071 to FR-074); unit tests and an e2e two-empty shape round
+- [ ] T092 [US1] Time challenge: round type `time` with countdown from the challenge minutes, no hearts, ends at zero after a ball in flight lands, pauses with the round clock; kit-yellow gentle pulse in the last 10 s, no red, no ticking; end screen "N Tore in M Minuten" with bests per range and minutes (FR-075 to FR-081); unit tests and e2e with a test speed-up hook
+- [ ] T093 Update README (how to play: one game, patterns, shapes, time challenge; settings), `contracts/screens.md`, `data-model.md` and `quickstart.md` for amendments 04 to 07; run lint, typecheck, test, build, Chromium and base-path e2e, and performance
+
+---
+
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
