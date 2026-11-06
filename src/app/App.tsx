@@ -66,6 +66,7 @@ import { ProgressPage } from './ProgressPage';
 import { RoundEnd, type RoundRecord } from './RoundEnd';
 import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
+import { canApplyUpdate, swUpdate } from './swUpdate';
 import { TransferDialog, type TransferDialogState } from './TransferDialog';
 import { useAutoPause } from './useAutoPause';
 import { useMatchState, type ClockSource } from './useController';
@@ -268,6 +269,13 @@ export function App() {
   // A running round pauses while a parent screen, the transfer dialog or the locker room is open (FR-034, FR-049).
   useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null || matchLocker));
 
+  // A waiting new version is applied only on the start screen, never during a round (FR-051a), and never while a
+  // parent screen or the transfer dialog is open (review R2).
+  const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed', transferOpen: transfer !== null });
+  useEffect(() => {
+    swUpdate.setStartScreen(updateAllowed);
+  }, [updateAllowed]);
+
   // A save link: decode the code once on load (FR-041).
   useEffect(() => {
     const code = saveCodeFromHash(window.location.hash);
@@ -395,9 +403,11 @@ export function App() {
     </>
   );
 
+  // "Nochmal" replays the round's mode while the parent still offers it, and goes to the start screen otherwise.
+  const playAgain = () => (offered.includes(state.mode) ? startMatch(state.mode) : setScreen('start'));
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.mode);
-    else if (action.type === 'again') startMatch(state.mode);
+    else if (action.type === 'again') playAgain();
     else if (action.type === 'lockerRoom') setScreen('lockerRoom');
     else applyMatchAction(controller, action);
   };
@@ -500,7 +510,7 @@ export function App() {
           roundType={state.roundType}
           record={record}
           stars={lockerOn ? state.starsThisRound : null}
-          onAgain={() => startMatch(state.mode)}
+          onAgain={playAgain}
           onBack={() => setScreen('start')}
         />
       )}

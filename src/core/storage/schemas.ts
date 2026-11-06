@@ -179,11 +179,12 @@ export type StoredRound = z.infer<typeof roundSchema>;
  * line mode, has at least LINE_MIN_LENGTH squares and its index lies between its given squares and its end.
  */
 function roundRules(
-  r: { mode: string; min: number; max: number; target: { number: number } | null; line: { squares: number[]; given: number; index: number } | null },
+  r: { mode: string; phase: string; min: number; max: number; target: { number: number } | null; line: { squares: number[]; given: number; index: number } | null },
   ctx: z.RefinementCtx,
 ): void {
   const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
   if (r.min >= r.max) issue('min must be below max', 'max');
+  if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
   if (r.target && (r.target.number < r.min || r.target.number > r.max)) issue('target outside the range', 'target');
   if ((r.mode === 'lines') !== (r.line !== null)) issue('a line exists exactly in line mode', 'line');
   if (r.line) {

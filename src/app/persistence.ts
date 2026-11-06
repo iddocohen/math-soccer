@@ -225,7 +225,10 @@ export function createPersistence(kv: KeyValue): Persistence {
     applyTransfer: (data) =>
       save(structuredClone({ settings: data.settings, progress: data.progress, records: data.records, lockerRoom: data.lockerRoom })),
     resetAll: () => save({ progress: emptyProgress(), records: emptyRecords(), lockerRoom: emptyLockerRoom() }),
-    backups: () => DATA_ORDER.filter((kind) => readableCopies()[kind] !== undefined),
+    backups() {
+      const copies = readableCopies();
+      return DATA_ORDER.filter((kind) => copies[kind] !== undefined);
+    },
     restoreBackups() {
       const copies = readableCopies();
       const kinds = DATA_ORDER.filter((kind) => copies[kind] !== undefined);

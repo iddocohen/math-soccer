@@ -241,6 +241,10 @@ describe('rules between the fields of a stored round (review H3)', () => {
     expect(loadRound(kvWith(storedRound({ goalsPerRound: 5 }))).value?.goalsPerRound).toBe(5);
   });
 
+  it('discards an aiming round without a target (code review), which could never end', () => {
+    expect(loadRound(kvWith(storedRound({ phase: 'aiming', target: null }))).resetReason).toBe('invalid');
+  });
+
   it('discards a round whose min is not below its max', () => {
     expect(loadRound(kvWith(storedRound({ min: 100, max: 100 })))).toEqual({ value: null, resetReason: 'invalid' });
   });
