@@ -23,7 +23,7 @@ No module here imports Phaser, React or the DOM, and none calls `Math.random`. A
 ## `core/match`
 
 - `entryReducer(entry: string, key: EntryKey, maxDigits): string`: as math-tank.
-- `class MatchController`: `getState()`, `subscribe(fn)`, and actions `start(mode)`, `typeKey(key)`, `shoot()`, `ballLanded()`, `celebrationDone()`, `askHelp()`, `pause()`, `resume()`, `tick(ms)`. `shoot()` refuses out-of-range numbers and sets a range message. `ballLanded()` decides goal, correct square or miss from `state.ball.number === state.target.number`.
+- `class MatchController`: `getState()` (a deep read-only `MatchView`), `subscribe(fn)`, and actions `start(mode)`, `typeKey(key)`, `shoot()`, `ballLanded()`, `celebrationDone()`, `askHelp()`, `pause()`, `resume()`, `tick(ms)`. `shoot()` refuses out-of-range numbers and sets a range message. `ballLanded()` decides goal, correct square or miss from `state.ball.number === state.target.number`.
 - `missesPerHeart(difficulty): 3 | 4 | 5`.
 - `starsFor(event: 'goal' | 'square' | 'lineDone', mode): number`.
 

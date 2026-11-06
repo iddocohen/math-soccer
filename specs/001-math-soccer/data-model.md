@@ -58,6 +58,8 @@ Direction names map to steps: right +1, left −1, down +10, up −10, downRight
 |-------|---------|
 | `seed` | round seed for `Rng` |
 | `mode`, `roundType` | from start screen and settings |
+| `goalsPerRound` | goals per round at the round start; a refresh keeps it and the round-start `roundType` (FR-052). Missing in rounds stored before it was kept, then the current setting applies |
+| `min`, `max` | the round's range; `min` is below `max` |
 | `goals` | goals scored |
 | `hearts` | 3 down to 0 (`untilHearts` only) |
 | `missesInRow` | misses on the current target |
@@ -65,9 +67,11 @@ Direction names map to steps: right +1, left −1, down +10, up −10, downRight
 | `target`, `line` | current target and line |
 | `starsThisRound` | stars earned |
 | `elapsedMs` | time played, paused when hidden or paused |
-| `phase` | `aiming`, `ballInFlight`, `landed`, `celebrating`, `roundOver` |
+| `phase` | `aiming`, `ballInFlight`, `celebrating`, `roundOver` |
 
-State transitions: `aiming --shoot(n in range)--> ballInFlight --land--> landed`; `landed(goal or correct square) --> celebrating --> aiming (new target) or roundOver`; `landed(miss) --> aiming` (help step +1, misses +1; at the difficulty limit hearts −1 and the target resolves); `roundOver` when hearts reach 0 or goals reach `goalsPerRound`.
+A stored round is saved between shots, so its phase is `aiming` or `celebrating`. It is discarded on load when a rule between fields fails: the target lies outside `min..max`, a line exists outside line mode or is missing in line mode, a line has fewer than 3 squares, or its index lies outside `given..squares.length`.
+
+State transitions: `aiming --shoot(n in range)--> ballInFlight`; when the ball lands, a goal goes to `celebrating --> aiming (new target) or roundOver`, a correct line square that is not the last goes straight to `aiming` with the next square as the target, and a miss goes to `aiming` (help step +1, misses +1; at the difficulty limit hearts −1 and the target resolves); `roundOver` when hearts reach 0 or goals reach `goalsPerRound`. There is no separate landed phase: the landing result is the ball's `outcome`.
 
 ## AttemptRecord (`mathsoccer.progress.v1`)
 

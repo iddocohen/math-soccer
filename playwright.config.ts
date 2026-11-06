@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { GAME_WAIT } from './tests/e2e/gameWait';
 
 /** Specs that run only in the iPad projects. */
-const DEVICE_SPECS = /(devices|touch|rotation)\.spec\.ts$/;
+const DEVICE_SPECS = /devices\.spec\.ts$/;
 /** The smoke test of the build for GitHub Pages runs only in the `base-path` project. */
 const BASE_PATH_SPEC = /basePath\.spec\.ts$/;
 /** The frame rate check runs only in the `performance` project, after every other project (T066). */

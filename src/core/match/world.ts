@@ -15,10 +15,11 @@ export const GOAL_FRAME: Rect = { x: 260, y: 200, width: 1080, height: 600 };
 export const POST_WIDTH = 22;
 
 /**
- * The number chart, a panel inside the goal mouth: x 340 to 1260, y 250 to 750 (FR-054). The net shows between the
+ * The number chart, a panel inside the goal mouth: x 340 to 1260, y 265 to 750 (FR-054). The margins to the outer edge
+ * of the frame are 80 at the sides and 65 at the top, at least 6% of the goal width (64.8). The net shows between the
  * panel and the posts and crossbar. Board, hints, help arrow and ball target all use this rectangle with `cellRect`.
  */
-export const CHART_RECT: Rect = { x: 340, y: 250, width: 920, height: 500 };
+export const CHART_RECT: Rect = { x: 340, y: 265, width: 920, height: 485 };
 
 /** The stands with the fans: y 0 to 260. */
 export const STANDS_BOTTOM = 260;

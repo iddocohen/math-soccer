@@ -18,7 +18,7 @@ The game never punishes a mistake. A wrong number still flies to its own square,
 
 ## How to play (tutorial for the child)
 
-1. Press Enter or tap "Spielen", then pick a mode.
+1. The start screen shows one big button per mode the parent offers (Löcher, Reihen, Torwart). Tap one, or press its key 1, 2 or 3. Enter or Space starts the first mode shown.
 2. Look at the marked square and the numbers around it. Which number belongs there?
 3. Type the number with the keyboard or the number pad on the screen, then press Enter. The ball flies to the square of that number.
 4. The right number scores a goal. A wrong number lands on its own square; look where it landed and try again.
@@ -45,7 +45,7 @@ On an iPad the number pad shows by itself: at the bottom right when the iPad is 
 ## Tutorial for parents
 
 - **Open the parent area:** hold the gear icon for 2 seconds. A short tap or a key press does not open it, so a child does not open it by chance. The game pauses while it is open.
-- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), which modes the start screen offers, hint display ("immer" or "auf Wunsch") and hint distance, line directions and line length, round type, difficulty, adaptive difficulty, sound options (effects, crowd, the "ohhh", and "Vorlesen", which reads each task aloud with the browser's German voice), the number pad ("automatisch" shows it only on touch screens, "immer", "nie"), a clock during play, personal bests and the locker room. Settings saved during a round apply when the settings page closes: a changed range, mode choice, hint, line, difficulty or adaptive setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type and goals per round apply from the next round.
+- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), which modes the start screen offers, hint display ("immer" or "auf Wunsch") and hint distance, line directions and line length, round type, difficulty, adaptive difficulty, sound options (effects, crowd, the "ohhh", and "Vorlesen", which reads each task aloud with the browser's German voice), the number pad ("automatisch" shows it only on touch screens, "immer", "nie"), a clock during play, personal bests and the locker room. Settings saved during a round apply when the settings page closes: a changed range, mode choice, hint, line, difficulty, adaptive or "Punkt nach voller Hilfe" setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type and goals per round apply from the next round.
 - **Progress:** the progress page shows, per direction (+1, −1, +10, −10, +11, −11, +9, −9) and per mode, how many targets the child solved alone and how many with help, and which directions count as mastered.
 - **Backup and moving to another device:** "Daten sichern" downloads settings, progress, bests and locker room data to a file, and "Daten laden" loads that file. The QR transfer moves the same data to another browser by QR code or link.
 - **Start over:** the progress page has "Fortschritt zurücksetzen" (keeps the personal bests and the stars) and "Alles zurücksetzen" (progress, personal bests, stars and locker room; the settings stay). Each asks first. Save the data with "Daten sichern" before "Alles zurücksetzen" if you may want it back.
@@ -58,7 +58,7 @@ All data stays in the browser where the game runs.
 The progress lives in the browser's own storage on that device (`localStorage`, under keys that start with `mathsoccer.`), not on a server.
 
 - **Updates do not touch it.** A new version replaces only the game's files in the offline cache. Data saved by a newer version is never saved over by an older one.
-- **If a version cannot read a save,** the game keeps a copy of it (under the same key with `.unreadable` added) before saving anything new. When a later version can read the copy, the settings page offers "Kopie wiederherstellen".
+- **If a version cannot read a save,** the game keeps a copy of it (under the same key with `.unreadable` added) before saving anything new. When a later version can read the copy, the settings page offers "Kopie wiederherstellen". The start screen shows a short note when data was reset this way, and when saving stars, progress or bests failed during play.
 - **iPhone and iPad:** Safari deletes the data of a website that was not opened during 7 days of Safari use ([WebKit blog](https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/)). Add the game to the Home Screen (Share, then "Zum Home-Bildschirm") and play it from there: that copy counts only the days it is used itself, so a break does not delete the progress.
 - **Clearing browser data deletes the progress.** Save it first with "Daten sichern" or "Spielstand übertragen" in the settings, and load it again afterwards.
 

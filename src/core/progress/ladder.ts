@@ -3,7 +3,7 @@
  * The difficulty ladder of a direction (FR-040, research R9), clamped to the parent's settings:
  * - step 0: hints always shown, direct neighbors;
  * - step 1: hints above and below, or diagonal;
- * - step 2: hints two or three squares away;
+ * - step 2: hints two squares away;
  * - step 3: as step 2, with hints on request only.
  * A step the settings do not allow looks the same to the child as a neighboring step (the generator falls back to
  * the nearest step with an allowed distance, see `distancesForStep` in core/targets/nextTarget.ts). Steps up and down
