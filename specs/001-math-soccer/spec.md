@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) [amendment 02](./amendment-02-visible-goal.md) [amendment 03](./amendment-03-free-assets.md), [amendment 04](./amendment-04-keeper-scale.md), [amendment 05](./amendment-05-keeper-main-game.md), [amendment 06](./amendment-06-tetris-shapes.md) [amendment 07](./amendment-07-time-challenge.md), [amendment 08](./amendment-08-player-scale.md), [amendment 09](./amendment-09-difficulty-levels.md), [amendment 10](./amendment-10-row-column-helper.md) and [amendment 11](./amendment-11-net-and-polish.md)
+**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) [amendment 02](./amendment-02-visible-goal.md) [amendment 03](./amendment-03-free-assets.md), [amendment 04](./amendment-04-keeper-scale.md), [amendment 05](./amendment-05-keeper-main-game.md), [amendment 06](./amendment-06-tetris-shapes.md) [amendment 07](./amendment-07-time-challenge.md), [amendment 08](./amendment-08-player-scale.md), [amendment 09](./amendment-09-difficulty-levels.md), [amendment 10](./amendment-10-row-column-helper.md) [amendment 11](./amendment-11-net-and-polish.md), [amendment 12](./amendment-12-reliable-updates.md) and [amendment 13](./amendment-13-cup-journey.md)
 
 **Input**: User description: "Build the browser game described in docs/superpowers/specs/2026-11-06-math-soccer-design.md. Copy that document verbatim into the feature directory as source-prd.md and treat it as the full requirements. Follow math-tank (~/dev/private/math-tank) wherever the document says "as math-tank"." The design document is stored verbatim in [source-prd.md](./source-prd.md).
 

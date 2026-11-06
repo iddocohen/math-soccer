@@ -235,6 +235,17 @@ See [amendment 08](./amendment-08-player-scale.md), [09](./amendment-09-difficul
 
 ---
 
+## Phase 8f: Amendments 12 and 13 (reliable updates, cup journey and celebrations)
+
+See [amendment 12](./amendment-12-reliable-updates.md) and [13](./amendment-13-cup-journey.md).
+
+- [ ] T100 Updates: check for a new version on every start screen, on tab focus and every 5 minutes; round end line "Neue Version, startet gleich" when a version is waiting; "Zurück" and "Nochmal" apply it; reload applies a waiting version (FR-102 to FR-104); copy and adapt math-tank's two-version update e2e (`tests/e2e/updateServer.mjs` and its spec) with own ports; unit tests
+- [ ] T101 [US6] Cup core: `src/core/cup/` with bracket of five matches, eight fictional teams with keeper quirks (look only), match win at "Tore pro Spiel" (3 to 10, default 5) before hearts are gone, replay on loss, stage levels spread over the parent's level range, one level easier after 2 lost tries (never below start), next cup one level higher, star bonuses 5 per match and 20 per cup; stored kind `mathsoccer.cup.v1` included in backup, transfer, restore and reset-all (FR-105 to FR-112); unit tests
+- [ ] T102 [US6] Cup screens and scene: "Pokal" button (P) on the start screen, bracket screen, match intro with the opponent, win and loss lines, keeper and scarf team colors and quirks, bigger final (full stand, name chant rhythm, confetti, fireworks, cup lift), trophy shelf in the locker room; e2e `tests/e2e/cup.spec.ts`
+- [ ] T103 [US6] Celebrations: locker room group "Jubel" (Arme hoch free and default; Rutschen, Flugzeug, Salto, Tanz, Herz for 10 to 30 stars) with preview; played after every goal (about 1.2 s, 0.6 s in the time challenge), skip with Enter or a tap; locker room data version bump and migration; `data-celebration`; unit tests and e2e (FR-113, FR-114)
+
+---
+
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
