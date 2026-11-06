@@ -93,14 +93,24 @@ Every push to `main` publishes the game to GitHub Pages with the workflow [.gith
 
 ## Assets and licenses
 
-All art and sound are drawn or synthesized in code. The game loads no image, sound or font files, and uses no assets from other games, so there are no third-party asset licenses.
+The game bundles a few free asset files in `public/assets/` (amendment 03). They ship with the build and the offline cache, so the game makes no request to other sites. The license of each file was checked on its source page.
 
-- **Scene** (Phaser shapes): stands with fans and scarves, floodlights, pitch and lines, goal frame and net, chart board, keeper, player with shirt number and name, ball designs (soccer, tennis and ping-pong balls, and the locker room designs).
+| Use | File | Asset | Author | License | Source |
+|-----|------|-------|--------|---------|--------|
+| Pitch grass | `grass004_512.jpg` | Grass004, 1K color map resized to 512 px | ambientCG | CC0 1.0 | [ambientcg.com/view?id=Grass004](https://ambientcg.com/view?id=Grass004) |
+| Classic soccer ball | `ball_rolling_grid.png` | Soccer ball animation sprites (8 by 8 rotation frames of 128 px) | Mustitz | CC0 1.0 | [opengameart.org](https://opengameart.org/content/soccer-ball-animation-sprites-and-3d-texture) |
+| Goal cheer | `cheer.mp3` | Crowd Cheer (freesound 397434), trimmed to 2.5 s with a fade | FoolBoyMedia | CC0 1.0 | [freesound.org/s/397434](https://freesound.org/s/397434) |
+| Soft "ohhh" | `ohh.mp3` | Crowd Sigh In Disappointment (freesound 764324), trimmed to 1.2 s | ShangusBurger | CC0 1.0 | [freesound.org/s/764324](https://freesound.org/s/764324) |
+| Clapping | `clap.mp3` | Audience Clapping 03h (freesound 606967), trimmed to 1.5 s | Department64 | CC0 1.0 | [freesound.org/s/606967](https://freesound.org/s/606967) |
+| Kick | `kick.mp3` | Soccer Ball Kick (freesound 555042) | bittermelonheart | CC0 1.0 | [freesound.org/s/555042](https://freesound.org/s/555042) |
+| Numbers and headings | `Fredoka.ttf` | Fredoka (variable TTF) | The Fredoka Project Authors | SIL Open Font License 1.1 (text in `public/assets/OFL.txt`) | [fonts.google.com/specimen/Fredoka](https://fonts.google.com/specimen/Fredoka) |
+
+Everything else is drawn or synthesized in code:
+
+- **Scene** (Phaser shapes): stands with fans and scarves, floodlights, night sky, chalk lines, goal frame and net, chart board, keeper, player with shirt number and name, the tennis and ping-pong balls, and the ball designs from the locker room other than the classic ball.
 - **Overlay** (HTML and CSS, inline SVG): buttons, hearts as balls, the shirt icon, the help chart, the number pad.
 - **App icon**: a hand-written SVG (`public/icons/icon.svg`, a goal on grass) with PNG copies at 192 and 512 pixels.
-- **Sounds** (Web Audio API, made while playing): kick, net, cheer, clapping, the soft "ohhh".
+- **Fallback sounds** (Web Audio API, made while playing): when a sound file cannot be loaded or decoded, a synthesized kick, cheer, clapping or "ohhh" plays instead.
 - **Speech**: the browser's own German voice (speechSynthesis), only with "Vorlesen" on.
-
-Better art or sound may come later in a separate change.
 
 The project setup and several modules are copied from [math-tank](https://github.com/iddocohen/math-tank) by the same author.

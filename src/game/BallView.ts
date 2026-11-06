@@ -1,7 +1,8 @@
 /**
  * The ball (FR-003, FR-008, FR-012). Its kind follows the chart size (`ballKind`): a soccer ball up to 10 rows, a
  * tennis ball up to 30, a ping-pong ball above. Its design is the one chosen in the locker room (FR-043); ballArt.ts
- * draws every design in every kind.
+ * gives the picture of every design in every kind. The classic soccer ball is a rotation sprite: it spins through its
+ * frames during the flight and rests on frame 0 (FR-058); drawn balls turn instead.
  *
  * - `fly(rect, onArrive)`: from the kick spot along an arc to the middle of `rect` (the `cellRect` of the typed number)
  *   in FLIGHT_MS, shrinking with distance to fit the square, with a shadow on the ground. Calls `onArrive` at the end.
@@ -17,7 +18,8 @@ import { center, type BallKind } from '../core/chart/layout';
 import type { BallDesign } from '../core/rewards/items';
 import { GOAL_FRAME, KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
-import { ballTexture } from './ballArt';
+import { ballPicture, type BallPicture } from './ballArt';
+import { spinFrame } from './ballSpin';
 import { BALL_IN_NET_DEPTH } from './GoalView';
 import { BALL_SIZE } from './textures';
 
@@ -37,6 +39,7 @@ export class BallView {
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private kind: BallKind;
   private design: BallDesign;
+  private picture: BallPicture;
   private tween: Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene, kind: BallKind, design: BallDesign) {
@@ -44,7 +47,8 @@ export class BallView {
     this.kind = kind;
     this.design = design;
     this.shadow = scene.add.ellipse(KICK_SPOT.x, KICK_SPOT.y, 100, 35, 0x000000, 0.25).setDepth(BALL_DEPTH - 1);
-    this.ball = scene.add.image(KICK_SPOT.x, KICK_SPOT.y, ballTexture(scene, design, kind)).setDepth(BALL_DEPTH);
+    this.picture = ballPicture(scene, design, kind);
+    this.ball = scene.add.image(KICK_SPOT.x, KICK_SPOT.y, this.picture.key, this.picture.sprite ? 0 : undefined).setDepth(BALL_DEPTH);
     this.reset();
   }
 
@@ -54,14 +58,20 @@ export class BallView {
     const newKind = kind !== this.kind;
     this.kind = kind;
     this.design = design;
-    this.ball.setTexture(ballTexture(this.scene, design, kind));
+    // Keep the ball's size along a flight when only its picture changes.
+    const scale = this.relativeScale();
+    this.picture = ballPicture(this.scene, design, kind);
+    this.ball.setTexture(this.picture.key, this.picture.sprite ? 0 : undefined);
+    this.setSize(scale);
     if (newKind) this.reset();
   }
 
   /** Stops any motion and puts the ball at the kick spot. */
   reset(): void {
     this.stop();
-    this.ball.setPosition(KICK_SPOT.x, KICK_SPOT.y).setScale(1).setAlpha(1).setRotation(0).setDepth(BALL_DEPTH).setVisible(true);
+    this.ball.setPosition(KICK_SPOT.x, KICK_SPOT.y).setAlpha(1).setRotation(0).setDepth(BALL_DEPTH).setVisible(true);
+    this.setSize(1);
+    if (this.picture.sprite) this.ball.setFrame(0);
     this.placeShadow(KICK_SPOT.x, KICK_SPOT.y, 1);
     this.shadow.setVisible(true);
   }
@@ -84,12 +94,18 @@ export class BallView {
         const x = x0 + (x1 - x0) * e;
         const ground = y0 + (y1 - y0) * e;
         const scale = 1 + (endScale - 1) * e;
-        this.ball.setPosition(x, ground - Math.sin(Math.PI * k) * ARC).setScale(scale).setRotation(k * 6);
+        this.ball.setPosition(x, ground - Math.sin(Math.PI * k) * ARC);
+        this.setSize(scale);
+        // The sprite spins through its frames; a drawn ball turns.
+        if (this.picture.sprite) this.ball.setFrame(spinFrame(k));
+        else this.ball.setRotation(k * 6);
         this.placeShadow(x, ground, scale);
       },
       onComplete: () => {
         this.tween = null;
-        this.ball.setPosition(x1, y1).setScale(endScale);
+        this.ball.setPosition(x1, y1);
+        this.setSize(endScale);
+        if (this.picture.sprite) this.ball.setFrame(spinFrame(1));
         this.shadow.setVisible(false);
         onArrive();
       },
@@ -118,7 +134,7 @@ export class BallView {
     this.stop();
     const x0 = this.ball.x;
     const y0 = this.ball.y;
-    const scale0 = this.ball.scale;
+    const scale0 = this.relativeScale();
     const x1 = x0 + (x0 < KICK_SPOT.x ? -40 : 40);
     const floor = GOAL_FRAME.y + GOAL_FRAME.height + 40;
     this.shadow.setVisible(true);
@@ -134,7 +150,8 @@ export class BallView {
         const y = y0 + (floor - y0) * fall * fall - hop;
         const x = x0 + (x1 - x0) * k;
         const scale = scale0 + (scale0 * 1.15 - scale0) * k;
-        this.ball.setPosition(x, y).setScale(scale).setAlpha(k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1);
+        this.ball.setPosition(x, y).setAlpha(k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1);
+        this.setSize(scale);
         this.placeShadow(x, floor, scale);
         this.shadow.setAlpha(this.ball.alpha);
       },
@@ -171,6 +188,16 @@ export class BallView {
   stop(): void {
     this.tween?.stop();
     this.tween = null;
+  }
+
+  /** Scales the ball to `scale` times its BALL_SIZE (1 at the kick spot). */
+  private setSize(scale: number): void {
+    this.ball.setScale(scale * this.picture.scale);
+  }
+
+  /** The ball's scale as a part of its BALL_SIZE. */
+  private relativeScale(): number {
+    return this.ball.scale / this.picture.scale;
   }
 
   private placeShadow(x: number, groundY: number, scale: number): void {

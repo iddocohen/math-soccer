@@ -7,6 +7,7 @@
 import Phaser from 'phaser';
 import { KICK_SPOT } from '../core/match/world';
 import type { Look } from '../core/rewards/lockerRoom';
+import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 import { COLOR, css } from './palette';
 
 export const PLAYER_DEPTH = 6;
@@ -43,10 +44,10 @@ export class PlayerView {
 
     this.shirt = scene.add.graphics();
     this.number = scene.add
-      .text(0, -72 - SHIRT.height / 2 + 4, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '38px', color: css(COLOR.ink) })
+      .text(0, -72 - SHIRT.height / 2 + 4, '', { fontFamily: GAME_FONT, fontStyle: String(GAME_FONT_WEIGHT), fontSize: '38px', color: css(COLOR.ink) })
       .setOrigin(0.5, 0.5);
     this.name = scene.add
-      .text(0, -72 - SHIRT.height + 14, '', { fontFamily: 'system-ui, sans-serif', fontStyle: '800', fontSize: '13px', color: css(COLOR.ink) })
+      .text(0, -72 - SHIRT.height + 14, '', { fontFamily: GAME_FONT, fontStyle: String(GAME_FONT_WEIGHT), fontSize: '13px', color: css(COLOR.ink) })
       .setOrigin(0.5, 0.5);
 
     const head = scene.add.graphics();

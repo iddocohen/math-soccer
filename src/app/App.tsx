@@ -42,6 +42,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
+import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { MatchController, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
@@ -80,8 +81,10 @@ type ParentView = 'closed' | 'menu' | 'settings' | 'progress';
 /** The transfer dialog while the code is read, then ready (with the decoded save), invalid or failed. */
 type Transfer = { kind: 'reading' } | (TransferDialogState & { data?: SaveData });
 
-function loadGame(): Promise<typeof import('../game/createGame')> {
-  return import('../game/createGame');
+/** Loads the game chunk and waits for Fredoka, so the board is drawn with it (FR-060). */
+async function loadGame(): Promise<typeof import('../game/createGame')> {
+  const [game] = await Promise.all([import('../game/createGame'), fontReady()]);
+  return game;
 }
 
 /**
@@ -165,7 +168,7 @@ function createApp() {
     // One record per finished target (T043, FR-037), with the settings the round uses (FR-052).
     onAttempt: (record) => saves.report(persistence.recordAttempt(record, controller.getRoundSettings())),
   });
-  const sfx = createSfx({ sound: () => settings().sound });
+  const sfx = createSfx({ sound: () => settings().sound, clips: (name) => assetUrl(CLIP_FILES[name]) });
   const speaker = createSpeaker();
   // A round stored before a refresh continues (T029); one that no longer fits the settings is discarded (FR-036a).
   const restored = controller.restore();

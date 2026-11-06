@@ -19,6 +19,8 @@
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
+ * - preload() loads the bundled grass texture and the classic ball's rotation sprite (amendment 03, FR-057, FR-058).
+ *   A file that fails to load leaves the drawn pitch or the drawn ball in its place.
  */
 import Phaser from 'phaser';
 import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
@@ -35,6 +37,8 @@ import { COLOR, css } from './palette';
 import { PlayerView } from './PlayerView';
 import { StandsView } from './StandsView';
 import { ensureTextures } from './textures';
+import { ASSET, assetUrl } from '../assets';
+import { BALL_SPRITE, SPRITE_FRAME_SIZE } from './ballArt';
 
 /** How long the goal celebration lasts before the next target (game time). */
 export const CELEBRATION_MS = 1400;
@@ -61,6 +65,9 @@ export interface MatchSceneOptions {
 }
 
 const BACKDROP_TEXTURE = 'stadium';
+const GRASS_TEXTURE = 'grass';
+/** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
+const GRASS_TILE_SCALE = 0.5;
 
 export class MatchScene extends Phaser.Scene {
   private readonly controller: MatchController;
@@ -85,6 +92,13 @@ export class MatchScene extends Phaser.Scene {
     super('match');
     this.controller = controller;
     this.options = options;
+  }
+
+  preload(): void {
+    if (!this.textures.exists(GRASS_TEXTURE)) this.load.image(GRASS_TEXTURE, assetUrl(ASSET.grass));
+    if (!this.textures.exists(BALL_SPRITE)) {
+      this.load.spritesheet(BALL_SPRITE, assetUrl(ASSET.ballSprite), { frameWidth: SPRITE_FRAME_SIZE, frameHeight: SPRITE_FRAME_SIZE });
+    }
   }
 
   create(): void {
@@ -244,7 +258,8 @@ export class MatchScene extends Phaser.Scene {
     if (!this.textures.exists(BACKDROP_TEXTURE)) {
       const texture = this.textures.createCanvas(BACKDROP_TEXTURE, WORLD_WIDTH, WORLD_HEIGHT);
       if (texture) {
-        paintStadium(texture.getContext());
+        const grass = this.textures.exists(GRASS_TEXTURE) ? (this.textures.get(GRASS_TEXTURE).getSourceImage() as CanvasImageSource) : null;
+        paintStadium(texture.getContext(), grass);
         texture.refresh();
       }
     }
@@ -252,8 +267,11 @@ export class MatchScene extends Phaser.Scene {
   }
 }
 
-/** Paints the stadium after the prototype (specs/001-math-soccer/prototype/index.html), scaled to the world. */
-function paintStadium(g: CanvasRenderingContext2D): void {
+/**
+ * Paints the stadium after the prototype (specs/001-math-soccer/prototype/index.html), scaled to the world. The pitch is
+ * the tiled grass texture, darkened toward the evening sky, or a drawn green without it (FR-057).
+ */
+function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource | null): void {
   const W = WORLD_WIDTH;
   const H = WORLD_HEIGHT;
   const top = STANDS_BOTTOM + 30;
@@ -277,11 +295,24 @@ function paintStadium(g: CanvasRenderingContext2D): void {
     g.fillStyle = row % 2 ? '#22384c' : '#1d3044';
     g.fillRect(0, 60 + row * 48 + 14, W, 44);
   }
-  const grass = g.createLinearGradient(0, top, 0, H);
-  grass.addColorStop(0, '#24612f');
-  grass.addColorStop(1, '#3a8a46');
-  g.fillStyle = grass;
-  g.fillRect(0, top, W, H - top);
+  const pattern = grassImage ? g.createPattern(grassImage, 'repeat') : null;
+  if (pattern) {
+    pattern.setTransform(new DOMMatrix().scale(GRASS_TILE_SCALE));
+    g.fillStyle = pattern;
+    g.fillRect(0, top, W, H - top);
+    // Darker far away under the evening sky, lighter near the player under the floodlights.
+    const dusk = g.createLinearGradient(0, top, 0, H);
+    dusk.addColorStop(0, 'rgb(6 20 14 / 62%)');
+    dusk.addColorStop(1, 'rgb(6 20 14 / 38%)');
+    g.fillStyle = dusk;
+    g.fillRect(0, top, W, H - top);
+  } else {
+    const grass = g.createLinearGradient(0, top, 0, H);
+    grass.addColorStop(0, '#24612f');
+    grass.addColorStop(1, '#3a8a46');
+    g.fillStyle = grass;
+    g.fillRect(0, top, W, H - top);
+  }
   const stripe = (H - top) / 6;
   for (let i = 0; i < 6; i++) {
     g.fillStyle = i % 2 ? 'rgb(255 255 255 / 3%)' : 'rgb(0 0 0 / 4%)';

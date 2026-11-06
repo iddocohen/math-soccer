@@ -32,7 +32,8 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['icons/icon.svg'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        // The bundled assets (amendment 03): grass, ball sprite, sound clips and the font are precached for offline play.
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,mp3,ttf,webmanifest}'],
         // A new worker removes caches of older Workbox versions, and the precache drops the files of the old build
         // when it activates; it takes control of open pages at once after activation. The worker still waits until
         // the app applies it on the start screen (src/app/swUpdate.ts).

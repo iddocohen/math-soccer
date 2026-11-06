@@ -1,8 +1,13 @@
 // Adapted from math-tank src/audio/sfx.ts; the sounds follow specs/001-math-soccer/prototype/index.html.
 /**
- * Synthesized sounds (research R10, FR-021, FR-022): a kick, a cheer (two band-passed noise swells), clapping (short
- * noise bursts) and a soft "ohhh" (three low triangle tones gliding down, then clapping). Made with the Web Audio API
- * at runtime, so there are no audio files.
+ * The game's sounds (research R10, FR-021, FR-022, FR-059): a kick, a cheer, clapping and a soft "ohhh" followed by
+ * clapping.
+ *
+ * - Recorded clips (amendment 03): with `clips`, each sound is fetched and decoded once, right after the first key or
+ *   tap unlocks audio, and then played from memory. A clip that is missing or cannot be decoded is replaced by the
+ *   synthesized sound below, and so is every clip until decoding has finished.
+ * - Synthesized sounds, made with the Web Audio API at runtime: a kick (a low triangle glide), a cheer (two band-passed
+ *   noise swells), clapping (short noise bursts) and the "ohhh" (three low triangle tones gliding down).
  *
  * - `kick` plays while `sound.effects` is on.
  * - `cheer`, `clap` and `ohh` are crowd sounds and play while `sound.crowd` is on.
@@ -15,12 +20,28 @@
 /** The part of AudioContext this module uses; tests pass a stand-in. */
 export type AudioContextLike = Pick<
   AudioContext,
-  'state' | 'currentTime' | 'sampleRate' | 'destination' | 'resume' | 'createGain' | 'createOscillator' | 'createBuffer' | 'createBufferSource' | 'createBiquadFilter'
+  | 'state'
+  | 'currentTime'
+  | 'sampleRate'
+  | 'destination'
+  | 'resume'
+  | 'createGain'
+  | 'createOscillator'
+  | 'createBuffer'
+  | 'createBufferSource'
+  | 'createBiquadFilter'
+  | 'decodeAudioData'
 >;
 
+/** The recorded clips, by the sound they play (src/assets.ts). */
+export type ClipName = 'kick' | 'cheer' | 'clap' | 'ohh';
+
 export const MAX_GAIN = 0.35;
+const CLIP_NAMES: readonly ClipName[] = ['kick', 'cheer', 'clap', 'ohh'];
 /** Length of the "ohhh" tones; the clapping starts after them. */
 export const OHH_SECONDS = 0.9;
+/** With the recorded "ohhh" (about 1.2 s), the recorded clapping starts this long after it, while the "ohhh" fades. */
+export const OHH_CLIP_SECONDS = 0.9;
 const SILENT = 0.0001;
 
 /** The sound settings this module reads (settings.sound). */
@@ -35,6 +56,10 @@ export interface SfxOptions {
   sound: () => SoundSwitches;
   /** Defaults to `new AudioContext()`. */
   createContext?: () => AudioContextLike;
+  /** The URL of each recorded clip; without it every sound is synthesized. */
+  clips?: (name: ClipName) => string;
+  /** Defaults to `fetch`; tests pass a stand-in. */
+  fetchClip?: (url: string) => Promise<ArrayBuffer>;
 }
 
 export interface Sfx {
@@ -43,7 +68,7 @@ export interface Sfx {
   clap(): void;
   /** The soft "ohhh", then clapping; clapping alone when `sound.ohh` is off. */
   ohh(): void;
-  /** Creates and resumes the audio context; call from a user gesture. */
+  /** Creates and resumes the audio context, then decodes the clips once; call from a user gesture. */
   unlock(): Promise<void>;
   /** Unlocks on the first pointer or key press on `target`; returns a function that removes the listeners. */
   installUnlock(target?: EventTarget): () => void;
@@ -53,6 +78,46 @@ export function createSfx(options: SfxOptions): Sfx {
   const make = options.createContext ?? (() => new AudioContext());
   let ctx: AudioContextLike | null = null;
   let noise: AudioBuffer | null = null;
+  const decoded = new Map<ClipName, AudioBuffer>();
+  let loading: Promise<void> | null = null;
+  const fetchClip =
+    options.fetchClip ??
+    (async (url: string) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`sfx: ${url} answered ${response.status}`);
+      return response.arrayBuffer();
+    });
+
+  /** Fetches and decodes every clip once; a clip that fails stays out of `decoded`, so its synthesized sound plays. */
+  const loadClips = (c: AudioContextLike): Promise<void> => {
+    const url = options.clips;
+    if (!url) return Promise.resolve();
+    loading ??= Promise.all(
+      CLIP_NAMES.map(async (name) => {
+        try {
+          decoded.set(name, await c.decodeAudioData(await fetchClip(url(name))));
+        } catch {
+          // Missing or broken file: the synthesized sound stays.
+        }
+      }),
+    ).then(() => undefined);
+    return loading;
+  };
+
+  /** Plays a decoded clip at MAX_GAIN after `delay` seconds; false when the clip is not decoded. */
+  const playClip = (c: AudioContextLike, name: ClipName, delay = 0): boolean => {
+    const buffer = decoded.get(name);
+    if (!buffer) return false;
+    const t = c.currentTime + delay;
+    const g = c.createGain();
+    g.gain.setValueAtTime(MAX_GAIN, t);
+    g.connect(c.destination);
+    const src = c.createBufferSource();
+    src.buffer = buffer;
+    src.connect(g);
+    src.start(t);
+    return true;
+  };
 
   const running = (): AudioContextLike | null => (ctx && ctx.state === 'running' ? ctx : null);
 
@@ -120,33 +185,43 @@ export function createSfx(options: SfxOptions): Sfx {
     } catch {
       // No Web Audio here: the game stays silent.
       ctx = null;
+      return;
     }
+    await loadClips(ctx);
+  };
+
+  const clapSound = (c: AudioContextLike, delay = 0) => {
+    if (!playClip(c, 'clap', delay)) clapping(c, 5, 0.12, 0.2, delay);
   };
 
   return {
     kick() {
       const c = options.sound().effects ? running() : null;
-      if (c) glide(c, 160, 60, 0.12, 0.3);
+      if (c && !playClip(c, 'kick')) glide(c, 160, 60, 0.12, 0.3);
     },
     cheer() {
       const c = crowd();
-      if (!c) return;
+      if (!c || playClip(c, 'cheer')) return;
       noiseBurst(c, 2.2, 1200, 0.3);
       noiseBurst(c, 2.0, 2600, 0.15);
     },
     clap() {
       const c = crowd();
-      if (c) clapping(c, 6, 0.11, 0.25);
+      if (c && !playClip(c, 'clap')) clapping(c, 6, 0.11, 0.25);
     },
     ohh() {
       const c = crowd();
       if (!c) return;
       if (!options.sound().ohh) {
-        clapping(c, 5, 0.12, 0.2);
+        clapSound(c);
+        return;
+      }
+      if (playClip(c, 'ohh')) {
+        clapSound(c, OHH_CLIP_SECONDS);
         return;
       }
       for (const f of [220, 262, 330]) glide(c, f, f * 0.8, OHH_SECONDS, 0.06);
-      clapping(c, 5, 0.12, 0.2, OHH_SECONDS);
+      clapSound(c, OHH_SECONDS);
     },
     unlock,
     installUnlock(target: EventTarget = globalThis) {

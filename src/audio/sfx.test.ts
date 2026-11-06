@@ -1,10 +1,10 @@
 // Adapted from math-tank src/audio/sfx.test.ts.
 import { describe, expect, it } from 'vitest';
-import { createSfx, MAX_GAIN, OHH_SECONDS, type AudioContextLike, type SoundSwitches } from './sfx';
+import { createSfx, MAX_GAIN, OHH_CLIP_SECONDS, OHH_SECONDS, type AudioContextLike, type ClipName, type SoundSwitches } from './sfx';
 
 /** Minimal Web Audio stand-in that records started sources and gain values. */
-function fakeContext() {
-  const started: Array<{ kind: 'osc' | 'noise'; at: number; type?: string }> = [];
+function fakeContext(decode: (data: ArrayBuffer) => Promise<AudioBuffer> = () => Promise.reject(new Error('no decoder'))) {
+  const started: Array<{ kind: 'osc' | 'noise'; at: number; type?: string; buffer?: unknown }> = [];
   const gains: number[] = [];
   let state: AudioContextState = 'suspended';
   const param = (log: number[]) => ({
@@ -39,7 +39,11 @@ function fakeContext() {
       return o;
     },
     createBuffer: (_c: number, length: number) => ({ getChannelData: () => new Float32Array(length) }),
-    createBufferSource: () => ({ ...node(), buffer: null, start: (at: number) => started.push({ kind: 'noise', at }), stop() {} }),
+    createBufferSource: () => {
+      const src = { ...node(), buffer: null as unknown, start: (at: number) => started.push({ kind: 'noise', at, buffer: src.buffer }), stop() {} };
+      return src;
+    },
+    decodeAudioData: decode,
     createBiquadFilter: () => ({ ...node(), type: 'lowpass', frequency: param([]), Q: param([]) }),
   };
   return { ctx: ctx as unknown as AudioContextLike, started, gains };
@@ -145,5 +149,105 @@ describe('sfx', () => {
     });
     await sfx.unlock();
     expect(() => sfx.kick()).not.toThrow();
+  });
+
+  describe('recorded clips', () => {
+    /** A decoded clip stands in as an object that names it; the fetch returns the clip's name as bytes. */
+    const clipOf = (name: ClipName) => ({ clip: name }) as unknown as AudioBuffer;
+    const nameOf = (data: ArrayBuffer) => new TextDecoder().decode(data) as ClipName;
+
+    function setupClips(sound: Partial<SoundSwitches> = {}, broken: ClipName[] = []) {
+      const f = fakeContext(async (data) => {
+        const name = nameOf(data);
+        if (broken.includes(name)) throw new Error(`cannot decode ${name}`);
+        return clipOf(name);
+      });
+      const switches: SoundSwitches = { effects: true, crowd: true, ohh: true, ...sound };
+      const fetched: string[] = [];
+      const sfx = createSfx({
+        sound: () => switches,
+        createContext: () => f.ctx,
+        clips: (name) => `/assets/${name}.mp3`,
+        fetchClip: async (url) => {
+          fetched.push(url);
+          const name = url.slice('/assets/'.length, -'.mp3'.length);
+          return new TextEncoder().encode(name).buffer as ArrayBuffer;
+        },
+      });
+      const clips = () => f.started.flatMap((s) => (s.buffer && typeof s.buffer === 'object' && 'clip' in s.buffer ? [{ clip: (s.buffer as { clip: ClipName }).clip, at: s.at }] : []));
+      return { f, sfx, switches, fetched, clips };
+    }
+
+    it('fetches and decodes every clip once, after the first unlock', async () => {
+      const { sfx, fetched } = setupClips();
+      expect(fetched).toEqual([]);
+      await sfx.unlock();
+      await sfx.unlock();
+      expect([...fetched].sort()).toEqual(['/assets/cheer.mp3', '/assets/clap.mp3', '/assets/kick.mp3', '/assets/ohh.mp3']);
+    });
+
+    it('plays the recorded kick, cheer and clapping instead of the synthesized sounds', async () => {
+      const { f, sfx, clips } = setupClips();
+      await sfx.unlock();
+      sfx.kick();
+      sfx.cheer();
+      sfx.clap();
+      expect(clips().map((c) => c.clip)).toEqual(['kick', 'cheer', 'clap']);
+      expect(f.started.filter((s) => s.kind === 'osc')).toEqual([]);
+      expect(f.started).toHaveLength(3);
+      expect(Math.max(...f.gains)).toBeLessThanOrEqual(MAX_GAIN);
+    });
+
+    it('plays the recorded "ohhh", then the recorded clapping; with sound.ohh off the clapping alone', async () => {
+      const on = setupClips();
+      await on.sfx.unlock();
+      on.sfx.ohh();
+      expect(on.clips()).toEqual([
+        { clip: 'ohh', at: 0 },
+        { clip: 'clap', at: OHH_CLIP_SECONDS },
+      ]);
+      const off = setupClips({ ohh: false });
+      await off.sfx.unlock();
+      off.sfx.ohh();
+      expect(off.clips()).toEqual([{ clip: 'clap', at: 0 }]);
+    });
+
+    it('the switches still gate every clip', async () => {
+      const { sfx, switches, clips } = setupClips({ effects: false, crowd: false });
+      await sfx.unlock();
+      sfx.kick();
+      sfx.cheer();
+      sfx.clap();
+      sfx.ohh();
+      expect(clips()).toEqual([]);
+      switches.effects = true;
+      sfx.kick();
+      expect(clips().map((c) => c.clip)).toEqual(['kick']);
+    });
+
+    it('falls back to the synthesized sound for a clip that fails to decode', async () => {
+      const { f, sfx, clips } = setupClips({}, ['kick', 'ohh']);
+      await sfx.unlock();
+      sfx.kick();
+      expect(f.started).toEqual([{ kind: 'osc', at: 0, type: 'triangle' }]);
+      sfx.ohh();
+      // The synthesized "ohhh" tones, then the recorded clapping after them.
+      expect(f.started.filter((s) => s.kind === 'osc')).toHaveLength(1 + 3);
+      expect(clips()).toEqual([{ clip: 'clap', at: OHH_SECONDS }]);
+    });
+
+    it('falls back to the synthesized sounds when the clips cannot be fetched', async () => {
+      const f = fakeContext();
+      const sfx = createSfx({
+        sound: () => ({ effects: true, crowd: true, ohh: true }),
+        createContext: () => f.ctx,
+        clips: (name) => `/assets/${name}.mp3`,
+        fetchClip: () => Promise.reject(new Error('offline')),
+      });
+      await sfx.unlock();
+      sfx.cheer();
+      sfx.clap();
+      expect(f.started.filter((s) => s.kind === 'noise')).toHaveLength(2 + 6);
+    });
   });
 });

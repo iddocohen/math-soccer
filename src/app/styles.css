@@ -1,4 +1,14 @@
 /* Base styles adapted from math-tank src/app/styles.css; colors from the prototype (an evening stadium). */
+
+/* Fredoka for numbers and headings (FR-060), bundled in public/assets; Vite puts the base path in front of the URL. */
+@font-face {
+  font-family: Fredoka;
+  src: url('/assets/Fredoka.ttf') format('truetype');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --night: #0f1d2b;
   --pitch: #2f7a3c;
@@ -7,7 +17,7 @@
   --miss: #d9733b;
   --ink: #12202c;
   --muted: #9fb3c2;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: Fredoka, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--chalk);
   background: var(--night);
   color-scheme: dark;

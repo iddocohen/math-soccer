@@ -21,6 +21,7 @@ import { CHART_RECT, GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { clamp } from '../core/util';
 import { boardKey, buildBoard, type Arrow, type BoardInput, type Square } from './board';
+import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 import { COLOR, css } from './palette';
 
 export const NET_DEPTH = 2;
@@ -97,7 +98,7 @@ export class GoalView {
     ctx.clearRect(gx, gy, width, height);
     for (const s of board.squares) this.drawSquare(ctx, s);
     // Labels after all squares, so a badge larger than its square is not covered by the next square.
-    ctx.font = `800 ${board.fontSize}px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
+    ctx.font = `${GAME_FONT_WEIGHT} ${board.fontSize}px ${GAME_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const s of board.squares) this.drawLabel(ctx, s, board.fontSize, board.numbersFit);

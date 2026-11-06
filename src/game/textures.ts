@@ -1,6 +1,7 @@
 // Structure adapted from math-tank src/game/textures.ts; the shapes follow specs/001-math-soccer/prototype/index.html.
 /**
- * Generated textures (research R2, FR-048): every shape is drawn in code, so there are no image files. Shirts, scarves
+ * Generated textures (research R2, FR-048): these shapes are drawn in code (the grass and the classic soccer ball are
+ * image files since amendment 03, loaded by MatchScene; the drawn soccer ball stays as their fallback). Shirts, scarves
  * and the keeper's kit are drawn white and tinted by the views, so the locker room can recolor them at no cost.
  */
 import Phaser from 'phaser';

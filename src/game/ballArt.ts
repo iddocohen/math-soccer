@@ -1,20 +1,46 @@
 /**
- * The ball designs of the locker room (FR-043), drawn in code (FR-048). Every design comes in the three ball kinds:
- * the kind sets the size (BALL_SIZE), the design sets the colors and the pattern. The classic design keeps the look of
- * each kind: a black and white soccer ball, a yellow tennis ball, an orange ping-pong ball (textures.ts).
+ * The ball designs of the locker room (FR-043). Every design comes in the three ball kinds: the kind sets the size
+ * (BALL_SIZE), the design sets the colors and the pattern.
  *
- * `ballTexture` is the only way the scene gets a ball picture, so a recorded sprite can replace a drawn design here
- * later without changes to BallView.
+ * - The classic soccer ball is the rotation sprite (amendment 03, FR-058): 64 frames of 128 px in an 8 by 8 grid
+ *   (public/assets/ball_rolling_grid.png, loaded by MatchScene as BALL_SPRITE). BallView advances the frames with the
+ *   flight (`spinFrame` in ballSpin.ts) and shows frame 0 at rest. When the sprite did not load, the drawn ball from textures.ts shows.
+ * - The classic tennis and ping-pong balls (textures.ts) and every other design are drawn in code (FR-048).
+ *
+ * `ballPicture` is the only way the scene gets a ball picture.
  */
 import Phaser from 'phaser';
 import type { BallKind } from '../core/chart/layout';
 import { BALL_COLORS, type BallDesign } from '../core/rewards/items';
 import { BALL_SIZE, TEX } from './textures';
 
+
 const WHITE = 0xffffff;
 
-/** The texture key of a ball design in a ball kind; the texture is drawn the first time it is asked for. */
-export function ballTexture(scene: Phaser.Scene, design: BallDesign, kind: BallKind): string {
+/** The texture key of the classic ball's rotation sprite. */
+export const BALL_SPRITE = 'ball-sprite';
+/** The size of one sprite frame in pixels. */
+export const SPRITE_FRAME_SIZE = 128;
+/** The ball's diameter inside a sprite frame, in pixels (the frame has a transparent border). */
+const SPRITE_BALL_DIAMETER = 88;
+
+/** What BallView shows: a texture, whether it is the rotation sprite, and the scale that gives the ball its BALL_SIZE. */
+export interface BallPicture {
+  key: string;
+  sprite: boolean;
+  scale: number;
+}
+
+/** The picture of a ball design in a ball kind: the sprite for the classic soccer ball when it loaded, else a drawing. */
+export function ballPicture(scene: Phaser.Scene, design: BallDesign, kind: BallKind): BallPicture {
+  if (design === 'classic' && kind === 'soccer' && scene.textures.exists(BALL_SPRITE)) {
+    return { key: BALL_SPRITE, sprite: true, scale: BALL_SIZE.soccer / SPRITE_BALL_DIAMETER };
+  }
+  return { key: ballTexture(scene, design, kind), sprite: false, scale: 1 };
+}
+
+/** The texture key of a drawn ball design in a ball kind; the texture is drawn the first time it is asked for. */
+function ballTexture(scene: Phaser.Scene, design: BallDesign, kind: BallKind): string {
   if (design === 'classic') return TEX.ball[kind];
   const key = `ball-${design}-${kind}`;
   if (scene.textures.exists(key)) return key;
