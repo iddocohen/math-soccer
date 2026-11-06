@@ -10,7 +10,6 @@ export const COLOR = {
   miss: 0xd9733b,
   ink: 0x12202c,
   net: 0x0e1a14,
-  board: 0xeef1e8,
   skin: 0xe9c4a0,
   hair: 0x5b3b26,
 } as const;

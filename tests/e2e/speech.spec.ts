@@ -47,19 +47,19 @@ function spoken(page: Page): Promise<string[]> {
 
 test('with "Vorlesen" on, starting speaks a greeting and the task, and the speaker icon repeats it', async ({ page }) => {
   await prepare(page, true);
-  await page.goto('/?mode=holes&seed=4');
+  await page.goto('/?start=play&seed=4');
   const match = await startRound(page);
   const target = await targetNumber(match);
-  await expect.poll(() => spoken(page)).toEqual([text.start.greeting, text.match.task.holes]);
+  await expect.poll(() => spoken(page)).toEqual([text.start.greeting, text.match.task]);
   expect((await spoken(page)).join(' ')).not.toContain(String(target));
 
   await page.getByTestId('speaker-button').click();
-  await expect.poll(() => spoken(page)).toEqual([text.start.greeting, text.match.task.holes, text.match.task.holes]);
+  await expect.poll(() => spoken(page)).toEqual([text.start.greeting, text.match.task, text.match.task]);
 });
 
 test('"Vorlesen" is off by default: nothing is spoken and there is no speaker icon', async ({ page }) => {
   await prepare(page, null);
-  await page.goto('/?mode=holes&seed=4');
+  await page.goto('/?start=play&seed=4');
   await startRound(page);
   await expect(page.getByTestId('speaker-button')).toHaveCount(0);
   expect(await spoken(page)).toEqual([]);

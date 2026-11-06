@@ -41,13 +41,13 @@ describe('child texts (FR-023)', () => {
 
 describe('texts from contracts/screens.md', () => {
   it('start screen and match', () => {
-    expect(de.start.modes).toEqual({ holes: 'Löcher', lines: 'Reihen', keeper: 'Torwart' });
+    expect(de.start.play).toBe('Spielen');
+    expect(de.start.timeChallenge).toBe('Zeit-Challenge');
     expect(de.start.lockerRoom).toBe('Kabine');
   });
 
   it('feedback lines', () => {
     expect(de.feedback.goal).toBe('TOR!');
-    expect(de.feedback.correctSquare).toBe('Richtig!');
     expect(de.feedback.miss(56)).toBe('Hier ist 56. Nochmal!');
     expect(de.feedback.outOfRange(1, 100)).toBe('Zahlen von 1 bis 100');
     expect(de.feedback.heartLost).toBe("Weiter geht's!");
@@ -71,8 +71,11 @@ describe('texts from contracts/screens.md', () => {
     expect(Object.values(de.settings.groups)).toEqual([
       'Zahlenraum',
       'Hinweise',
+      'Hinweis-Muster',
       'Richtungen',
+      'Formen',
       'Runde',
+      'Zeit-Challenge',
       'Schwierigkeit',
       'Ton',
       'Bedienung',
@@ -81,6 +84,9 @@ describe('texts from contracts/screens.md', () => {
     ]);
     expect([de.settings.data.export, de.settings.data.import]).toEqual(['Daten sichern', 'Daten laden']);
     expect(de.progressPage.columns.mastered).toBe('gemeistert');
+    expect(de.progressPage.columns.earlier).toBe('früher');
+    expect(Object.values(de.settings.options.patterns)).toEqual(['Nachbarn', 'Mitte', 'Reihe', 'Formen']);
+    expect(Object.values(de.settings.options.shapes)).toEqual(['Stab', 'Quadrat', 'T', 'L', 'J', 'S', 'Z']);
     expect(Object.values(de.lockerRoom.groups)).toEqual(['Ball', 'Trikot', 'Nummer und Name', 'Fans']);
     expect(de.lockerRoom.stillNeeded(5)).toBe('noch 5 Sterne');
   });

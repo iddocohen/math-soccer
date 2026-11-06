@@ -13,7 +13,7 @@ const text = t();
 
 test('Escape and the pause button pause the round; Escape and the resume button go on', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), showClock: true } });
-  await page.goto('/?mode=holes&seed=2');
+  await page.goto('/?start=play&seed=2');
   await startRound(page);
   const clock = page.getByTestId('clock');
   const message = page.getByTestId('message');

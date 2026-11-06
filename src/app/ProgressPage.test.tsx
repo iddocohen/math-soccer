@@ -1,6 +1,7 @@
 /**
- * Progress page (T045, FR-039) and the persistence it reads (T043): a row per direction and mode, personal bests, and a
- * reset that asks first and keeps the stars and the bests.
+ * Progress page (T045, FR-039) and the persistence it reads (T043): a row per direction with a "früher" total for the
+ * removed modes (FR-070), personal bests with the old ones under "Früher", and a reset that asks first and keeps the
+ * stars and the bests.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,7 +18,7 @@ const P = t().progressPage;
 function attempt(extra: Partial<AttemptRecord> = {}): AttemptRecord {
   return {
     at: '2026-11-06T12:00:00.000Z',
-    mode: 'holes',
+    mode: 'keeper',
     min: 1,
     max: 100,
     target: 46,
@@ -38,12 +39,16 @@ function setup() {
   const kv = memoryKeyValue();
   saveLockerRoom(kv, { ...emptyLockerRoom(), stars: 12 });
   const records = emptyRecords();
+  records.bests['1-100|keeper|untilHearts'] = { goals: 6, timeMs: 125_000, at: '2026-11-06T12:00:00.000Z' };
   records.bests['1-100|holes|untilHearts'] = { goals: 8, timeMs: 340_000, at: '2026-11-06T12:00:00.000Z' };
   saveRecords(kv, records);
   const persistence = createPersistence(kv);
   persistence.recordAttempt(attempt(), defaultSettings());
   persistence.recordAttempt(attempt({ helpStep: 1 }), defaultSettings());
-  persistence.recordAttempt(attempt({ mode: 'keeper', directions: ['right'] }), defaultSettings());
+  // Attempts from before amendment 05 (FR-070).
+  persistence.recordAttempt(attempt({ mode: 'holes' }), defaultSettings());
+  persistence.recordAttempt(attempt({ mode: 'lines' }), defaultSettings());
+  persistence.recordAttempt(attempt({ mode: 'lines', directions: ['right'] }), defaultSettings());
   render(<ProgressPage persistence={persistence} onClose={() => {}} />);
   return { kv };
 }
@@ -51,22 +56,27 @@ function setup() {
 afterEach(cleanup);
 
 describe('ProgressPage (T045)', () => {
-  it('shows attempts, alone, with help, step and mastery per direction and mode', () => {
+  it('shows attempts, alone, with help, step and mastery per direction, and the earlier modes as one "früher" total', () => {
     setup();
     const table = screen.getByTestId('progress-table');
     const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(headers).toEqual(['Richtung', 'Spielart', 'Versuche', 'allein', 'mit Hilfe', 'Stufe', 'gemeistert']);
-    const down = table.querySelector('tr[data-mode="holes"][data-direction="down"]')!;
+    expect(headers).toEqual(['Richtung', 'Versuche', 'allein', 'mit Hilfe', 'Stufe', 'gemeistert', 'früher']);
+    const down = table.querySelector('tr[data-direction="down"]')!;
     const cells = [...down.children].map((c) => c.textContent);
-    expect(cells.slice(0, 5)).toEqual([P.directions.down, 'Löcher', '2', '1', '1']);
-    expect(cells[5]).toContain(P.stepOf(1, 8));
-    expect(cells[6]).toBe(P.masteredNo);
-    expect(table.querySelector('tr[data-mode="keeper"][data-direction="right"]')).not.toBeNull();
+    expect(cells.slice(0, 4)).toEqual([P.directions.down, '2', '1', '1']);
+    expect(cells[4]).toContain(P.stepOf(1, 8));
+    expect(cells[5]).toBe(P.masteredNo);
+    expect(cells[6]).toBe('2');
+    // A direction played only in the removed modes still has a row, with no goalkeeper attempts.
+    const right = [...table.querySelector('tr[data-direction="right"]')!.children].map((c) => c.textContent);
+    expect([right[1], right[6]]).toEqual(['0', '1']);
   });
 
-  it('lists the personal bests', () => {
+  it('lists the personal bests, and the bests of the removed modes under "Früher"', () => {
     setup();
-    expect(screen.getByTestId('progress-bests').textContent).toContain('1 bis 100, Löcher, bis die Bälle weg sind: 8 Tore in 5:40');
+    expect(screen.getByTestId('progress-bests').textContent).toBe('1 bis 100, bis die Bälle weg sind: 6 Tore in 2:05');
+    expect(screen.getByText(P.earlierBests)).toBeTruthy();
+    expect(screen.getByTestId('progress-earlier-bests').textContent).toBe('1 bis 100, Löcher, bis die Bälle weg sind: 8 Tore in 5:40');
   });
 
   it('asks before resetting, then empties the progress and keeps the stars and the bests', () => {
@@ -74,7 +84,7 @@ describe('ProgressPage (T045)', () => {
     fireEvent.click(screen.getByRole('button', { name: P.reset }));
     expect(screen.getByRole('alertdialog').textContent).toContain(P.resetConfirm);
     fireEvent.click(screen.getByRole('button', { name: P.resetNo }));
-    expect(loadProgress(kv).value.attempts).toHaveLength(3);
+    expect(loadProgress(kv).value.attempts).toHaveLength(5);
 
     fireEvent.click(screen.getByRole('button', { name: P.reset }));
     fireEvent.click(screen.getByRole('button', { name: P.resetYes }));

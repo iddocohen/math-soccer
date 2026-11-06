@@ -4,7 +4,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { isRecord } from '../util';
 import type { KeyValue } from './keyValue';
-import { migrate, parseSettings, type StoredKindName } from './migrate';
+import { isRemovedModeRound, migrate, parseSettings, type StoredKindName } from './migrate';
 import {
   emptyLockerRoom,
   emptyProgress,
@@ -39,6 +39,8 @@ export interface StoredKind<T> {
   version: number;
   /** The value after migration and validation, or null when it is not usable. */
   parse(raw: unknown): T | null;
+  /** True for stored data that is valid but no longer used; it loads as empty without a reset note (FR-070). */
+  retired?(raw: unknown): boolean;
   empty(): T;
 }
 
@@ -84,12 +86,13 @@ export const LOCKER_ROOM: StoredKind<LockerRoom> = {
   empty: emptyLockerRoom,
 };
 
-/** A round is either stored or not; "empty" is no round to continue. */
+/** A round is either stored or not; "empty" is no round to continue. A hole or line round is discarded (FR-070). */
 export const ROUND: StoredKind<StoredRound | null> = {
   name: 'round',
   key: ROUND_KEY,
-  version: 1,
+  version: 2,
   parse: schemaParser('round', roundSchema),
+  retired: isRemovedModeRound,
   empty: () => null,
 };
 
@@ -136,6 +139,7 @@ export function load<T>(kv: KeyValue, kind: StoredKind<T>): { value: T; resetRea
     keepUnreadable(kv, kind.key, text);
     return { value: kind.empty(), resetReason: 'newer' };
   }
+  if (kind.retired?.(raw)) return { value: kind.empty(), resetReason: 'none' };
   const value = kind.parse(raw);
   if (value === null) {
     keepUnreadable(kv, kind.key, text);

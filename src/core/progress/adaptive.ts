@@ -11,7 +11,7 @@
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, DirectionState, Outcome, Progress } from '../storage/schemas';
 import type { TargetProgress } from '../targets/nextTarget';
-import { DIRECTIONS, type Direction, type Mode } from '../types';
+import { DIRECTIONS, PLAYED_MODE, type Direction, type Mode } from '../types';
 import { stepDown, stepUp, topStep } from './ladder';
 import { isMastered } from './mastery';
 
@@ -85,14 +85,15 @@ export function recordAttempt(p: Progress, a: AttemptRecord, settings: Settings)
 }
 
 /**
- * What target selection needs for `mode` (FR-040): the mastered directions, and each direction's step clamped to
- * what the settings allow now, so a parent who narrows the settings never gets a step beyond them.
+ * What target selection needs (FR-040): the mastered directions of the goalkeeper game, and each direction's step
+ * clamped to what the settings allow now, so a parent who narrows the settings never gets a step beyond them. Attempts
+ * of the removed hole and line modes do not steer it (amendment 05).
  */
-export function targetProgress(p: Progress, mode: Mode, settings: Settings): TargetProgress {
+export function targetProgress(p: Progress, settings: Settings): TargetProgress {
   const mastered: Direction[] = [];
   const steps: Partial<Record<Direction, number>> = {};
   for (const direction of DIRECTIONS) {
-    const ds = p.directions[directionKey(mode, direction)];
+    const ds = p.directions[directionKey(PLAYED_MODE, direction)];
     if (!ds) continue;
     if (isMastered(ds)) mastered.push(direction);
     steps[direction] = Math.min(ds.step, topStep(direction, settings));

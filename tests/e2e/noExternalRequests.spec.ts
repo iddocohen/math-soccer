@@ -14,7 +14,7 @@ test('loading and playing a whole round sends no request to another origin', asy
   const requests: string[] = [];
   page.on('request', (r) => requests.push(r.url()));
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 } });
-  await page.goto('/?mode=holes&seed=8');
+  await page.goto('/?start=play&seed=8');
   const match = await startRound(page);
   for (let goals = 0; goals < 2; goals++) {
     await typeAndShoot(page, await targetNumber(match));

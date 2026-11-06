@@ -1,5 +1,5 @@
 /**
- * US6 end to end (T060; acceptance scenarios US6-1 and US6-2, FR-042, FR-043): the child scores 3 goals in hole mode
+ * US6 end to end (T060; acceptance scenarios US6-1 and US6-2, FR-042, FR-043): the child scores 3 goals
  * and earns 2 stars per goal, the round end shows "+6 Sterne" and the start screen the star total. K opens the locker
  * room, the child buys the blue ball for 5 stars and it is chosen; Escape goes back, and the next round's ball carries
  * the new design (`data-ball="ball.blue"`). Keys drive the game; waits are on data-* state, never fixed sleeps.
@@ -10,7 +10,6 @@ import { SETTINGS_KEY } from '../../src/core/storage/storage';
 
 const threeGoals = {
   ...defaultSettings(),
-  modes: { holes: true, lines: false, keeper: false },
   roundType: 'goalCount' as const,
   goalsPerRound: 3,
 };
@@ -21,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('earn stars, buy and choose a ball, and the next round shows it', async ({ page }) => {
-  const match = await startRound(page, '1');
+  const match = await startRound(page);
   await expect(match).toHaveAttribute('data-ball', 'ball.classic');
   await expect(match).toHaveAttribute('data-ball-kind', 'soccer');
 
@@ -44,6 +43,6 @@ test('earn stars, buy and choose a ball, and the next round shows it', async ({ 
 
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('star-total')).toHaveText('★ 1');
-  const next = await startRound(page, '1');
+  const next = await startRound(page);
   await expect(next).toHaveAttribute('data-ball', 'ball.blue');
 });

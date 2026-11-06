@@ -1,39 +1,29 @@
 /**
- * What the goal board shows (FR-004, FR-011, FR-013, FR-019, FR-024, plan decision 8), as plain data for GoalView. No
- * Phaser here, so the rules have unit tests.
+ * What the grid over the open goal shows (FR-004, FR-013, FR-019, FR-024, plan decision 8), as plain data for GoalView.
+ * No Phaser here, so the rules have unit tests.
  *
- * Hole mode: a board printed like the chart covers the goal, with one open hole at the target (marked with a yellow
- * outline) and a few patched holes as decoration. Hint numbers are printed when the parent chose "immer", or from help
- * step 1 with "auf Wunsch". At help steps 1 and 2 an arrow points from the closest hint number to the hole (`hintFrom`,
- * from core/match/help.ts). Help step 3 writes the answer in the hole. The square of a missed number is warm orange
- * with its number while `shown` is set. Squares outside the range in a partial first or last row are empty board.
- *
- * Goalkeeper mode (FR-019): the goal is open, the grid faint, the hints lit in the kit color with dark numbers, and the
- * target square empty and outlined.
- *
- * Line mode (T051, FR-015, FR-016): the board is mostly blank. The given squares of the line are printed, the squares
- * the child already shot are lit in the kit color with their number, and the next square is outlined as the target.
- * Once the line is finished every square of it is lit and none is outlined.
+ * The goal is open: a faint grid of the chart over the net, the hint numbers lit in the kit color with dark numbers,
+ * and the empty target square outlined. Hint numbers show when the parent chose "immer", or from help step 1 with
+ * "auf Wunsch". At help steps 1 and 2 an arrow points from the closest hint number to the target (`hintFrom`, from
+ * core/match/help.ts). Help step 3 writes the answer in the target square. The square of a missed number is warm
+ * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
+ * number.
  */
 import { cellRect, cellRectAt, center, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
-import type { Line } from '../core/targets/lines';
-import type { DeepReadonly, Mode, Rect, Target } from '../core/types';
+import type { DeepReadonly, Rect, Target } from '../core/types';
 
-/** The inputs of the board. GoalView redraws the cached board texture only when `boardKey` of these changes. */
+/** The inputs of the grid. GoalView redraws the cached grid texture only when `boardKey` of these changes. */
 export interface BoardInput {
   layout: ChartLayout;
   goal: Rect;
-  mode: Mode;
   target: DeepReadonly<Target> | null;
-  /** Hint numbers are printed ("immer", or help step 1 and later with "auf Wunsch"). */
+  /** Hint numbers show ("immer", or help step 1 and later with "auf Wunsch"). */
   hintsVisible: boolean;
   helpStep: number;
   /** The missed number whose square shows, or null. */
   shown: number | null;
   /** The hint number the help arrow starts at (help steps 1 and 2), or null for no arrow. */
   hintFrom: number | null;
-  /** The line in line mode, or null. */
-  line: DeepReadonly<Pick<Line, 'squares' | 'given' | 'index'>> | null;
 }
 
 /** The help arrow in world pixels, from the center of the hint square to the center of the target square. */
@@ -42,26 +32,16 @@ export interface Arrow {
   to: { x: number; y: number };
 }
 
-/**
- * - `printed`: a board square.
- * - `hole`: the open target hole (the net shows through).
- * - `patch`: a patched hole.
- * - `open`: a square of the open goal (goalkeeper mode).
- * - `empty`: outside the range in a partial row.
- */
-export type SquareKind = 'printed' | 'hole' | 'patch' | 'open' | 'empty';
-
-/** What a label looks like: ink on the board, white on the shown square, yellow for the answer in the hole. */
+/** What a label looks like: dark ink on a lit hint, white on the shown square, the kit color for the answer. */
 export type LabelStyle = 'ink' | 'shown' | 'answer';
 
 export interface Square {
   /** The number, or null outside the range. */
   n: number | null;
   rect: Rect;
-  kind: SquareKind;
-  /** The target's yellow outline. */
+  /** The target's outline in the kit color. */
   outlined: boolean;
-  /** Filled in the kit color: a lit hint in goalkeeper mode, or a square already shot in line mode. */
+  /** Filled in the kit color: a hint square. */
   lit: boolean;
   /** Filled warm orange: the shown square of a miss. */
   shown: boolean;
@@ -77,24 +57,20 @@ export interface Board {
   arrow: Arrow | null;
 }
 
-/** Changes exactly when the drawn board changes; GoalView compares it to skip redrawing (plan decision 9). */
+/** Changes exactly when the drawn grid changes; GoalView compares it to skip redrawing (plan decision 9). */
 export function boardKey(input: BoardInput): string {
   const t = input.target;
-  const target = t ? `${t.number}:${t.hints.join(',')}:${t.patchedHoles.join(',')}` : '-';
+  const target = t ? `${t.number}:${t.hints.join(',')}` : '-';
   const { min, max } = input.layout;
-  const line = input.line ? `${input.line.squares.join(',')}:${input.line.given}:${input.line.index}` : '-';
-  return [min, max, input.mode, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-', line].join('|');
+  return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-'].join('|');
 }
 
 export function buildBoard(input: BoardInput): Board {
-  const { layout, goal, mode, target, hintsVisible, helpStep, shown } = input;
+  const { layout, goal, target, hintsVisible, helpStep, shown } = input;
   const cellHeight = goal.height / layout.rows;
   const numbersFit = showNumbers(layout, goal);
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;
   const hints = new Set(target && hintsVisible ? target.hints : []);
-  const patched = new Set(target && mode === 'holes' ? target.patchedHoles : []);
-  const line = mode === 'lines' ? input.line : null;
-  const lineDone = line !== null && line.index >= line.squares.length;
   const squares: Square[] = [];
 
   for (let row = 0; row < layout.rows; row++) {
@@ -102,26 +78,16 @@ export function buildBoard(input: BoardInput): Board {
       const n = numberAt(layout, row, col);
       const rect = cellRectAt(layout, goal, row, col);
       if (n === null) {
-        squares.push({ n, rect, kind: mode === 'keeper' ? 'open' : 'empty', outlined: false, lit: false, shown: false, label: null });
+        squares.push({ n, rect, outlined: false, lit: false, shown: false, label: null });
         continue;
       }
-      const lineAt = line ? line.squares.indexOf(n) : -1;
-      const isTarget = target?.number === n && !lineDone;
+      const isTarget = target?.number === n;
       const isShown = shown === n;
-      let kind: SquareKind = mode === 'keeper' ? 'open' : 'printed';
-      if (mode === 'holes' && isTarget) kind = 'hole';
-      else if (patched.has(n)) kind = 'patch';
-
       let label: Square['label'] = null;
       if (hints.has(n)) label = { text: String(n), style: 'ink' };
-      // Printed and already shot squares of the line carry their number.
-      const lineLit = line !== null && lineAt >= line.given && lineAt < line.index;
-      if (line !== null && lineAt >= 0 && lineAt < line.index) label = { text: String(n), style: 'ink' };
-      if (isTarget && helpStep >= 3) label = { text: String(n), style: mode === 'lines' ? 'ink' : 'answer' };
+      if (isTarget && helpStep >= 3) label = { text: String(n), style: 'answer' };
       if (isShown) label = { text: String(n), style: 'shown' };
-
-      const lit = (mode === 'keeper' && hints.has(n)) || lineLit;
-      squares.push({ n, rect, kind, outlined: isTarget, lit, shown: isShown, label });
+      squares.push({ n, rect, outlined: isTarget, lit: hints.has(n), shown: isShown, label });
     }
   }
   return { squares, fontSize, numbersFit, arrow: helpArrow(input) };

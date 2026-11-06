@@ -13,7 +13,7 @@ type Kind = 'independent' | 'assisted' | 'unsolved' | 'guess';
 function attempt(kind: Kind, directions: Direction[] = ['down'], extra: Partial<AttemptRecord> = {}): AttemptRecord {
   return {
     at: '2026-11-06T12:00:00.000Z',
-    mode: 'holes',
+    mode: 'keeper',
     min: 1,
     max: 100,
     target: 46,
@@ -39,7 +39,7 @@ function play(p: Progress, kinds: Kind[], s: Settings, directions: Direction[] =
 }
 
 function ds(p: Progress, direction: Direction = 'down'): DirectionState {
-  const found = p.directions[directionKey('holes', direction)];
+  const found = p.directions[directionKey('keeper', direction)];
   if (!found) throw new Error(`no progress for ${direction}`);
   return found;
 }
@@ -120,7 +120,7 @@ describe('recordAttempt (FR-037, FR-040)', () => {
     const p = play(emptyProgress(), ['assisted'], settings(), ['down', 'right']);
     expect(ds(p, 'down')).toMatchObject({ attempts: 1, assisted: 1 });
     expect(ds(p, 'right')).toMatchObject({ attempts: 1, assisted: 1 });
-    expect(p.directions[directionKey('keeper', 'down')]).toBeUndefined();
+    expect(p.directions[directionKey('holes', 'down')]).toBeUndefined();
   });
 
   it(`keeps only the newest ${MAX_ATTEMPTS} attempts, while the counters keep the totals`, () => {
@@ -150,12 +150,18 @@ describe('isMastered (FR-039): 10 independent attempts and 8 of the last 10 inde
 describe('targetProgress', () => {
   it('lists mastered directions and clamps steps to what the settings allow now', () => {
     const p = emptyProgress();
-    p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
-    p.directions[directionKey('holes', 'right')] = { ...emptyDirectionState(), step: 1 };
-    const tp = targetProgress(p, 'holes', settings());
+    p.directions[directionKey('keeper', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    p.directions[directionKey('keeper', 'right')] = { ...emptyDirectionState(), step: 1 };
+    const tp = targetProgress(p, settings());
     expect(tp.mastered).toEqual(['down']);
     // With hints always shown, step 7 looks like step 6 (Nachbarn two squares away), so down is clamped to 6.
     expect(tp.steps).toEqual({ right: 1, down: 6 });
-    expect(targetProgress(p, 'keeper', settings())).toEqual({ mastered: [], steps: {} });
+  });
+
+  it('does not read the progress of the removed hole and line modes (amendment 05)', () => {
+    const p = emptyProgress();
+    p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    p.directions[directionKey('lines', 'right')] = { ...emptyDirectionState(), step: 3 };
+    expect(targetProgress(p, settings())).toEqual({ mastered: [], steps: {} });
   });
 });

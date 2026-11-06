@@ -26,12 +26,11 @@ import {
   unreadableKey,
 } from './storage';
 
-/** A full stored round in hole mode; `over` replaces fields. */
+/** A full stored round; `over` replaces fields. */
 function storedRound(over: Partial<StoredRound> = {}): StoredRound {
   return {
-    version: 1,
+    version: 2,
     seed: 1,
-    mode: 'holes',
     roundType: 'untilHearts',
     min: 1,
     max: 100,
@@ -39,8 +38,7 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     hearts: 3,
     missesInRow: 0,
     helpStep: 0,
-    target: { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [], directions: ['right', 'left', 'down', 'up'], difficultyStep: 0 },
-    line: null,
+    target: { number: 46, hints: [45, 47, 36, 56], directions: ['right', 'left', 'down', 'up'], difficultyStep: 0, pattern: 'neighbors' },
     targetCount: 1,
     starsThisRound: 0,
     elapsedMs: 0,
@@ -87,7 +85,7 @@ describe('round trip', () => {
     const settings = { ...defaultSettings(), timeChallenge: { allowed: false, minutes: 3 as const }, difficulty: 'normal' as const };
     const records = { version: 1 as const, bests: { '1-100|holes|untilHearts': { goals: 8, timeMs: 340000, at: '2026-11-06T10:00:00.000Z' } } };
     const locker = { ...emptyLockerRoom(), stars: 12, totalEarned: 20, shirtName: 'MIA' };
-    const round = storedRound({ seed: 42, mode: 'keeper', roundType: 'goalCount', goals: 3, hearts: 2, elapsedMs: 61_500 });
+    const round = storedRound({ seed: 42, roundType: 'goalCount', goals: 3, hearts: 2, elapsedMs: 61_500 });
     saveSettings(kv, settings);
     saveRecords(kv, records);
     saveLockerRoom(kv, locker);
@@ -100,7 +98,7 @@ describe('round trip', () => {
 
   it('clearRound removes the stored round', () => {
     const kv = memoryKeyValue();
-    saveRound(kv, storedRound({ mode: 'keeper' }));
+    saveRound(kv, storedRound());
     clearRound(kv);
     expect(loadRound(kv)).toEqual({ value: null, resetReason: 'none' });
   });
@@ -128,7 +126,7 @@ describe('damaged data resets with a reason (FR-036)', () => {
     const kv = memoryKeyValue({
       [PROGRESS_KEY]: JSON.stringify({ version: 1, attempts: 'many' }),
       [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), stars: -3 }),
-      [ROUND_KEY]: JSON.stringify({ ...storedRound(), mode: 'penalty' }),
+      [ROUND_KEY]: JSON.stringify({ ...storedRound(), roundType: 'penalty' }),
     });
     expect(loadProgress(kv)).toEqual({ value: emptyProgress(), resetReason: 'invalid' });
     expect(loadLockerRoom(kv)).toEqual({ value: emptyLockerRoom(), resetReason: 'invalid' });
@@ -253,12 +251,9 @@ describe('export and import', () => {
 
 describe('rules between the fields of a stored round (review H3)', () => {
   const kvWith = (round: unknown) => memoryKeyValue({ [ROUND_KEY]: JSON.stringify(round) });
-  const line = { squares: [45, 46, 47, 48], direction: 'right' as const, given: 2, index: 2 };
-  const lineTarget = { ...storedRound().target!, mode: 'lines' as const, number: 47 };
 
-  it('keeps a consistent round in each mode', () => {
+  it('keeps a consistent round', () => {
     expect(loadRound(kvWith(storedRound())).resetReason).toBe('none');
-    expect(loadRound(kvWith(storedRound({ mode: 'lines', line, target: lineTarget }))).resetReason).toBe('none');
     expect(loadRound(kvWith(storedRound({ goalsPerRound: 5 }))).value?.goalsPerRound).toBe(5);
   });
 
@@ -274,21 +269,38 @@ describe('rules between the fields of a stored round (review H3)', () => {
     expect(loadRound(kvWith(storedRound({ target: { ...storedRound().target!, number: 101 } }))).resetReason).toBe('invalid');
   });
 
-  it('discards a line outside line mode and line mode without a line', () => {
-    expect(loadRound(kvWith(storedRound({ line }))).resetReason).toBe('invalid');
-    expect(loadRound(kvWith(storedRound({ mode: 'lines', target: lineTarget }))).resetReason).toBe('invalid');
-  });
-
-  it('discards a line that is too short or whose index lies outside it', () => {
-    const lines = (l: typeof line) => kvWith(storedRound({ mode: 'lines', line: l, target: lineTarget }));
-    expect(loadRound(lines({ ...line, squares: [45, 46], given: 1, index: 1 })).resetReason).toBe('invalid');
-    expect(loadRound(lines({ ...line, index: 1 })).resetReason).toBe('invalid');
-    expect(loadRound(lines({ ...line, index: 5 })).resetReason).toBe('invalid');
-    expect(loadRound(lines({ ...line, index: 4 })).resetReason).toBe('none');
-  });
-
   it('discards goals per round outside 1 to 20', () => {
     expect(loadRound(kvWith(storedRound({ goalsPerRound: 0 }))).resetReason).toBe('invalid');
     expect(loadRound(kvWith(storedRound({ goalsPerRound: 21 }))).resetReason).toBe('invalid');
+  });
+});
+
+describe('rounds of version 1 (amendment 05, FR-070)', () => {
+  const kvWith = (round: unknown) => memoryKeyValue({ [ROUND_KEY]: JSON.stringify(round) });
+  /** A round as version 1 stored it, with a mode, a line and a target with a mode and patched holes. */
+  function v1Round(mode: 'holes' | 'lines' | 'keeper', extra: Record<string, unknown> = {}) {
+    const { target, ...rest } = storedRound();
+    return {
+      ...rest,
+      version: 1,
+      mode,
+      line: mode === 'lines' ? { squares: [45, 46, 47, 48], direction: 'right', given: 2, index: 2 } : null,
+      target: { mode, number: target!.number, hints: target!.hints, patchedHoles: mode === 'holes' ? [12] : [], directions: target!.directions, difficultyStep: 0 },
+      ...extra,
+    };
+  }
+
+  it('discards a stored hole or line round on load, without a reset note and without a kept copy', () => {
+    for (const mode of ['holes', 'lines'] as const) {
+      const kv = kvWith(v1Round(mode));
+      expect(loadRound(kv)).toEqual({ value: null, resetReason: 'none' });
+      expect(kv.get(unreadableKey(ROUND_KEY))).toBeNull();
+    }
+  });
+
+  it('turns a goalkeeper round of version 1 into version 2: no mode, no line, a Nachbarn target', () => {
+    expect(loadRound(kvWith(v1Round('keeper')))).toEqual({ value: storedRound(), resetReason: 'none' });
+    const withPattern = v1Round('keeper', { target: { ...v1Round('keeper').target, pattern: 'middle' } });
+    expect(loadRound(kvWith(withPattern)).value?.target?.pattern).toBe('middle');
   });
 });

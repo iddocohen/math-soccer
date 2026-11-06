@@ -141,14 +141,13 @@ describe('goalkeeper targets from the ladder (FR-065, FR-067)', () => {
     for (const adaptive of [true, false]) {
       for (let step = 0; step <= MAX_STEP; step++) {
         for (let i = 0; i < 30; i++) {
-          const t = nextTarget({ layout: chart, mode: 'keeper', settings: settings({ adaptive }), progress: atStep(step), rng });
+          const t = nextTarget({ layout: chart, settings: settings({ adaptive }), progress: atStep(step), rng });
           expect(['neighbors', 'middle', 'row']).toContain(t.pattern);
           for (const n of [t.number, ...t.hints]) {
             expect(n).toBeGreaterThanOrEqual(1);
             expect(n).toBeLessThanOrEqual(100);
           }
           expect(t.directions.length).toBeGreaterThan(0);
-          expect(t.patchedHoles).toEqual([]);
         }
       }
     }
@@ -159,10 +158,10 @@ describe('goalkeeper targets from the ladder (FR-065, FR-067)', () => {
     const middleOnly = settings({ adaptive: false, patterns: onlyPatterns('middle') });
     const rowOnly = settings({ adaptive: false, patterns: onlyPatterns('row') });
     for (let i = 0; i < 100; i++) {
-      const m = nextTarget({ layout: chart, mode: 'keeper', settings: middleOnly, progress: NO_PROGRESS, rng });
+      const m = nextTarget({ layout: chart, settings: middleOnly, progress: NO_PROGRESS, rng });
       expect(m.hints).toHaveLength(2);
       expect(m.hints[0]! + m.hints[1]!).toBe(2 * m.number);
-      const r = nextTarget({ layout: chart, mode: 'keeper', settings: rowOnly, progress: NO_PROGRESS, rng });
+      const r = nextTarget({ layout: chart, settings: rowOnly, progress: NO_PROGRESS, rng });
       const step = r.number - r.hints[r.hints.length - 1]!;
       r.hints.forEach((h, k) => expect(r.number - h).toBe(step * (r.hints.length - k)));
       expect(r.directions).toHaveLength(1);
@@ -170,7 +169,7 @@ describe('goalkeeper targets from the ladder (FR-065, FR-067)', () => {
   });
 
   it('the same seed gives the same target, and a placement equals placeAt for its choice', () => {
-    const make = () => nextTarget({ layout: chart, mode: 'keeper', settings: settings(), progress: atStep(3), rng: createRng(42) });
+    const make = () => nextTarget({ layout: chart, settings: settings(), progress: atStep(3), rng: createRng(42) });
     expect(make()).toEqual(make());
     const p = placeAt(chart, { pattern: 'row', direction: 'down', given: 3 }, 46)!;
     expect(p.hints).toEqual([16, 26, 36]);

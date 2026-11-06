@@ -51,7 +51,7 @@ for (const round of ROUNDS) {
       };
       requestAnimationFrame(sample);
     });
-    await page.goto('/?mode=holes&seed=8');
+    await page.goto('/?start=play&seed=8');
     await expect(page.getByTestId('start')).toBeVisible();
 
     const match = page.getByTestId('match');

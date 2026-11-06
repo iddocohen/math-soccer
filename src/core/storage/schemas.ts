@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { STARTER } from '../rewards/items';
 import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
-import { LINE_MIN_LENGTH } from '../targets/lines';
 import { PATTERNS } from '../targets/patterns';
 import { DIRECTIONS, MODES } from '../types';
 
@@ -11,6 +10,7 @@ import { DIRECTIONS, MODES } from '../types';
  * shape raises its version and adds a step in migrate.ts.
  */
 
+/** The mode of an attempt or best: `keeper`, or `holes` and `lines` in data from before amendment 05 (FR-070). */
 export const modeSchema = z.enum(MODES);
 
 /** How one finished target went for a direction: alone, with help or misses, or not solved (as math-tank). */
@@ -31,7 +31,7 @@ export const attemptRecordSchema = z.object({
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
   /** How hints showed for this target: always, or on request (parent setting or adaptive step 3). */
   hintDisplay: z.enum(['always', 'onRequest']),
-  /** The ladder step, 0 to 7 (core/progress/ladder.ts); hole mode used 0 to 3. */
+  /** The ladder step, 0 to 7 (core/progress/ladder.ts); attempts of the removed hole mode used 0 to 3. */
   difficultyStep: z.number().int().min(0).max(7),
   /** Scored before help step 3 showed the answer. */
   solved: z.boolean(),
@@ -121,79 +121,55 @@ export function emptyLockerRoom(): LockerRoom {
   };
 }
 
-/** A hole or goalkeeper target (data-model "Target"). */
+/** A goalkeeper target (data-model "Target"). */
 export const targetSchema = z.object({
-  mode: modeSchema,
   number: z.number().int(),
   hints: z.array(z.number().int()),
-  patchedHoles: z.array(z.number().int()),
   directions: z.array(z.enum(DIRECTIONS)),
   difficultyStep: z.number().int().min(0).max(7),
-  /** The hint pattern of a goalkeeper target; missing in rounds stored before amendment 05. */
-  pattern: z.enum(PATTERNS).optional(),
-});
-
-/** A line of line mode (data-model "Line"). */
-export const lineSchema = z.object({
-  squares: z.array(z.number().int()).min(1),
-  direction: z.enum(DIRECTIONS),
-  given: z.number().int().min(0),
-  index: z.number().int().min(0),
+  pattern: z.enum(PATTERNS),
 });
 
 /**
- * `mathsoccer.round.v1`: the running round, kept on refresh (data-model "Round"). No stored round means no round to
- * continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules between fields
- * (`roundRules`) make a damaged round invalid, so it is discarded on load.
+ * `mathsoccer.round.v1`, version 2: the running round, kept on refresh (data-model "Round"). No stored round means no
+ * round to continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules
+ * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load. Version 1 had a mode and a
+ * line; migrate.ts turns a goalkeeper round of version 1 into version 2, and storage.ts discards hole and line rounds
+ * (FR-070).
  */
 export const roundSchema = z
   .object({
-  version: z.literal(1),
-  seed: z.number().int(),
-  mode: modeSchema,
-  roundType: z.enum(['untilHearts', 'goalCount']),
-  /** Goals per round at the round start (FR-052); missing in rounds stored before it was kept. */
-  goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX).optional(),
-  min: z.number().int(),
-  max: z.number().int(),
-  goals: z.number().int().min(0),
-  hearts: z.number().int().min(0).max(3),
-  missesInRow: z.number().int().min(0),
-  helpStep: z.number().int().min(0).max(3),
-  target: targetSchema.nullable(),
-  /** The line in line mode (T050); null in the other modes. */
-  line: lineSchema.nullable().default(null),
-  /** How many targets the round has had; the seed of the next target derives from it. */
-  targetCount: z.number().int().min(0),
-  starsThisRound: z.number().int().min(0),
-  elapsedMs: z.number().min(0),
-  /** Play time when the current target appeared, for the attempt's response time (T043). */
-  targetStartMs: z.number().min(0).default(0),
-  /** All misses on the current target; `missesInRow` restarts after a lost heart, this does not. */
-  targetMisses: z.number().int().min(0).default(0),
-  /** Play times of the shots that missed the current target, for the guess rule (T043). */
-  missTimes: z.array(z.number().min(0)).default([]),
-  phase: z.enum(['aiming', 'celebrating']),
-})
+    version: z.literal(2),
+    seed: z.number().int(),
+    roundType: z.enum(['untilHearts', 'goalCount']),
+    /** Goals per round at the round start (FR-052); missing in rounds stored before it was kept. */
+    goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX).optional(),
+    min: z.number().int(),
+    max: z.number().int(),
+    goals: z.number().int().min(0),
+    hearts: z.number().int().min(0).max(3),
+    missesInRow: z.number().int().min(0),
+    helpStep: z.number().int().min(0).max(3),
+    target: targetSchema.nullable(),
+    /** How many targets the round has had; the seed of the next target derives from it. */
+    targetCount: z.number().int().min(0),
+    starsThisRound: z.number().int().min(0),
+    elapsedMs: z.number().min(0),
+    /** Play time when the current target appeared, for the attempt's response time (T043). */
+    targetStartMs: z.number().min(0).default(0),
+    /** All misses on the current target; `missesInRow` restarts after a lost heart, this does not. */
+    targetMisses: z.number().int().min(0).default(0),
+    /** Play times of the shots that missed the current target, for the guess rule (T043). */
+    missTimes: z.array(z.number().min(0)).default([]),
+    phase: z.enum(['aiming', 'celebrating']),
+  })
   .superRefine(roundRules);
 export type StoredRound = z.infer<typeof roundSchema>;
 
-/**
- * Rules between the fields of a stored round: the range goes up, the target lies in it, and a line exists exactly in
- * line mode, has at least LINE_MIN_LENGTH squares and its index lies between its given squares and its end.
- */
-function roundRules(
-  r: { mode: string; phase: string; min: number; max: number; target: { number: number } | null; line: { squares: number[]; given: number; index: number } | null },
-  ctx: z.RefinementCtx,
-): void {
+/** Rules between the fields of a stored round: the range goes up, an aiming round has a target, and it lies in the range. */
+function roundRules(r: { phase: string; min: number; max: number; target: { number: number } | null }, ctx: z.RefinementCtx): void {
   const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
   if (r.min >= r.max) issue('min must be below max', 'max');
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
   if (r.target && (r.target.number < r.min || r.target.number > r.max)) issue('target outside the range', 'target');
-  if ((r.mode === 'lines') !== (r.line !== null)) issue('a line exists exactly in line mode', 'line');
-  if (r.line) {
-    const { squares, given, index } = r.line;
-    if (squares.length < LINE_MIN_LENGTH) issue('line too short', 'line');
-    if (given > index || index > squares.length) issue('line index outside the line', 'line');
-  }
 }

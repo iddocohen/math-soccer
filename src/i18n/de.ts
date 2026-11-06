@@ -27,7 +27,8 @@ export const de = {
 
   /** Start screen (contracts/screens.md "Start"). */
   start: {
-    modes: { holes: 'Löcher', lines: 'Reihen', keeper: 'Torwart' },
+    play: 'Spielen',
+    timeChallenge: 'Zeit-Challenge',
     lockerRoom: 'Kabine',
     stars: (n: number) => `★ ${n}`,
     starsLabel: starCount,
@@ -59,14 +60,12 @@ export const de = {
     speaker: 'Vorlesen',
     numberPad: { label: 'Zahlenfeld', delete: 'Löschen', shoot: 'Schießen' },
     /** The task read aloud for each new target with "Vorlesen" on (FR-032); it never says the number. */
-    task: { holes: 'Welche Zahl fehlt?', lines: 'Welche Zahl kommt hier?', keeper: 'Welche Zahl fehlt?' },
+    task: 'Welche Zahl fehlt?',
   },
 
   /** Feedback lines (contracts/screens.md "Feedback contract"). */
   feedback: {
     goal: 'TOR!',
-    correctSquare: 'Richtig!',
-    lineDone: 'Reihe fertig!',
     miss: (n: number) => `Hier ist ${n}. Nochmal!`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
@@ -190,8 +189,11 @@ export const de = {
     groups: {
       range: 'Zahlenraum',
       hints: 'Hinweise',
+      patterns: 'Hinweis-Muster',
       directions: 'Richtungen',
+      shapes: 'Formen',
       round: 'Runde',
+      timeChallenge: 'Zeit-Challenge',
       difficulty: 'Schwierigkeit',
       sound: 'Ton',
       controls: 'Bedienung',
@@ -217,11 +219,18 @@ export const de = {
       showRecords: 'Rekorde zeigen',
       lockerRoom: 'Kabine und Sterne',
       pointAfterFullHelp: 'Punkt nach voller Hilfe',
+      timeChallengeAllowed: 'Zeit-Challenge erlauben',
+      timeChallengeMinutes: 'Dauer',
     },
     options: {
       rangePreset: { '1-100': '1 bis 100', '0-1000': '0 bis 1000', custom: 'Eigener Zahlenraum' },
       hintDisplay: { always: 'immer', onRequest: 'auf Wunsch' },
       hintDistance: { direct: 'direkt daneben', vertical: 'darüber und darunter', diagonal: 'schräg', far: 'weiter weg' },
+      /** "Hinweis-Muster" (amendment 05, FR-066). */
+      patterns: { neighbors: 'Nachbarn', middle: 'Mitte', row: 'Reihe', shape: 'Formen' },
+      /** The shapes of "Formen" (amendment 06, FR-074); the game shows shapes, not these names. */
+      shapes: { I: 'Stab', O: 'Quadrat', T: 'T', L: 'L', J: 'J', S: 'S', Z: 'Z' },
+      challengeMinutes: (n: number) => (n === 1 ? '1 Minute' : `${n} Minuten`),
       directions: {
         right: 'nach rechts',
         left: 'nach links',
@@ -276,12 +285,13 @@ export const de = {
     title: 'Fortschritt',
     columns: {
       direction: 'Richtung',
-      mode: 'Spielart',
       attempts: 'Versuche',
       alone: 'allein',
       withHelp: 'mit Hilfe',
       step: 'Stufe',
       mastered: 'gemeistert',
+      /** Attempts in the removed hole and line modes (amendment 05, FR-070). */
+      earlier: 'früher',
     },
     directions: {
       right: 'rechts (+1)',
@@ -293,8 +303,10 @@ export const de = {
       downLeft: 'schräg links runter (+9)',
       upRight: 'schräg rechts hoch (−9)',
     },
-    modes: { holes: 'Löcher', lines: 'Reihen', keeper: 'Torwart' },
+    /** The removed modes, named on their personal bests kept under "Früher" (FR-070). */
+    earlierModes: { holes: 'Löcher', lines: 'Reihen' },
     bests: 'Rekorde',
+    earlierBests: 'Früher',
     bestLine: (goals: number, timeMs: number) => `${goalCount(goals)} in ${clock(timeMs)}`,
     empty: 'Noch keine Versuche.',
     reset: 'Fortschritt zurücksetzen',

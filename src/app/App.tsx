@@ -5,8 +5,11 @@
  * when the ball lands and when the celebration ends. When a round ends, its result goes to the personal bests (FR-028).
  *
  * Phaser loads in its own chunk when a match starts, so the start screen shows quickly. A round stored before a refresh
- * continues on load (T029). Test query parameters: `?mode=` makes Enter and Space start that mode, `?seed=` fixes the
- * round seed (contracts/screens.md).
+ * continues on load (T029). Test query parameters: `?start=play|time` makes Enter and Space start that kind of round,
+ * `?seed=` fixes the round seed (contracts/screens.md).
+ *
+ * Start (amendment 05, FR-068, FR-075): "Spielen" starts the goalkeeper game; "Zeit-Challenge" shows when the parent
+ * allows it. Until the time round type exists (T092), it starts a normal round.
  *
  * Parent screens (US3, FR-034): the gear on the start screen and in the match opens the parent menu after a 2-second
  * press. While the menu, the settings page or the progress page is open, a running round pauses (useAutoPause) and keys
@@ -52,11 +55,10 @@ import { localStorageKeyValue } from '../core/storage/keyValue';
 import { clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import type { Digit } from '../core/match/entry';
-import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
 import type { KeeperPhase } from '../game/KeeperView';
 import { resetMessage, t } from '../i18n';
-import type { KeyAction, KeyScreen } from './keyboard';
+import { START_KINDS, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
 import { helpText, MatchOverlay } from './MatchOverlay';
@@ -100,10 +102,10 @@ export function seedFromUrl(search: string): number | undefined {
   return Number(raw) >>> 0;
 }
 
-/** The `mode` query parameter when it names a mode, or undefined. */
-export function modeFromUrl(search: string): Mode | undefined {
-  const raw = new URLSearchParams(search).get('mode');
-  return MODES.find((m) => m === raw);
+/** The `start` query parameter when it names a start button (`play` or `time`), or undefined. */
+export function startFromUrl(search: string): StartKind | undefined {
+  const raw = new URLSearchParams(search).get('start');
+  return START_KINDS.find((k) => k === raw);
 }
 
 /** Remembers that a save during play failed, so the start screen can say so (review M6). */
@@ -163,8 +165,8 @@ function createApp() {
     settings,
     store,
     newSeed: seed === undefined ? undefined : () => seed,
-    // The adaptive steps and mastered directions of the mode steer target selection (FR-040).
-    progress: (mode) => targetProgress(persistence.progress(), mode, settings()),
+    // The adaptive steps and mastered directions steer target selection (FR-040).
+    progress: () => targetProgress(persistence.progress(), settings()),
     // One record per finished target (T043, FR-037), with the settings the round uses (FR-052).
     onAttempt: (record) => saves.report(persistence.recordAttempt(record, controller.getRoundSettings())),
   });
@@ -185,7 +187,7 @@ function createApp() {
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
 function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
-  const key = recordKey(s.min, s.max, s.mode, s.roundType);
+  const key = recordKey(s.min, s.max, s.roundType);
   const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
   if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
@@ -211,15 +213,14 @@ export function App() {
   const [resetLines, setResetLines] = useState(() => resetNoteLines(persistence.resetReasons()));
   const [screen, setScreen] = useState<Screen>(restored ? 'match' : 'start');
   const [parent, setParent] = useState<ParentView>('closed');
-  // Bumped after a save, an import or a transfer, so the start screen shows the new offered modes.
+  // Bumped after a save, an import or a transfer, so the start screen shows the new settings (the time challenge).
   const [, setDataVersion] = useState(0);
   const [transfer, setTransfer] = useState<Transfer | null>(() => (saveCodeFromHash(window.location.hash) === null ? null : { kind: 'reading' }));
   const state = useMatchState(controller);
   const gameParent = useRef<HTMLDivElement>(null);
-  // Settings version 2 has no mode switches; all modes stay offered until the start screen gets "Spielen" (T089).
-  const offered: readonly Mode[] = MODES;
+  const timeChallenge = settings().timeChallenge.allowed;
   const [record, setRecord] = useState<RoundRecord | null>(null);
-  // The keeper's phase from the scene, shown as `data-keeper` in goalkeeper mode (T054).
+  // The keeper's phase from the scene, shown as `data-keeper` (T054).
   const [keeper, setKeeper] = useState<KeeperPhase>('idle');
   // The locker room opened from the match, over the running round (FR-049).
   const [lockerOpen, setLockerOpen] = useState(false);
@@ -330,11 +331,11 @@ export function App() {
 
   // Spoken tasks (FR-032): a new target reads its task, a new help line reads the line.
   const speech = settings().sound.speech;
-  const taskKey = screen === 'match' && state.target ? `${state.mode}:${state.target.number}:${state.line?.index ?? ''}` : null;
+  const taskKey = screen === 'match' && state.target ? `${state.targetCount}:${state.target.number}` : null;
   useEffect(() => {
     if (!speech || taskKey === null) return;
-    speaker.speak(t().match.task[controller.getState().mode]);
-  }, [speech, taskKey, speaker, controller]);
+    speaker.speak(t().match.task);
+  }, [speech, taskKey, speaker]);
   const help = screen === 'match' ? helpText(state) : '';
   useEffect(() => {
     if (speech && help !== '') speaker.speak(help);
@@ -342,17 +343,21 @@ export function App() {
   const speakTask = useCallback(() => {
     const s = controller.getState();
     const line = helpText(s);
-    speaker.speak(line !== '' ? line : t().match.task[s.mode]);
+    speaker.speak(line !== '' ? line : t().match.task);
   }, [controller, speaker]);
 
   const finePointer = useFinePointer();
   const showPad = numberPadShown(settings().numberPad, finePointer);
 
+  // What the last round started as, for "Nochmal". The time challenge starts a normal round until T092 builds its
+  // round type.
+  const lastStart = useRef<StartKind>('play');
   const startMatch = useCallback(
-    (mode: Mode) => {
+    (kind: StartKind) => {
+      lastStart.current = kind;
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
       if (speech) speaker.prime();
-      controller.start(mode);
+      controller.start();
       setScreen('match');
     },
     [controller, speech, speaker],
@@ -407,15 +412,15 @@ export function App() {
     </>
   );
 
-  // "Nochmal" replays the round's mode while the parent still offers it, and goes to the start screen otherwise.
-  const playAgain = () => (offered.includes(state.mode) ? startMatch(state.mode) : setScreen('start'));
+  // "Nochmal" starts the same kind of round again; a time challenge the parent no longer allows becomes "Spielen".
+  const playAgain = () => startMatch(lastStart.current === 'time' && !timeChallenge ? 'play' : lastStart.current);
   const onAction = (action: KeyAction) => {
-    if (action.type === 'start') startMatch(action.mode);
+    if (action.type === 'start') startMatch(action.kind);
     else if (action.type === 'again') playAgain();
     else if (action.type === 'lockerRoom') setScreen('lockerRoom');
     else applyMatchAction(controller, action);
   };
-  useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: lockerOn, enterMode: modeFromUrl(window.location.search), onAction });
+  useKeyboard({ screen: keyScreen, timeChallenge, lockerRoom: lockerOn, enterStart: startFromUrl(window.location.search), onAction });
 
   const locker = persistence.lockerRoom();
   const saveLocker = (next: typeof locker) => {
@@ -465,7 +470,7 @@ export function App() {
     return (
       <>
         <StartScreen
-          modes={offered}
+          timeChallenge={timeChallenge}
           onPlay={startMatch}
           gear={gear}
           lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}

@@ -11,9 +11,9 @@ import { defaultSettings } from '../../src/core/settings/defaults';
 import { SETTINGS_KEY } from '../../src/core/storage/storage';
 import { boxOf, expectMatchFits, expectNoScroll, expectPadKeys, inside } from './layout';
 
-async function startHoles(page: Page): Promise<Locator> {
+async function startPlay(page: Page): Promise<Locator> {
   await page.goto('/?seed=3');
-  await page.locator('[data-mode="holes"]').tap();
+  await page.locator('[data-start="play"]').tap();
   const match = page.getByTestId('match');
   await expect(match).toHaveAttribute('data-phase', 'aiming');
   await expect(page.locator('canvas')).toBeVisible();
@@ -24,14 +24,14 @@ async function tapNumber(page: Page, n: number): Promise<void> {
   for (const digit of String(n)) await page.locator(`[data-key="${digit}"]`).tap();
 }
 
-test('the start screen fits and a tap on "Löcher" starts the match with the number pad', async ({ page }) => {
+test('the start screen fits and a tap on "Spielen" starts the match with the number pad', async ({ page }) => {
   await page.goto('/');
   const { width, height } = page.viewportSize()!;
-  for (const mode of ['holes', 'lines', 'keeper']) {
-    expect(inside(await boxOf(page.locator(`[data-mode="${mode}"]`)), width, height), `${mode} button inside`).toBe(true);
+  for (const start of ['play', 'time']) {
+    expect(inside(await boxOf(page.locator(`[data-start="${start}"]`)), width, height), `${start} button inside`).toBe(true);
   }
   await expectNoScroll(page);
-  const match = await startHoles(page);
+  const match = await startPlay(page);
   await expect(match).toHaveAttribute('data-number-pad', 'true');
   await expectPadKeys(page);
   await expectMatchFits(page);
@@ -42,7 +42,7 @@ test('the start screen fits and a tap on "Löcher" starts the match with the num
 test('a round of two goals is played with taps on the number pad only', async ({ page }) => {
   test.setTimeout(120_000);
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 } });
-  const match = await startHoles(page);
+  const match = await startPlay(page);
   for (let goals = 0; goals < 2; goals++) {
     const target = await targetNumber(match);
     // A wrong digit first, deleted with ⌫.
@@ -58,7 +58,7 @@ test('a round of two goals is played with taps on the number pad only', async ({
 });
 
 test('the full help chart (help step 2) fits on the screen', async ({ page }) => {
-  const match = await startHoles(page);
+  const match = await startPlay(page);
   const help = page.getByTestId('help-button');
   await help.tap();
   await expect(match).toHaveAttribute('data-help', '1');

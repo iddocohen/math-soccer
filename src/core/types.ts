@@ -5,9 +5,19 @@ import type { Pattern } from './targets/patterns';
 export const DIRECTIONS = ['right', 'left', 'down', 'up', 'downRight', 'upLeft', 'downLeft', 'upRight'] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
-/** The three game modes: hole mode, line mode, goalkeeper mode. */
+/**
+ * The mode names in stored attempts and personal bests. Since amendment 05 the goalkeeper game (`keeper`) is the only
+ * game; `holes` and `lines` stay readable in data from earlier versions and show as "früher" (FR-070).
+ */
 export const MODES = ['holes', 'lines', 'keeper'] as const;
 export type Mode = (typeof MODES)[number];
+
+/** The mode of every new attempt and personal best. */
+export const PLAYED_MODE = 'keeper' satisfies Mode;
+
+/** The removed modes, kept only in old stored data. */
+export const EARLIER_MODES = ['holes', 'lines'] as const satisfies readonly Mode[];
+export type EarlierMode = (typeof EARLIER_MODES)[number];
 
 /** How far the hint numbers sit from the target. */
 export const HINT_DISTANCES = ['direct', 'vertical', 'diagonal', 'far'] as const;
@@ -21,21 +31,18 @@ export interface Rect {
   height: number;
 }
 
-/** The current target (data-model "Target"). Hole and keeper targets come from core/targets (US1). */
+/** The current target (data-model "Target"), from `nextTarget` in core/targets. */
 export interface Target {
-  mode: Mode;
   /** The answer. */
   number: number;
   /** Visible hint numbers. */
   hints: number[];
-  /** Decorative patched holes on the board; hole mode only, a shot there hits the patch. */
-  patchedHoles: number[];
-  /** Directions trained, from the hint offsets or the line's direction. */
+  /** Directions trained, from the hint offsets (FR-038). */
   directions: Direction[];
   /** 0 to 7, from the adaptive ladder (core/progress/ladder.ts). */
   difficultyStep: number;
-  /** The hint pattern of a goalkeeper target (FR-065); missing on hole and line targets. */
-  pattern?: Pattern;
+  /** The hint pattern (FR-065). */
+  pattern: Pattern;
 }
 
 /** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */

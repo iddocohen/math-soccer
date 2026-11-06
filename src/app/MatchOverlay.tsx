@@ -4,10 +4,10 @@
  * top; the typed number (`data-testid="entry"`) and the message line (`data-testid="message"`) at the bottom.
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
- * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows), `data-ball` (the ball design
- * from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and,
- * in line mode, `data-line` (the line's numbers) and `data-line-index` (the target's place in it), and in goalkeeper
- * mode `data-keeper` (the keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
+ * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern) and
+ * `data-hints` (its hint numbers), plus `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for
+ * example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
+ * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
  * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
  * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
@@ -47,8 +47,6 @@ export function messageText(message: MatchMessage | null): string {
       return f.outOfRange(message.min, message.max);
     case 'goal':
       return f.goal;
-    case 'correctSquare':
-      return f.correctSquare;
     case 'miss':
       return f.miss(message.number);
     case 'heartLost':
@@ -133,9 +131,9 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-ball={ball}
       data-shirt={shirt}
       data-ball-kind={ballKind(layout)}
-      data-line={state.line?.squares.join(',') ?? ''}
-      data-line-index={state.line?.index ?? ''}
-      data-keeper={state.mode === 'keeper' ? keeper : undefined}
+      data-pattern={state.target?.pattern ?? ''}
+      data-hints={state.target?.hints.join(',') ?? ''}
+      data-keeper={keeper}
       data-number-pad={pad !== undefined}
     >
       <div className="overlay-top">

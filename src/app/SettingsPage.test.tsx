@@ -38,14 +38,17 @@ afterEach(() => {
 });
 
 describe('SettingsPage (T044, FR-035)', () => {
-  it('shows the nine groups in order', () => {
+  it('shows the twelve groups in order, without "Spielarten" or a line length (FR-069)', () => {
     setup();
     const legends = screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toEqual([
       'Zahlenraum',
       'Hinweise',
+      'Hinweis-Muster',
       'Richtungen',
+      'Formen',
       'Runde',
+      'Zeit-Challenge',
       'Schwierigkeit',
       'Ton',
       'Bedienung',
@@ -83,6 +86,47 @@ describe('SettingsPage (T044, FR-035)', () => {
     }
     expect(within(directions).getByText(t().settingsErrors.noDirection)).toBeTruthy();
     expect(saveButton().disabled).toBe(true);
+  });
+
+  it('"Hinweis-Muster" lists Nachbarn, Mitte, Reihe and Formen, all on, and needs at least one (FR-066)', () => {
+    const { kv } = setup();
+    const patterns = group('Hinweis-Muster');
+    const names = ['Nachbarn', 'Mitte', 'Reihe', 'Formen'];
+    for (const name of names) expect((within(patterns).getByLabelText(name) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(within(patterns).getByLabelText('Mitte'));
+    fireEvent.click(saveButton());
+    expect(loadSettings(kv).value.patterns).toEqual({ neighbors: true, middle: false, row: true, shape: true });
+    for (const name of ['Nachbarn', 'Reihe', 'Formen']) fireEvent.click(within(patterns).getByLabelText(name));
+    expect(within(patterns).getByText(t().settingsErrors.noPattern)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('"Formen" lists the seven shapes as switches, all on, and needs at least one (FR-074)', () => {
+    const { kv } = setup();
+    const shapes = group('Formen');
+    const names = ['Stab', 'Quadrat', 'T', 'L', 'J', 'S', 'Z'];
+    expect(within(shapes).getAllByRole('checkbox')).toHaveLength(7);
+    for (const name of names) expect((within(shapes).getByLabelText(name) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(within(shapes).getByLabelText('L'));
+    fireEvent.click(saveButton());
+    expect(loadSettings(kv).value.shapes.L).toBe(false);
+    for (const name of names.filter((n) => n !== 'L')) fireEvent.click(within(shapes).getByLabelText(name));
+    expect(within(shapes).getByText(t().settingsErrors.noShape)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('"Zeit-Challenge" turns the challenge off and sets 1, 2, 3 or 5 minutes (FR-076)', () => {
+    const { kv } = setup();
+    const challenge = group('Zeit-Challenge');
+    const allowed = within(challenge).getByLabelText(S.labels.timeChallengeAllowed) as HTMLInputElement;
+    expect(allowed.checked).toBe(true);
+    const minutes = within(challenge).getByLabelText(S.labels.timeChallengeMinutes) as HTMLSelectElement;
+    expect([...minutes.options].map((o) => o.textContent)).toEqual(['1 Minute', '2 Minuten', '3 Minuten', '5 Minuten']);
+    expect(minutes.value).toBe('2');
+    fireEvent.change(minutes, { target: { value: '5' } });
+    fireEvent.click(allowed);
+    fireEvent.click(saveButton());
+    expect(loadSettings(kv).value.timeChallenge).toEqual({ allowed: false, minutes: 5 });
   });
 
   it('shows "Tore pro Runde" only with a fixed number of goals and checks its limits', () => {

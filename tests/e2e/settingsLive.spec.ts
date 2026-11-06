@@ -17,9 +17,9 @@ async function holdGear(page: Page): Promise<void> {
 }
 
 test('a range saved mid-round gives a new target on the new board; the goals stay', async ({ page }) => {
-  await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), modes: { holes: true, lines: false, keeper: false } } }, { once: true });
+  await seedStorage(page, { [SETTINGS_KEY]: defaultSettings() }, { once: true });
   await page.goto('/?seed=5');
-  const match = await startRound(page, '1');
+  const match = await startRound(page);
   await expect(match).toHaveAttribute('data-rows', '10');
   await typeAndShoot(page, await targetNumber(match));
   await expect(match).toHaveAttribute('data-goals', '1');

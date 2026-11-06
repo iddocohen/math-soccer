@@ -17,15 +17,14 @@ No module here imports Phaser, React or the DOM, and none calls `Math.random`. A
 - `hintOffsets(distance: HintDistance): Array<[dRow, dCol]>`.
 - `hintsFor(layout, n, distance): number[]`: hints on the chart only.
 - `directionsOf(n, hints): Direction[]`.
-- `nextTarget(input: { layout, mode, settings, progress, rng }): Target`: answer-first; weights unmastered directions twice; returns a target with at least one hint (two for `direct`).
-- `makeLine(layout, direction, length, rng): Line`: all squares on the chart; shortens to 3, then falls back to `right` when nothing fits.
+- `nextTarget(input: { layout, settings, progress, rng, avoid? }): Target`: answer-first; the ladder (core/progress/ladder.ts) picks the direction and the hint pattern within the parent's choices, weighting unmastered directions twice; the target number comes from the pattern's placements on the chart (amendment 05).
 
 ## `core/match`
 
 - `entryReducer(entry: string, key: EntryKey, maxDigits): string`: as math-tank.
-- `class MatchController`: `getState()` (a deep read-only `MatchView`), `subscribe(fn)`, and actions `start(mode)`, `typeKey(key)`, `shoot()`, `ballLanded()`, `celebrationDone()`, `askHelp()`, `pause()`, `resume()`, `tick(ms)`. `shoot()` refuses out-of-range numbers and sets a range message. `ballLanded()` decides goal, correct square or miss from `state.ball.number === state.target.number`.
+- `class MatchController`: `getState()` (a deep read-only `MatchView`), `subscribe(fn)`, and actions `start()`, `typeKey(key)`, `shoot()`, `ballLanded()`, `celebrationDone()`, `askHelp()`, `pause()`, `resume()`, `tick(ms)`. `shoot()` refuses out-of-range numbers and sets a range message. `ballLanded()` decides goal, correct square or miss from `state.ball.number === state.target.number`.
 - `missesPerHeart(difficulty): 3 | 4 | 5`.
-- `starsFor(event: 'goal' | 'square' | 'lineDone', mode): number`.
+- `GOAL_STARS`: 2 stars per goal (amendment 05).
 
 ## `core/progress`
 

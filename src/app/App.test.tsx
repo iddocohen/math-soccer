@@ -12,7 +12,7 @@ import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } f
 import { encodeTransfer } from '../core/transfer/transfer';
 import { MatchController as Controller } from '../core/match/MatchController';
 import { t } from '../i18n';
-import { App, modeFromUrl, seedFromUrl } from './App';
+import { App, seedFromUrl, startFromUrl } from './App';
 
 const game = vi.hoisted(() => ({ created: 0, destroyed: 0, looks: 0, controller: null as MatchController | null }));
 
@@ -46,17 +46,35 @@ function scoreGoal(): void {
 afterEach(cleanup);
 
 describe('App', () => {
-  it('shows one button per mode on the start screen, also for version 1 settings that turned a mode off', () => {
+  it('shows "Spielen" and "Zeit-Challenge" on the start screen, and no mode buttons (FR-068, FR-075)', () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), version: 1, modes: { holes: true, lines: false, keeper: true }, lineLength: 5 }));
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
-    const modes = Array.from(document.querySelectorAll('[data-mode]')).map((b) => b.getAttribute('data-mode'));
-    expect(modes).toEqual(['holes', 'lines', 'keeper']);
+    const buttons = Array.from(document.querySelectorAll('[data-start]')).map((b) => b.getAttribute('data-start'));
+    expect(buttons).toEqual(['play', 'time']);
+    expect(document.querySelector('[data-start="play"]')!.textContent).toBe('Spielen');
+    expect(document.querySelector('[data-mode]')).toBeNull();
+    // Keys 1 to 3 no longer start a round.
+    for (const k of ['1', '2', '3']) fireEvent.keyDown(window, { key: k });
+    expect(screen.queryByTestId('match')).toBeNull();
   });
 
-  it('key 1 starts hole mode with the canvas under the overlay; digits type and Enter refuses 150', async () => {
+  it('hides "Zeit-Challenge" and ignores Z when the parent does not allow it; Z starts a round when allowed', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), timeChallenge: { allowed: false, minutes: 2 } }));
+    const first = render(<App />);
+    expect(document.querySelector('[data-start="time"]')).toBeNull();
+    fireEvent.keyDown(window, { key: 'z' });
+    expect(screen.queryByTestId('match')).toBeNull();
+    first.unmount();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings()));
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Z' });
+    expect(screen.getByTestId('match').getAttribute('data-phase')).toBe('aiming');
+  });
+
+  it('Enter starts the goalkeeper game with the canvas under the overlay; digits type and Enter refuses 150', async () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: 'Enter' });
     const match = screen.getByTestId('match');
     expect(match.getAttribute('data-phase')).toBe('aiming');
     await waitFor(() => expect(game.created).toBe(1));
@@ -69,7 +87,7 @@ describe('App', () => {
 
   it('Escape pauses the match and Enter resumes it', () => {
     render(<App />);
-    fireEvent.click(document.querySelector('[data-mode="holes"]')!);
+    fireEvent.click(document.querySelector('[data-start="play"]')!);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
     fireEvent.keyDown(window, { key: 'Enter' });
@@ -78,7 +96,7 @@ describe('App', () => {
 
   it('continues a stored round after a refresh: the match shows with the same goals and target', () => {
     const first = render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     const target = screen.getByTestId('match').getAttribute('data-target');
     expect(localStorage.getItem(ROUND_KEY)).not.toBeNull();
     first.unmount();
@@ -87,16 +105,17 @@ describe('App', () => {
     expect(screen.getByTestId('match').getAttribute('data-goals')).toBe('0');
   });
 
-  it('reads ?seed= and ?mode= for tests', () => {
+  it('reads ?seed= and ?start= for tests', () => {
     expect(seedFromUrl('?seed=42')).toBe(42);
     expect(seedFromUrl('?seed=x')).toBeUndefined();
-    expect(modeFromUrl('?mode=keeper')).toBe('keeper');
-    expect(modeFromUrl('?mode=penalty')).toBeUndefined();
+    expect(startFromUrl('?start=time')).toBe('time');
+    expect(startFromUrl('?start=play')).toBe('play');
+    expect(startFromUrl('?mode=keeper')).toBeUndefined();
   });
 
   it('the match carries the chart rows and the ball kind for tests', async () => {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     const match = screen.getByTestId('match');
     expect(match.getAttribute('data-rows')).toBe('10');
     expect(match.getAttribute('data-ball-kind')).toBe('soccer');
@@ -108,7 +127,7 @@ describe('App', () => {
   it('the round end shows the result and "Neuer Rekord!", stores the best, and "Nochmal" starts a new round', async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     expect(screen.getByTestId('goal-count').textContent).toBe('0 von 1 Toren');
     scoreGoal();
@@ -116,7 +135,7 @@ describe('App', () => {
     expect(screen.getByTestId('round-result').textContent).toMatch(/^1 Tor in \d+:\d\d$/);
     expect(screen.getByTestId('new-record').textContent).toBe('Neuer Rekord!');
     const stored = JSON.parse(localStorage.getItem(RECORDS_KEY)!) as { bests: Record<string, { goals: number }> };
-    expect(stored.bests['1-100|holes|goalCount']?.goals).toBe(1);
+    expect(stored.bests['1-100|keeper|goalCount']?.goals).toBe(1);
 
     fireEvent.click(screen.getByText('Nochmal'));
     expect(screen.queryByTestId('round-end')).toBeNull();
@@ -127,10 +146,10 @@ describe('App', () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
     localStorage.setItem(
       RECORDS_KEY,
-      JSON.stringify({ version: 1, bests: { '1-100|holes|goalCount': { goals: 1, timeMs: 0, at: '2026-11-01T00:00:00.000Z' } } }),
+      JSON.stringify({ version: 1, bests: { '1-100|keeper|goalCount': { goals: 1, timeMs: 0, at: '2026-11-01T00:00:00.000Z' } } }),
     );
     const first = render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     expect(screen.queryByTestId('new-record')).toBeNull();
@@ -140,7 +159,7 @@ describe('App', () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1, showRecords: false }));
     game.controller = null;
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     expect(screen.getByTestId('round-end')).toBeTruthy();
@@ -151,7 +170,7 @@ describe('App', () => {
   it('"Zurück" on the round end goes back to the start screen', async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     fireEvent.click(screen.getByText('Zurück'));
@@ -160,7 +179,7 @@ describe('App', () => {
 
   it('the help and pause buttons work like H and Escape', () => {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     fireEvent.click(screen.getByTestId('help-button'));
     expect(screen.getByTestId('match').getAttribute('data-help')).toBe('1');
     fireEvent.click(screen.getByLabelText('Pause'));
@@ -183,7 +202,7 @@ describe('App parent screens (T041 to T046)', () => {
 
   it('the gear held in the match opens the menu and pauses; keys do nothing; closing resumes', () => {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     holdGear();
     expect(screen.getByRole('dialog', { name: 'Für Eltern' })).toBeTruthy();
     expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
@@ -209,12 +228,12 @@ describe('App parent screens (T041 to T046)', () => {
 
   it('records an attempt per scored target in the progress (T043)', async () => {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY)!) as { attempts: Array<{ mode: string; solved: boolean }> };
     expect(progress.attempts).toHaveLength(1);
-    expect(progress.attempts[0]).toMatchObject({ mode: 'holes', solved: true });
+    expect(progress.attempts[0]).toMatchObject({ mode: 'keeper', solved: true });
   });
 
   it('a #save= link asks first; "Übernehmen" held for 2 s takes over the save and clears the address', async () => {
@@ -250,7 +269,7 @@ describe('App: stars and locker room (US6)', () => {
   it('awards 2 stars per goal at once, none again after a refresh, and shows them on the round end and the start screen', async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 }));
     const first = render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     expect(storedLocker().stars).toBe(2);
@@ -270,7 +289,7 @@ describe('App: stars and locker room (US6)', () => {
   it('a miss takes no star away', async () => {
     localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 5, totalEarned: 5 }));
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     const target = Number(screen.getByTestId('match').getAttribute('data-target'));
     for (const k of String(target === 1 ? 2 : target - 1)) fireEvent.keyDown(window, { key: k });
@@ -301,7 +320,7 @@ describe('App: stars and locker room (US6)', () => {
     expect(screen.queryByTestId('match')).toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByTestId('star-total').textContent).toBe('★ 5');
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByTestId('match').getAttribute('data-ball')).toBe('ball.gold');
     await waitFor(() => expect(game.controller).not.toBeNull());
   });
@@ -313,7 +332,7 @@ describe('App: stars and locker room (US6)', () => {
     expect(screen.queryByTestId('open-locker-room')).toBeNull();
     fireEvent.keyDown(window, { key: 'k' });
     expect(screen.queryByTestId('locker-room')).toBeNull();
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     expect(screen.getByTestId('round-end')).toBeTruthy();
@@ -351,7 +370,7 @@ describe('App: saved settings reach the running round when the settings page clo
 
   async function startMatch(): Promise<HTMLElement> {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     return screen.getByTestId('match');
   }
@@ -430,7 +449,7 @@ describe('App: saved settings reach the running round when the settings page clo
     save();
     close();
     expect(apply).not.toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByTestId('match').getAttribute('data-rows')).toBe('2');
   });
 });
@@ -438,7 +457,7 @@ describe('App: saved settings reach the running round when the settings page clo
 describe('App: locker room from the match (amendment 01, FR-049)', () => {
   async function startMatch(): Promise<HTMLElement> {
     render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     return screen.getByTestId('match');
   }
@@ -505,12 +524,11 @@ describe('App: review fixes', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  /** A stored hole round with one goal, saved during the celebration of that goal. */
+  /** A stored round with one goal, saved during the celebration of that goal. */
   function celebratingRound(over: Record<string, unknown> = {}) {
     return {
-      version: 1,
+      version: 2,
       seed: 5,
-      mode: 'holes',
       roundType: 'goalCount',
       goalsPerRound: 1,
       min: 1,
@@ -519,8 +537,7 @@ describe('App: review fixes', () => {
       hearts: 3,
       missesInRow: 0,
       helpStep: 0,
-      target: { mode: 'holes', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 },
-      line: null,
+      target: { number: 46, hints: [45], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' },
       targetCount: 1,
       starsThisRound: 2,
       elapsedMs: 9000,
@@ -539,12 +556,37 @@ describe('App: review fixes', () => {
     expect(screen.getByTestId('round-end')).toBeTruthy();
     expect(screen.getByTestId('new-record').textContent).toBe('Neuer Rekord!');
     const stored = JSON.parse(localStorage.getItem(RECORDS_KEY)!) as { bests: Record<string, { goals: number; timeMs: number }> };
-    expect(stored.bests['1-100|holes|goalCount']).toMatchObject({ goals: 1, timeMs: 9000 });
+    expect(stored.bests['1-100|keeper|goalCount']).toMatchObject({ goals: 1, timeMs: 9000 });
     expect(localStorage.getItem(ROUND_KEY)).toBeNull();
     first.unmount();
     // A second refresh has no round to continue, so nothing is saved again.
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
+  });
+
+  it('discards a stored hole or line round from before amendment 05 on load, without a notice (FR-070)', () => {
+    for (const mode of ['holes', 'lines']) {
+      const old = {
+        ...celebratingRound({ version: 1, mode, phase: 'aiming', line: null }),
+        target: { mode, number: 46, hints: [45], patchedHoles: [12], directions: ['right'], difficultyStep: 0 },
+      };
+      localStorage.setItem(ROUND_KEY, JSON.stringify(old));
+      const view = render(<App />);
+      expect(screen.getByTestId('start')).toBeTruthy();
+      expect(screen.queryByTestId('start-notice-reset')).toBeNull();
+      view.unmount();
+    }
+  });
+
+  it('continues a stored goalkeeper round of version 1 after the update', () => {
+    const old = {
+      ...celebratingRound({ version: 1, mode: 'keeper', phase: 'aiming', goals: 0, line: null }),
+      target: { mode: 'keeper', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 },
+    };
+    localStorage.setItem(ROUND_KEY, JSON.stringify(old));
+    render(<App />);
+    expect(screen.getByTestId('match').getAttribute('data-target')).toBe('46');
+    expect(screen.getByTestId('match').getAttribute('data-pattern')).toBe('neighbors');
   });
 
   it('a refresh keeps the round-start goals per round after the parent changed it (H7)', () => {
@@ -556,7 +598,7 @@ describe('App: review fixes', () => {
 
   it('accepting a transfer during a match gives the round a target on the transferred range (M3, FR-052)', async () => {
     const first = render(<App />);
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     first.unmount();
     const data = {
       settings: { ...defaultSettings(), range: { preset: 'custom' as const, min: 1, max: 20 } },
@@ -589,7 +631,7 @@ describe('App: review fixes', () => {
     });
     render(<App />);
     expect(screen.queryByTestId('start-notice-save')).toBeNull();
-    fireEvent.keyDown(window, { key: '1' });
+    fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
     // Play goes on: the round end shows as usual.

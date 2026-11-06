@@ -3,9 +3,9 @@
  * Stars and the locker room (FR-042, FR-043, data-model.md "LockerRoom"). Pure functions; the app stores the result
  * under `mathsoccer.lockerroom.v1` (src/core/storage/storage.ts).
  *
- * - Stars: in line mode 1 per correct square and 3 more for a finished line; in hole and goalkeeper mode 2 per goal
- *   (`starsFor`). The match controller counts them in `starsThisRound`; the app gives every new star to the locker
- *   room as soon as it is earned (`newStars`), so a refresh loses none and counts none twice.
+ * - Stars: 2 per goal (`GOAL_STARS`, amendment 05). The match controller counts them in `starsThisRound`; the app
+ *   gives every new star to the locker room as soon as it is earned (`newStars`), so a refresh loses none and counts
+ *   none twice.
  * - `award` adds stars to the balance and the total ever earned. Only `buy` takes stars away; nothing in the game does
  *   after a miss (FR-023).
  * - `buy` takes the price and equips the item; `equip` chooses an owned or free item.
@@ -14,35 +14,17 @@
  * Nothing here reaches target selection or the difficulty: looks never change the math (FR-043, plan "Rewards never
  * make the math easier").
  */
-import type { Mode } from '../types';
 import type { LockerRoom } from '../storage/schemas';
 import { ballDesign, isFree, itemById, STARTER, type BallDesign, type ItemKind } from './items';
 
-/** Stars for a goal in hole and goalkeeper mode. */
+/** Stars for a goal. */
 export const GOAL_STARS = 2;
-/** Stars for a correct square in line mode. */
-export const SQUARE_STARS = 1;
-/** Extra stars for a finished line, on top of the stars for its last square. */
-export const LINE_STARS = 3;
 
 export const SHIRT_NUMBER_MIN = 1;
 export const SHIRT_NUMBER_MAX = 99;
 export const SHIRT_NAME_MAX = 10;
 /** Letters (any language), spaces and hyphens. */
 export const SHIRT_NAME_PATTERN = /^[\p{L} -]*$/u;
-
-/** The stars one event earns in a mode. */
-export function starsFor(event: 'goal' | 'square' | 'lineDone', mode: Mode): number {
-  if (mode !== 'lines') return event === 'goal' ? GOAL_STARS : 0;
-  switch (event) {
-    case 'square':
-      return SQUARE_STARS;
-    case 'lineDone':
-      return SQUARE_STARS + LINE_STARS;
-    case 'goal':
-      return 0;
-  }
-}
 
 /**
  * The stars to award after `starsThisRound` changed from `seen` to `current`. A new round starts again at 0, so a

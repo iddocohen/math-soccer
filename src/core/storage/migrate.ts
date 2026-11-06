@@ -29,6 +29,30 @@ function settingsV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * Round version 1 to version 2 (amendment 05, FR-070): the mode and the line go, and the target loses its mode and its
+ * patched holes. A goalkeeper target stored before hint patterns had Nachbarn hints. Hole and line rounds never reach
+ * this step: storage.ts discards them first (`isRemovedModeRound`).
+ */
+function roundV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...raw };
+  delete rest.mode;
+  delete rest.line;
+  let target = raw.target;
+  if (isRecord(target)) {
+    const t = { ...target };
+    delete t.mode;
+    delete t.patchedHoles;
+    target = { ...t, pattern: t.pattern ?? 'neighbors' };
+  }
+  return { ...rest, version: 2, target };
+}
+
+/** True for a round of version 1 in hole or line mode: the game discards it on load (FR-070). */
+export function isRemovedModeRound(raw: unknown): boolean {
+  return isRecord(raw) && raw.version === 1 && (raw.mode === 'holes' || raw.mode === 'lines');
+}
+
+/**
  * Upgrade steps per kind: step i turns version i + 1 into version i + 2. A change to a stored shape raises its version
  * and adds a step here, as math-tank does. The storage keys keep their `.v1` names.
  */
@@ -37,7 +61,7 @@ const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Reco
   progress: [],
   records: [],
   lockerRoom: [],
-  round: [],
+  round: [roundV1toV2],
 };
 
 /**

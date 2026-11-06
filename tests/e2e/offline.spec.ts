@@ -1,4 +1,4 @@
-// Copied from math-tank tests/e2e/offline.spec.ts; a round of two goals in hole mode replaces the tank round.
+// Copied from math-tank tests/e2e/offline.spec.ts; a round of two goals replaces the tank round.
 /**
  * Offline play (T064, FR-046). Against the production build: the first load installs the service worker, which
  * precaches the whole game; once it controls the page, the browser goes offline, the page reloads from the cache, and
@@ -11,7 +11,7 @@ import { SETTINGS_KEY } from '../../src/core/storage/storage';
 test('after one load the game starts and plays a whole round offline, also after a reload', async ({ page, context, browserName }) => {
   test.setTimeout(120_000);
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 } });
-  await page.goto('/?mode=holes&seed=4');
+  await page.goto('/?start=play&seed=4');
   await expect(page.getByTestId('start')).toBeVisible();
   const supported = await page.evaluate(() => 'serviceWorker' in navigator);
   // As math-tank: only where the browser under Playwright offers service workers at all.

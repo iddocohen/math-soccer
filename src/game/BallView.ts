@@ -6,9 +6,8 @@
  *
  * - `fly(rect, onArrive)`: from the kick spot along an arc to the middle of `rect` (the `cellRect` of the typed number)
  *   in FLIGHT_MS, shrinking with distance to fit the square, with a shadow on the ground. Calls `onArrive` at the end.
- * - `intoNet()`: after a goal the ball drops behind the board, through the open hole, into the net.
- * - `bounce(onDone)`: after a miss, or a correct square in line mode, the ball bounces off the board onto the pitch and fades, then waits at the kick spot.
- * - `caught(ms)`: in goalkeeper mode the ball stays in the keeper's gloves, then fades and waits at the kick spot.
+ * - `intoNet()`: after a goal the ball drops behind the grid, through the empty target square, into the net.
+ * - `caught(ms)`: after a miss the ball stays in the keeper's gloves, then fades and waits at the kick spot.
  * - `reset()`: the ball waits at the kick spot.
  *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the ball.
@@ -16,7 +15,7 @@
 import Phaser from 'phaser';
 import { center, type BallKind } from '../core/chart/layout';
 import type { BallDesign } from '../core/rewards/items';
-import { GOAL_FRAME, KICK_SPOT } from '../core/match/world';
+import { KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { ballPicture, type BallPicture } from './ballArt';
 import { spinFrame } from './ballSpin';
@@ -26,8 +25,6 @@ import { BALL_SIZE } from './textures';
 export const BALL_DEPTH = 7;
 /** Flight time from the kick spot to the square (plan "Performance Goals"). */
 export const FLIGHT_MS = 800;
-/** Time from the ball hitting the board to the ball waiting at the kick spot again. */
-export const BOUNCE_MS = 900;
 /** How high the arc rises above the straight line, in world pixels. */
 const ARC = 120;
 /** The ball shrinks to at most this part of its size at the goal, and smaller when the square is smaller. */
@@ -112,7 +109,7 @@ export class BallView {
     });
   }
 
-  /** The ball goes through the hole into the net: behind the board, a little smaller and lower. */
+  /** The ball goes past the keeper into the net: behind the grid, a little smaller and lower. */
   intoNet(): void {
     this.stop();
     this.shadow.setVisible(false);
@@ -125,41 +122,6 @@ export class BallView {
       ease: 'Quad.easeOut',
       onComplete: () => {
         this.tween = null;
-      },
-    });
-  }
-
-  /** The ball bounces off the board onto the pitch in front of the goal, fades out, and waits at the kick spot. */
-  bounce(onDone?: () => void): void {
-    this.stop();
-    const x0 = this.ball.x;
-    const y0 = this.ball.y;
-    const scale0 = this.relativeScale();
-    const x1 = x0 + (x0 < KICK_SPOT.x ? -40 : 40);
-    const floor = GOAL_FRAME.y + GOAL_FRAME.height + 40;
-    this.shadow.setVisible(true);
-    this.tween = this.scene.tweens.addCounter({
-      from: 0,
-      to: 1,
-      duration: BOUNCE_MS,
-      onUpdate: (tw) => {
-        const k = tw.getValue() ?? 0;
-        // Out from the board and down, with one small hop on the pitch.
-        const fall = Math.min(1, k / 0.55);
-        const hop = k > 0.55 ? Math.sin(((k - 0.55) / 0.45) * Math.PI) * 30 : 0;
-        const y = y0 + (floor - y0) * fall * fall - hop;
-        const x = x0 + (x1 - x0) * k;
-        const scale = scale0 + (scale0 * 1.15 - scale0) * k;
-        this.ball.setPosition(x, y).setAlpha(k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1);
-        this.setSize(scale);
-        this.placeShadow(x, floor, scale);
-        this.shadow.setAlpha(this.ball.alpha);
-      },
-      onComplete: () => {
-        this.tween = null;
-        this.shadow.setAlpha(1);
-        this.reset();
-        onDone?.();
       },
     });
   }
@@ -180,7 +142,7 @@ export class BallView {
     });
   }
 
-  /** True while the ball moves (flight, net or bounce). */
+  /** True while the ball moves (flight, net or fading from the keeper's gloves). */
   get moving(): boolean {
     return this.tween !== null;
   }

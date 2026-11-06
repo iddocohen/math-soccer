@@ -3,10 +3,11 @@
  * Keyboard map per screen (contracts/screens.md, research R12). Pure: keyToAction turns one key event into an action
  * for the current screen, or null when the key does nothing there.
  *
- * - Start screen: 1, 2 and 3 start hole, line and goalkeeper mode when that mode is offered; Enter or Space starts the
- *   mode named by `?mode=` when it is offered, otherwise the first offered mode; K opens the locker room when it is on.
- * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause. Mode keys work only on the start screen, so
- *   digits always type during a round (plan decision 7).
+ * - Start screen (FR-068, FR-075): Enter or Space start "Spielen"; Z starts the "Zeit-Challenge" when the parent allows
+ *   it; K opens the locker room when it is on. `?start=time` in tests makes Enter and Space start the time challenge
+ *   when it is allowed. Start keys work only on the start screen, so digits always type during a round (plan
+ *   decision 7).
+ * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause.
  * - Help chart open (help step 2): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
  *   Space or Escape without shooting or pausing.
  * - Paused: Enter, Space or Escape resume. Round end: Enter or Space play again.
@@ -15,7 +16,10 @@
  * gate.
  */
 import type { Digit } from '../core/match/entry';
-import { MODES, type Mode } from '../core/types';
+
+/** What a start screen button starts: a normal round ("Spielen") or the time challenge ("Zeit-Challenge"). */
+export const START_KINDS = ['play', 'time'] as const;
+export type StartKind = (typeof START_KINDS)[number];
 
 /** The fields of a KeyboardEvent the map reads. */
 export interface KeyLike {
@@ -29,7 +33,7 @@ export interface KeyLike {
 export type KeyScreen = 'start' | 'match' | 'paused' | 'roundEnd';
 
 export type KeyAction =
-  | { type: 'start'; mode: Mode }
+  | { type: 'start'; kind: StartKind }
   | { type: 'lockerRoom' }
   | { type: 'digit'; digit: Digit }
   | { type: 'backspace' }
@@ -40,12 +44,12 @@ export type KeyAction =
   | { type: 'again' };
 
 export interface KeyContext {
-  /** The offered modes in start-screen order. */
-  modes?: readonly Mode[];
+  /** The parent allows the time challenge: Z starts it only then. */
+  timeChallenge?: boolean;
   /** The parent's locker room setting: K opens it only when it is on. */
   lockerRoom?: boolean;
-  /** The mode Enter and Space start when it is offered (`?mode=` in tests); otherwise the first offered mode. */
-  enterMode?: Mode;
+  /** What Enter and Space start (`?start=` in tests); 'time' only when the time challenge is allowed. */
+  enterStart?: StartKind;
 }
 
 export function keyToAction(event: KeyLike, screen: KeyScreen, context: KeyContext = {}): KeyAction | null {
@@ -54,17 +58,14 @@ export function keyToAction(event: KeyLike, screen: KeyScreen, context: KeyConte
   const isEnter = key === 'Enter';
   const isSpace = key === ' ' || key === 'Spacebar';
   if ((isEnter || isSpace) && event.repeat) return null;
-  const offered = MODES.filter((m) => context.modes?.includes(m));
 
   switch (screen) {
     case 'start': {
       if (isEnter || isSpace) {
-        const mode = context.enterMode && offered.includes(context.enterMode) ? context.enterMode : offered[0];
-        return mode ? { type: 'start', mode } : null;
+        return { type: 'start', kind: context.enterStart === 'time' && context.timeChallenge === true ? 'time' : 'play' };
       }
-      if (/^[1-3]$/.test(key)) {
-        const mode = MODES[Number(key) - 1]!;
-        return !event.repeat && offered.includes(mode) ? { type: 'start', mode } : null;
+      if (key === 'z' || key === 'Z') {
+        return !event.repeat && context.timeChallenge === true ? { type: 'start', kind: 'time' } : null;
       }
       return (key === 'k' || key === 'K') && context.lockerRoom === true ? { type: 'lockerRoom' } : null;
     }

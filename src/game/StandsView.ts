@@ -6,7 +6,6 @@
  * - `cheer()` (a goal): the fans stand up, jump, raise their arms, and every third fan waves a scarf in the scarf
  *   color. It fades out over CHEER_MS.
  * - `ohh()` (a miss): the fans slump softly for OHH_MS, then clap.
- * - `clap()`: the fans clap for CLAP_MS, arms raised in front of them.
  *
  * The fans move only in `update`, which the scene calls every frame; a paused scene does not call it, so the fans stop.
  * The sounds come from src/audio/sfx.ts, not from this view.
@@ -91,11 +90,6 @@ export class StandsView {
     this.slumping = 1;
     this.cheering = 0;
     this.clapping = 0;
-  }
-
-  clap(): void {
-    this.clapping = 1;
-    this.slumping = 0;
   }
 
   /** Back to idle at once, for a new round. */

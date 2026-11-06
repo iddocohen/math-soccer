@@ -12,13 +12,13 @@ test('open the locker room from a running round, equip a ball, close, and the ro
   await seedStorage(
     page,
     {
-      [SETTINGS_KEY]: { ...defaultSettings(), modes: { holes: true, lines: false, keeper: false } },
+      [SETTINGS_KEY]: defaultSettings(),
       [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 25, totalEarned: 25 },
     },
     { once: true },
   );
   await page.goto('/?seed=9');
-  const match = await startRound(page, '1');
+  const match = await startRound(page);
   await expect(match).toHaveAttribute('data-ball', 'ball.classic');
   const target = await targetNumber(match);
 

@@ -3,7 +3,7 @@ import { defaultSettings, MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import type { Target } from '../types';
-import { GOAL_STARS, LINE_STARS, SQUARE_STARS } from '../rewards/lockerRoom';
+import { GOAL_STARS } from '../rewards/lockerRoom';
 import {
   MatchController,
   matchInvariantErrors,
@@ -15,12 +15,12 @@ import {
 import type { Digit } from './entry';
 
 function target(number: number): Target {
-  return { mode: 'holes', number, hints: [number - 1], patchedHoles: [], directions: ['right'], difficultyStep: 0 };
+  return { number, hints: [number - 1], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' };
 }
 
 function makeController(answer = 46) {
   const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target(answer) });
-  c.start('holes');
+  c.start();
   return c;
 }
 
@@ -31,7 +31,7 @@ function type(c: MatchController, text: string) {
 describe('MatchController skeleton', () => {
   it('starts in aiming with a target, 3 hearts and no goals', () => {
     const s = makeController().getState();
-    expect(s).toMatchObject({ started: true, mode: 'holes', seed: 7, phase: 'aiming', goals: 0, hearts: 3, helpStep: 0 });
+    expect(s).toMatchObject({ started: true, seed: 7, phase: 'aiming', goals: 0, hearts: 3, helpStep: 0 });
     expect(s.target?.number).toBe(46);
   });
 
@@ -121,8 +121,8 @@ describe('MatchController skeleton', () => {
     let settings = defaultSettings();
     const c = new MatchController({ settings: () => settings, newSeed: () => 1 });
     settings = { ...settings, range: { preset: 'custom', min: 205, max: 480 } };
-    c.start('keeper');
-    expect(c.getState()).toMatchObject({ mode: 'keeper', min: 205, max: 480 });
+    c.start();
+    expect(c.getState()).toMatchObject({ min: 205, max: 480 });
     const n = c.getState().target!.number;
     expect(n).toBeGreaterThanOrEqual(205);
     expect(n).toBeLessThanOrEqual(480);
@@ -130,11 +130,11 @@ describe('MatchController skeleton', () => {
 });
 
 /** A controller whose targets are 46, 47, 48 and so on, one per target, with `over` merged into the default settings. */
-function holes(over: Partial<Settings> = {}, store?: RoundStore) {
+function fixed(over: Partial<Settings> = {}, store?: RoundStore) {
   const settings = { ...defaultSettings(), ...over };
   let next = 46;
   const c = new MatchController({ settings: () => settings, newSeed: () => 7, nextTarget: () => target(next++), store });
-  c.start('holes');
+  c.start();
   return c;
 }
 
@@ -158,9 +158,9 @@ function memoryStore(): RoundStore & { round: StoredRound | null } {
   return store;
 }
 
-describe('hole mode: goals and misses (US1)', () => {
+describe('goals and misses (US1)', () => {
   it('a correct number gives a goal, 2 stars, and a new target after the celebration', () => {
-    const c = holes();
+    const c = fixed();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, target: { number: 46 } });
     c.celebrationDone();
@@ -168,7 +168,7 @@ describe('hole mode: goals and misses (US1)', () => {
   });
 
   it('a wrong number gives a miss: help step +1, the target unchanged, the square shown', () => {
-    const c = holes();
+    const c = fixed();
     shootAndLand(c, 56);
     expect(c.getState()).toMatchObject({
       phase: 'aiming',
@@ -183,7 +183,7 @@ describe('hole mode: goals and misses (US1)', () => {
   });
 
   it('an out-of-range number does not shoot', () => {
-    const c = holes();
+    const c = fixed();
     type(c, '101');
     c.shoot();
     expect(c.getState()).toMatchObject({ phase: 'aiming', ball: null, missesInRow: 0, message: { kind: 'outOfRange' } });
@@ -191,7 +191,7 @@ describe('hole mode: goals and misses (US1)', () => {
 
   it('shows the missed square for at least 1.5 s of play time, not counting a pause (FR-004)', () => {
     expect(SHOWN_MS).toBeGreaterThanOrEqual(1500);
-    const c = holes();
+    const c = fixed();
     shootAndLand(c, 56);
     c.tick(1000);
     c.pause();
@@ -212,7 +212,7 @@ describe('hearts (FR-027)', () => {
 
   for (const [difficulty, limit] of [['easy', 5], ['normal', 4], ['challenging', 3]] as const) {
     it(`${difficulty}: a heart is lost only at the ${limit}th miss in a row`, () => {
-      const c = holes({ difficulty });
+      const c = fixed({ difficulty });
       for (let i = 1; i < limit; i++) {
         shootAndLand(c, 56);
         expect(c.getState().hearts).toBe(3);
@@ -224,14 +224,14 @@ describe('hearts (FR-027)', () => {
 
   it('a single miss never costs a heart', () => {
     for (const difficulty of ['easy', 'normal', 'challenging'] as const) {
-      const c = holes({ difficulty });
+      const c = fixed({ difficulty });
       shootAndLand(c, 56);
       expect(c.getState().hearts).toBe(3);
     }
   });
 
   it('a lost heart keeps the target, jumps help to step 3, and the next correct shot moves on', () => {
-    const c = holes({ difficulty: 'challenging' });
+    const c = fixed({ difficulty: 'challenging' });
     for (let i = 0; i < 3; i++) shootAndLand(c, 56);
     expect(c.getState()).toMatchObject({ hearts: 2, helpStep: MAX_HELP_STEP, target: { number: 46 }, phase: 'aiming' });
     shootAndLand(c, 46);
@@ -241,7 +241,7 @@ describe('hearts (FR-027)', () => {
   });
 
   it('with goalCount no heart is lost', () => {
-    const c = holes({ roundType: 'goalCount', difficulty: 'challenging' });
+    const c = fixed({ roundType: 'goalCount', difficulty: 'challenging' });
     for (let i = 0; i < 10; i++) shootAndLand(c, 56);
     expect(c.getState()).toMatchObject({ hearts: 3, phase: 'aiming', missesInRow: 10, helpStep: 3 });
   });
@@ -249,7 +249,7 @@ describe('hearts (FR-027)', () => {
 
 describe('round end', () => {
   it('ends at 0 hearts', () => {
-    const c = holes({ difficulty: 'challenging' });
+    const c = fixed({ difficulty: 'challenging' });
     for (let i = 0; i < 9; i++) shootAndLand(c, 56);
     expect(c.getState()).toMatchObject({ hearts: 0, phase: 'roundOver' });
     c.tick(1000);
@@ -257,7 +257,7 @@ describe('round end', () => {
   });
 
   it('ends at goalsPerRound goals after the last celebration', () => {
-    const c = holes({ roundType: 'goalCount', goalsPerRound: 2 });
+    const c = fixed({ roundType: 'goalCount', goalsPerRound: 2 });
     shootAndLand(c, 46);
     c.celebrationDone();
     shootAndLand(c, 47);
@@ -267,7 +267,7 @@ describe('round end', () => {
   });
 
   it('untilHearts does not end at goalsPerRound', () => {
-    const c = holes({ goalsPerRound: 1 });
+    const c = fixed({ goalsPerRound: 1 });
     shootAndLand(c, 46);
     c.celebrationDone();
     expect(c.getState().phase).toBe('aiming');
@@ -276,21 +276,21 @@ describe('round end', () => {
 
 describe('point after full help (FR-025b)', () => {
   it('a shot at the answer of help step 3 scores and counts by default', () => {
-    const c = holes();
+    const c = fixed();
     for (let i = 0; i < 3; i++) c.askHelp();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS });
   });
 
   it('with the setting off it celebrates and earns stars but does not count for the goals', () => {
-    const c = holes({ pointAfterFullHelp: false });
+    const c = fixed({ pointAfterFullHelp: false });
     for (let i = 0; i < 3; i++) c.askHelp();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 0, starsThisRound: GOAL_STARS });
   });
 
   it('a shot after help step 2 still counts with the setting off', () => {
-    const c = holes({ pointAfterFullHelp: false });
+    const c = fixed({ pointAfterFullHelp: false });
     c.askHelp();
     c.askHelp();
     shootAndLand(c, 46);
@@ -299,10 +299,10 @@ describe('point after full help (FR-025b)', () => {
 });
 
 describe('default targets from core/targets', () => {
-  it('gives hole targets on the chart, the same for the same seed, and a new number after a goal', () => {
+  it('gives targets on the chart, the same for the same seed, and a new number after a goal', () => {
     const make = () => {
       const c = new MatchController({ settings: defaultSettings, newSeed: () => 123 });
-      c.start('holes');
+      c.start();
       return c;
     };
     const a = make();
@@ -319,7 +319,7 @@ describe('default targets from core/targets', () => {
 describe('saving the round (mathsoccer.round.v1)', () => {
   it('saves between shots and a new controller continues the round after a refresh', () => {
     const store = memoryStore();
-    const c = holes({}, store);
+    const c = fixed({}, store);
     shootAndLand(c, 46);
     c.celebrationDone();
     shootAndLand(c, 56);
@@ -328,12 +328,12 @@ describe('saving the round (mathsoccer.round.v1)', () => {
 
     const again = new MatchController({ settings: defaultSettings, store });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ started: true, mode: 'holes', goals: 1, missesInRow: 1, helpStep: 1, target: { number: 47 }, phase: 'aiming' });
+    expect(again.getState()).toMatchObject({ started: true, goals: 1, missesInRow: 1, helpStep: 1, target: { number: 47 }, phase: 'aiming' });
   });
 
   it('does not save typing or a ball in flight', () => {
     const store = memoryStore();
-    const c = holes({}, store);
+    const c = fixed({}, store);
     const saved = store.round;
     type(c, '4');
     c.typeKey({ digit: 6 });
@@ -345,7 +345,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
     const store = memoryStore();
     const settings = defaultSettings();
     const c = new MatchController({ settings: () => settings, newSeed: () => 5, store });
-    c.start('holes');
+    c.start();
     shootAndLand(c, c.getState().target!.number);
     expect(store.round?.phase).toBe('celebrating');
     const again = new MatchController({ settings: () => settings, store });
@@ -356,7 +356,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
 
   it('deletes the stored round when the round ends', () => {
     const store = memoryStore();
-    const c = holes({ roundType: 'goalCount', goalsPerRound: 1 }, store);
+    const c = fixed({ roundType: 'goalCount', goalsPerRound: 1 }, store);
     shootAndLand(c, 46);
     c.celebrationDone();
     expect(store.round).toBeNull();
@@ -364,7 +364,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
 
   it('discards a stored round whose range no longer matches the settings (FR-036a)', () => {
     const store = memoryStore();
-    holes({}, store);
+    fixed({}, store);
     const changed = { ...defaultSettings(), range: { preset: 'custom' as const, min: 1, max: 200 } };
     const again = new MatchController({ settings: () => changed, store });
     expect(again.restore()).toBe(false);
@@ -376,7 +376,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
     const store = memoryStore();
     let settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 };
     const c = new MatchController({ settings: () => settings, newSeed: () => 5, store });
-    c.start('holes');
+    c.start();
     shootAndLand(c, c.getState().target!.number);
     c.celebrationDone();
     // Saved mid-round: the round keeps 2 goals and the stored round says so.
@@ -396,7 +396,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
   it('a round stored without goals per round uses the current settings', () => {
     const store = memoryStore();
     const settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 3 };
-    holes({ roundType: 'goalCount', goalsPerRound: 3 }, store);
+    fixed({ roundType: 'goalCount', goalsPerRound: 3 }, store);
     delete store.round!.goalsPerRound;
     const again = new MatchController({ settings: () => settings, store });
     expect(again.restore()).toBe(true);
@@ -407,7 +407,7 @@ describe('saving the round (mathsoccer.round.v1)', () => {
     const store = memoryStore();
     const settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 };
     const c = new MatchController({ settings: () => settings, newSeed: () => 5, store });
-    c.start('holes');
+    c.start();
     shootAndLand(c, c.getState().target!.number);
     expect(store.round?.phase).toBe('celebrating');
     const again = new MatchController({ settings: () => settings, store });
@@ -431,7 +431,7 @@ describe('attempt records (T043, FR-037)', () => {
       onAttempt: (r) => records.push(r),
       now: () => new Date('2026-11-06T12:00:00.000Z'),
     });
-    c.start('holes');
+    c.start();
     return { c, records };
   }
 
@@ -448,7 +448,7 @@ describe('attempt records (T043, FR-037)', () => {
     shot(c, 46, 3000);
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
-      mode: 'holes',
+      mode: 'keeper',
       min: 1,
       max: 100,
       target: 46,
@@ -486,139 +486,21 @@ describe('attempt records (T043, FR-037)', () => {
   });
 });
 
-describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
-  const downOnly: Settings = {
-    ...defaultSettings(),
-    directions: { right: false, down: true, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false },
-  };
-
-  function lineController(settings: Settings = downOnly, extra: Partial<ConstructorParameters<typeof MatchController>[0]> = {}) {
-    const c = new MatchController({ settings: () => settings, newSeed: () => 11, ...extra });
-    c.start('lines');
-    return c;
-  }
-
-  function shootAndLand(c: MatchController, n: number) {
-    type(c, String(n));
-    c.shoot();
-    c.ballLanded();
-  }
-
-  it('starts a line with two printed squares and the next square as the target', () => {
-    const s = lineController().getState();
-    expect(s.line).not.toBeNull();
-    const line = s.line!;
-    expect(line.direction).toBe('down');
-    expect(line.squares).toHaveLength(5);
-    expect(line.index).toBe(2);
-    expect(line.squares[1]! - line.squares[0]!).toBe(10);
-    expect(s.target).toMatchObject({ mode: 'lines', number: line.squares[2], hints: [line.squares[1]], directions: ['down'] });
-  });
-
-  it('a correct square lights, earns a star and makes the next square the target, without a goal', () => {
-    const c = lineController();
-    const line = c.getState().line!;
-    shootAndLand(c, line.squares[2]!);
-    const s = c.getState();
-    expect(s).toMatchObject({ phase: 'aiming', goals: 0, starsThisRound: SQUARE_STARS, message: { kind: 'correctSquare' }, ball: { outcome: 'square' } });
-    expect(s.line!.index).toBe(3);
-    expect(s.target!.number).toBe(line.squares[3]);
-  });
-
-  it('finishing the line scores one goal with the line bonus, then a new line starts', () => {
-    const c = lineController();
-    const line = c.getState().line!;
-    for (const n of line.squares.slice(2)) shootAndLand(c, n);
-    const s = c.getState();
-    expect(s).toMatchObject({ phase: 'celebrating', goals: 1, message: { kind: 'goal' }, ball: { outcome: 'goal' } });
-    expect(s.starsThisRound).toBe(3 * SQUARE_STARS + LINE_STARS);
-    expect(s.line!.index).toBe(line.squares.length);
-    c.celebrationDone();
-    const after = c.getState();
-    expect(after.phase).toBe('aiming');
-    expect(after.line!.index).toBe(2);
-    expect(after.line!.direction).toBe('down');
-  });
-
-  it('a goal is one finished line for goalsPerRound', () => {
-    const c = lineController({ ...downOnly, roundType: 'goalCount', goalsPerRound: 1 });
-    const line = c.getState().line!;
-    shootAndLand(c, line.squares[2]!);
-    expect(c.getState().goals).toBe(0);
-    shootAndLand(c, line.squares[3]!);
-    shootAndLand(c, line.squares[4]!);
-    c.celebrationDone();
-    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 1 });
-  });
-
-  it('a wrong number is a miss and the target stays', () => {
-    const c = lineController();
-    const target = c.getState().target!.number;
-    shootAndLand(c, target === 100 ? 99 : target + 1);
-    expect(c.getState()).toMatchObject({ phase: 'aiming', helpStep: 1, missesInRow: 1, target: { number: target } });
-  });
-
-  it('a lost heart keeps the square as the target with the answer shown, then the line continues (FR-027)', () => {
-    const c = lineController({ ...downOnly, difficulty: 'challenging' });
-    const line = c.getState().line!;
-    const target = line.squares[2]!;
-    for (let i = 0; i < 3; i++) shootAndLand(c, target === 100 ? 99 : target + 1);
-    expect(c.getState()).toMatchObject({ hearts: 2, helpStep: MAX_HELP_STEP, target: { number: target } });
-    shootAndLand(c, target);
-    expect(c.getState()).toMatchObject({ phase: 'aiming', helpStep: 0, target: { number: line.squares[3] } });
-  });
-
-  it('records one attempt per line square with the line direction', () => {
-    const records: AttemptRecord[] = [];
-    const c = lineController(downOnly, { onAttempt: (r) => records.push(r) });
-    const line = c.getState().line!;
-    for (const n of line.squares.slice(2)) shootAndLand(c, n);
-    expect(records.map((r) => r.target)).toEqual(line.squares.slice(2));
-    expect(records.every((r) => r.mode === 'lines' && r.solved && r.directions.join() === 'down')).toBe(true);
-  });
-
-  it('picks directions from the enabled ones, unmastered twice as often', () => {
-    const two: Settings = { ...downOnly, directions: { ...downOnly.directions, right: true } };
-    const counts = { down: 0, right: 0 };
-    for (let seed = 0; seed < 300; seed++) {
-      const c = new MatchController({ settings: () => two, newSeed: () => seed, progress: () => ({ mastered: ['right'], steps: {} }) });
-      c.start('lines');
-      const d = c.getState().line!.direction;
-      expect(['down', 'right']).toContain(d);
-      counts[d as 'down' | 'right']++;
-    }
-    expect(counts.down).toBeGreaterThan(counts.right * 1.4);
-  });
-
-  it('a refresh continues the line', () => {
-    let saved: StoredRound | null = null;
-    const store: RoundStore = { load: () => saved, save: (r) => (saved = r), clear: () => (saved = null) };
-    const c = lineController(downOnly, { store });
-    const line = c.getState().line!;
-    shootAndLand(c, line.squares[2]!);
-    const again = new MatchController({ settings: () => downOnly, store });
-    expect(again.restore()).toBe(true);
-    expect(again.getState().line).toEqual({ ...line, index: 3 });
-    expect(again.getState().target!.number).toBe(line.squares[3]);
-  });
-});
-
-describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
+describe('MatchController goalkeeper targets (T053, FR-019, FR-020, FR-065)', () => {
   const keeperOnly: Settings = defaultSettings();
 
   function keeperController(seed = 11) {
     const c = new MatchController({ settings: () => keeperOnly, newSeed: () => seed });
-    c.start('keeper');
+    c.start();
     return c;
   }
 
-  it('aims at a keeper target with hint numbers around it and no patched holes', () => {
+  it('aims at a target with the hint numbers of a hint pattern around it', () => {
     for (let seed = 0; seed < 20; seed++) {
       const t = keeperController(seed).getState().target!;
-      expect(t.mode).toBe('keeper');
+      expect(['neighbors', 'middle', 'row']).toContain(t.pattern);
       expect(t.hints.length).toBeGreaterThan(0);
       expect(t.hints).not.toContain(t.number);
-      expect(t.patchedHoles).toEqual([]);
     }
   });
 
@@ -628,7 +510,7 @@ describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
     shootAndLand(c, first);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, ball: { outcome: 'goal' } });
     c.celebrationDone();
-    expect(c.getState().target!.mode).toBe('keeper');
+    expect(c.getState().target!.pattern).toBeDefined();
     expect(c.getState().target!.number).not.toBe(first);
   });
 
@@ -645,12 +527,12 @@ describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
 describe('applySettings: saved settings reach the running round (amendment 01, FR-052)', () => {
   const RANGE_20 = { preset: 'custom', min: 1, max: 20 } as const;
 
-  function live(over: Partial<Settings> = {}, mode: 'holes' | 'lines' = 'holes') {
+  function live(over: Partial<Settings> = {}) {
     let settings: Settings = { ...defaultSettings(), ...over };
     const records: AttemptRecord[] = [];
     const store = memoryStore();
     const c = new MatchController({ settings: () => settings, newSeed: () => 5, onAttempt: (r) => records.push(r), store });
-    c.start(mode);
+    c.start();
     const save = (next: Partial<Settings>) => {
       settings = { ...settings, ...next };
       return settings;
@@ -748,20 +630,6 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
     expect(c.getState().target!.number).toBeLessThanOrEqual(20);
   });
 
-  it('a correct line square landed during the change keeps its result until its feedback has finished (M1)', () => {
-    const { c, save } = live({}, 'lines');
-    const line = c.getState().line!;
-    type(c, String(c.getState().target!.number));
-    c.shoot();
-    c.applySettings(save({ range: { ...RANGE_20 } }));
-    c.ballLanded();
-    expect(c.getState()).toMatchObject({ phase: 'aiming', max: 100, ball: { outcome: 'square' }, message: { kind: 'correctSquare' } });
-    expect(c.getState().line).toMatchObject({ squares: line.squares, index: line.index + 1 });
-    c.tick(SHOWN_MS);
-    expect(c.getState()).toMatchObject({ max: 20, ball: null });
-    expect(c.getState().line!.squares.every((n) => n >= 1 && n <= 20)).toBe(true);
-  });
-
   it('a goal scored during the change still counts, and the next target is on the new board', () => {
     const { c, records, save } = live();
     const t = c.getState().target!.number;
@@ -773,16 +641,6 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
     expect(records).toHaveLength(1);
     c.celebrationDone();
     expect(c.getState()).toMatchObject({ phase: 'aiming', max: 20 });
-  });
-
-  it('in line mode a target-shaping change starts a new line on the new board', () => {
-    const { c, save } = live({}, 'lines');
-    const before = c.getState().line!;
-    c.applySettings(save({ range: { ...RANGE_20 } }));
-    const line = c.getState().line!;
-    expect(line).not.toEqual(before);
-    expect(line.squares.every((n) => n >= 1 && n <= 20)).toBe(true);
-    expect(c.getState().target!.number).toBe(line.squares[line.index]);
   });
 
   it('changes nothing before a round or after it ended', () => {
@@ -801,7 +659,7 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
 });
 
 describe('state rules checked in development builds (review H4, partial)', () => {
-  /** A copy of a running hole round's state that a test may change. */
+  /** A copy of a running round's state that a test may change. */
   function aiming(): MatchState {
     return structuredClone(makeController().getState()) as MatchState;
   }
@@ -822,16 +680,8 @@ describe('state rules checked in development builds (review H4, partial)', () =>
     expect(matchInvariantErrors({ ...aiming(), phase: 'roundOver', shown: { number: 4, remainingMs: 10 } })).toHaveLength(1);
   });
 
-  it('a line exists only in line mode, and a running line round has one', () => {
-    const line = { squares: [1, 2, 3], direction: 'right' as const, given: 2, index: 2 };
-    expect(matchInvariantErrors({ ...aiming(), line })).toHaveLength(1);
-    expect(matchInvariantErrors({ ...aiming(), mode: 'lines', line: null })).toHaveLength(1);
-    expect(matchInvariantErrors({ ...aiming(), mode: 'lines', line })).toEqual([]);
-    expect(matchInvariantErrors({ ...aiming(), mode: 'lines', line: null, phase: 'roundOver' })).toEqual([]);
-  });
-
   it('losing the last heart ends the round without a shown square', () => {
-    const c = holes({ roundType: 'untilHearts', difficulty: 'normal' });
+    const c = fixed({ roundType: 'untilHearts', difficulty: 'normal' });
     for (let heart = 0; heart < 3; heart++) for (let i = 0; i < MISSES_PER_HEART.normal; i++) shootAndLand(c, 1);
     expect(c.getState()).toMatchObject({ phase: 'roundOver', hearts: 0, shown: null });
   });

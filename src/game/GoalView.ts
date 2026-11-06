@@ -1,19 +1,17 @@
 /**
- * The goal (FR-001, FR-004, FR-011, FR-013, FR-053 to FR-055): the net in depth, the board panel with the printed
- * chart, and the posts, in three layers. Seen from the penalty spot.
+ * The goal (FR-001, FR-004, FR-013, FR-019, FR-053 to FR-055): the net in depth, the grid of the chart over the open
+ * goal, and the posts, in three layers. Seen from the penalty spot.
  *
- * - The net is drawn once, behind the board: the back net, the side nets and the roof net in perspective, with the
- *   mesh visible, and the thin back posts. It fills the whole goal mouth (`GOAL_FRAME`), so it shows around the panel.
- * - The board is a canvas texture of `CHART_RECT`, a panel inside the goal mouth, drawn from `buildBoard`
- *   (src/game/board.ts). It is redrawn only when `boardKey` changes, that is when the target, the hints shown, the help
- *   step or the shown square change (plan decision 9), not every frame. Help shows on the board too (T040): at steps 1
- *   and 2 a yellow arrow from the closest hint number to the hole, at step 3 the answer in the hole. The open hole is
- *   left transparent, so the net shows through it, and a ball placed between the net and the board
- *   (`BALL_IN_NET_DEPTH`) shows only through the hole.
- * - In hole and line mode a dark edge and ropes to the frame hang the panel in the goal. In goalkeeper mode (T055) the
- *   goal is open: no panel edge, a faint chalk grid inside the same `CHART_RECT` over the net, the hint squares filled
- *   in the team color with dark numbers, and the empty target square washed light and outlined in the team color.
- * - The posts and the crossbar are drawn once, in front of the board.
+ * - The net is drawn once, behind the grid: the back net, the side nets and the roof net in perspective, with the mesh
+ *   visible, and the thin back posts. It fills the whole goal mouth (`GOAL_FRAME`).
+ * - The grid is a canvas texture of `CHART_RECT` inside the goal mouth, drawn from `buildBoard` (src/game/board.ts): a
+ *   faint chalk grid over the net, the hint squares filled in the team color with dark numbers, and the empty target
+ *   square washed light and outlined in the team color (T055). It is redrawn only when `boardKey` changes, that is
+ *   when the target, the hints shown, the help step or the shown square change (plan decision 9), not every frame.
+ *   Help shows on the grid too (T040): at steps 1 and 2 a yellow arrow from the closest hint number to the target, at
+ *   step 3 the answer in the target square. A ball after a goal sits between the net and the grid
+ *   (`BALL_IN_NET_DEPTH`).
+ * - The posts and the crossbar are drawn once, in front of the grid.
  */
 import Phaser from 'phaser';
 import { center } from '../core/chart/layout';
@@ -25,7 +23,7 @@ import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 import { COLOR, css } from './palette';
 
 export const NET_DEPTH = 2;
-/** A ball that went through the hole sits here: behind the board, in front of the net. */
+/** A ball in the net after a goal sits here: behind the grid, in front of the net. */
 export const BALL_IN_NET_DEPTH = 3;
 export const BOARD_DEPTH = 4;
 export const POSTS_DEPTH = 5;
@@ -35,8 +33,6 @@ const BOARD_TEXTURE = 'goal-board';
 const RESOLUTION = 2;
 /** Mesh size of the back net in world pixels. */
 const NET_MESH = 18;
-/** Width of the dark edge around the board panel. */
-const PANEL_EDGE = 8;
 
 interface Point {
   x: number;
@@ -52,7 +48,6 @@ export class GoalView {
   private readonly chart: Rect = CHART_RECT;
   private readonly texture: Phaser.Textures.CanvasTexture;
   private readonly net: Phaser.GameObjects.Graphics;
-  private readonly panel: Phaser.GameObjects.Graphics;
   private readonly board: Phaser.GameObjects.Image;
   private readonly posts: Phaser.GameObjects.Graphics;
   private key = '';
@@ -65,9 +60,6 @@ export class GoalView {
 
     this.net = scene.add.graphics().setDepth(NET_DEPTH);
     drawNet(this.net);
-
-    this.panel = scene.add.graphics().setDepth(BOARD_DEPTH);
-    drawPanelEdge(this.panel, chart);
 
     if (scene.textures.exists(BOARD_TEXTURE)) scene.textures.remove(BOARD_TEXTURE);
     const texture = scene.textures.createCanvas(BOARD_TEXTURE, chart.width * RESOLUTION, chart.height * RESOLUTION);
@@ -84,7 +76,6 @@ export class GoalView {
     const full: BoardInput = { ...input, goal: this.chart };
     const key = boardKey(full);
     if (key === this.key) return false;
-    this.panel.setVisible(input.mode !== 'keeper');
     this.key = key;
     this.draw(full);
     return true;
@@ -110,49 +101,14 @@ export class GoalView {
   private drawSquare(ctx: CanvasRenderingContext2D, s: Square): void {
     const { x, y, width: w, height: h } = s.rect;
     const gap = Math.min(1, h / 8);
-    switch (s.kind) {
-      case 'printed':
-        ctx.fillStyle = css(COLOR.board);
-        ctx.fillRect(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
-        break;
-      case 'empty':
-        ctx.fillStyle = css(0xd6dacf);
-        ctx.fillRect(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
-        break;
-      case 'patch':
-        // A net patch over an old hole: board color with a cross-hatch.
-        ctx.fillStyle = css(0xc9cfc2);
-        ctx.fillRect(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
-        ctx.strokeStyle = css(COLOR.ink, 0.25);
-        ctx.lineWidth = 1;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x + gap, y + gap, w - 2 * gap, h - 2 * gap);
-        ctx.clip();
-        ctx.beginPath();
-        for (let d = -h; d < w; d += 7) {
-          ctx.moveTo(x + d, y);
-          ctx.lineTo(x + d + h, y + h);
-          ctx.moveTo(x + d, y + h);
-          ctx.lineTo(x + d + h, y);
-        }
-        ctx.stroke();
-        ctx.restore();
-        break;
-      case 'open':
-        // A faint chalk grid over the net. The empty target square gets a light wash so it reads as marked.
-        if (s.outlined) {
-          ctx.fillStyle = css(COLOR.chalk, 0.16);
-          ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-        }
-        ctx.strokeStyle = css(COLOR.chalk, 0.3);
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-        break;
-      case 'hole':
-        // Transparent: the net behind the board shows through.
-        break;
+    // A faint chalk grid over the net. The empty target square gets a light wash so it reads as marked.
+    if (s.outlined) {
+      ctx.fillStyle = css(COLOR.chalk, 0.16);
+      ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
     }
+    ctx.strokeStyle = css(COLOR.chalk, 0.3);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     if (s.lit) {
       ctx.fillStyle = css(COLOR.kit, 0.85);
       ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
@@ -186,7 +142,7 @@ export class GoalView {
     ctx.fillText(s.label.text, cx, cy + 1);
   }
 
-  /** The help arrow: a thick yellow line with a dark edge and a head that stops short of the hole's center. */
+  /** The help arrow: a thick yellow line with a dark edge and a head that stops short of the target's center. */
   private drawArrow(ctx: CanvasRenderingContext2D, arrow: Arrow, cellHeight: number): void {
     const { from, to } = arrow;
     const dx = to.x - from.x;
@@ -197,7 +153,7 @@ export class GoalView {
     const uy = dy / length;
     const width = clamp(cellHeight / 6, 3, 9);
     const head = width * 3;
-    // Start beside the hint's number and end at the hole's edge, so neither number is covered.
+    // Start beside the hint's number and end at the target's edge, so neither number is covered.
     const start = Math.min(length / 3, cellHeight * 0.35);
     const sx = from.x + ux * start;
     const sy = from.y + uy * start;
@@ -228,7 +184,6 @@ export class GoalView {
 
   destroy(): void {
     this.net.destroy();
-    this.panel.destroy();
     this.board.destroy();
     this.posts.destroy();
     if (this.scene.textures.exists(BOARD_TEXTURE)) this.scene.textures.remove(BOARD_TEXTURE);
@@ -303,26 +258,6 @@ function drawNet(g: Phaser.GameObjects.Graphics): void {
   g.lineBetween(f.tr.x, f.tr.y, b.tr.x, b.tr.y);
   g.lineBetween(f.bl.x, f.bl.y, b.bl.x, b.bl.y);
   g.lineBetween(f.br.x, f.br.y, b.br.x, b.br.y);
-}
-
-/** The dark edge of the board panel and the ropes that hang it from the crossbar and the posts. */
-function drawPanelEdge(g: Phaser.GameObjects.Graphics, chart: Rect): void {
-  const left = GOAL_FRAME.x + POST_WIDTH;
-  const right = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH;
-  const top = GOAL_FRAME.y + POST_WIDTH;
-  const chartRight = chart.x + chart.width;
-  const chartBottom = chart.y + chart.height;
-  g.lineStyle(3, 0xd8d2bd, 0.9);
-  for (const x of [chart.x + 30, chartRight - 30]) g.lineBetween(x, top, x, chart.y);
-  for (const y of [chart.y + 40, chartBottom - 40]) {
-    g.lineBetween(left, y, chart.x, y);
-    g.lineBetween(chartRight, y, right, y);
-  }
-  g.fillStyle(0x2a3a46, 1);
-  g.fillRect(chart.x - PANEL_EDGE, chart.y - PANEL_EDGE, chart.width + 2 * PANEL_EDGE, PANEL_EDGE);
-  g.fillRect(chart.x - PANEL_EDGE, chartBottom, chart.width + 2 * PANEL_EDGE, PANEL_EDGE);
-  g.fillRect(chart.x - PANEL_EDGE, chart.y, PANEL_EDGE, chart.height);
-  g.fillRect(chartRight, chart.y, PANEL_EDGE, chart.height);
 }
 
 /** Thick white posts and crossbar with a shaded inner side, and their shadow on the goal line. */

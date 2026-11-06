@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 function running(): MatchView {
   const c = new MatchController({ settings: defaultSettings, newSeed: () => 3 });
-  c.start('holes');
+  c.start();
   return c.getState();
 }
 

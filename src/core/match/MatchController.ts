@@ -7,49 +7,37 @@
  * celebrationDone gives the next target or ends the round; a miss returns to aiming. roundOver ends the round, at 0
  * hearts (`untilHearts`) or at `goalsPerRound` goals (`goalCount`).
  *
- * Hole mode (T029): a miss shows the square of the typed number for SHOWN_MS (FR-004) and raises the help step; after
- * the difficulty's number of misses in a row a heart is lost, the target stays and help jumps to the answer (FR-027).
- * The round is saved between shots so a refresh continues it (FR-036a: a stored round for another range or mode is
- * discarded).
+ * The goalkeeper game (T029, T053, amendment 05, FR-019, FR-020): targets come from `nextTarget`, with the hint numbers
+ * of a hint pattern lit in the grid around an empty target square. The target number is a goal worth GOAL_STARS; any
+ * other number is a miss whose square shows its number for SHOWN_MS (FR-004) and raises the help step. After the
+ * difficulty's number of misses in a row a heart is lost, the target stays and help jumps to the answer (FR-027). The
+ * keeper's dive and catch are drawn by KeeperView from this state; the controller does not track the keeper. The round
+ * is saved between shots so a refresh continues it (FR-036a: a stored round for another range is discarded).
  *
  * Help (T038, FR-024, FR-025): H, the help button and each miss raise the help step up to 3. Step 2 opens the help
  * chart; Enter, Space, Escape or a tap close it, and that Enter does not shoot. Help never changes hearts, stars or
  * goals. What each step shows comes from help.ts.
  *
- * Line mode (T050, FR-015 to FR-018, FR-026): a round plays lines from `makeLine` (core/targets/lines.ts). The
- * direction of each new line is picked from the parent's line directions, directions not yet mastered twice as often.
- * The target is the next empty square of the line. A correct number lights that square (`correctSquare`), earns
- * SQUARE_STARS and makes the next square the target, without a celebration. The last square scores a goal, which is one
- * finished line for `goalsPerRound`, and earns LINE_STARS on top. Misses, hearts and help work as in hole mode, on the
- * one square: after a lost heart the square stays the target with the answer shown, and the line goes on after it.
- * Every square is one attempt record with the line's direction.
- *
- * Goalkeeper mode (T053, FR-019, FR-020): targets come from `nextTarget` like hole mode, with the hint numbers lit in
- * the grid around an empty target square and no patched holes. The rules are those of hole mode: the target number is
- * a goal worth GOAL_STARS, any other number is a miss whose square shows. The keeper's dive and catch are drawn by
- * KeeperView from this state; the controller does not track the keeper.
- *
  * Settings saved during a round (amendment 01, FR-052, after math-tank's `applySettingsNow`): `applySettings` takes them
  * into the running round. Round type and goals per round keep their round-start values. When a target-shaping setting
- * changed (TARGET_KEYS), the round gets a new target (or a new line) on the board of the new range; goals, hearts, stars,
- * time and the paused state stay, and the dropped target records no attempt. While the ball flies or the goal is
- * celebrated, the new target waits until the round is back in 'aiming' and the landing feedback has finished: after a
- * miss or a lit line square that is SHOWN_MS of play time, so the scene still reads the landed ball, the message and
- * the shown square right after `ballLanded`.
+ * changed (TARGET_KEYS), the round gets a new target on the board of the new range; goals, hearts, stars, time and
+ * the paused state stay, and the dropped target records no attempt. While the ball flies or the goal is celebrated,
+ * the new target waits until the round is back in 'aiming' and the landing feedback has finished: after a miss that is
+ * SHOWN_MS of play time, so the scene still reads the landed ball, the message and the shown square right after
+ * `ballLanded`.
  *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
-import { starsFor } from '../rewards/lockerRoom';
+import { GOAL_STARS } from '../rewards/lockerRoom';
 import { MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
-import { makeLine, type Line } from '../targets/lines';
-import { NO_PROGRESS, nextTarget, pickDirection, type TargetProgress } from '../targets/nextTarget';
-import { DIRECTIONS, type DeepReadonly, type Mode, type Target } from '../types';
+import { NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
+import type { DeepReadonly, Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
@@ -64,21 +52,17 @@ export const SHOWN_MS = 1500;
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 const SAVE_TIME_EVERY_MS = 1000;
 
-/** Squares per line in line mode: the default of the line length setting that settings version 2 dropped. */
-const LINE_LENGTH = 5;
-
 /** What the message line says; the app turns it into German text. */
 export type MatchMessage =
   | { kind: 'outOfRange'; min: number; max: number }
   | { kind: 'goal' }
-  | { kind: 'correctSquare' }
   | { kind: 'miss'; number: number }
   | { kind: 'heartLost'; number: number };
 
-/** The ball after a shot: the typed number and, once landed, whether it scored or lit a line square. */
+/** The ball after a shot: the typed number and, once landed, whether it scored. */
 export interface Ball {
   number: number;
-  outcome: 'goal' | 'square' | 'miss' | null;
+  outcome: 'goal' | 'miss' | null;
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
@@ -103,7 +87,6 @@ export interface FinishedAttempt {
 export interface MatchState {
   /** False before the first `start()`. */
   started: boolean;
-  mode: Mode;
   roundType: Settings['roundType'];
   seed: number;
   min: number;
@@ -115,8 +98,6 @@ export interface MatchState {
   message: MatchMessage | null;
   ball: Ball | null;
   target: Target | null;
-  /** The line in line mode; null in the other modes. */
-  line: Line | null;
   /** How many targets the round has had; the next target's random numbers derive from the seed and this count. */
   targetCount: number;
   /** The square of the last missed number while it shows its number. */
@@ -152,8 +133,7 @@ export type MatchView = DeepReadonly<MatchState>;
  * consistent:
  * - a ball without an outcome flies: it exists exactly in 'ballInFlight';
  * - 'celebrating' follows a goal, so its ball has the outcome 'goal';
- * - no missed square shows after the round ended;
- * - a line exists only in line mode, and a running line round always has one.
+ * - no missed square shows after the round ended.
  */
 export function matchInvariantErrors(s: MatchState): string[] {
   const errors: string[] = [];
@@ -161,8 +141,6 @@ export function matchInvariantErrors(s: MatchState): string[] {
   if ((s.phase === 'ballInFlight') !== flying) errors.push(`ball ${JSON.stringify(s.ball)} in phase ${s.phase}`);
   if (s.phase === 'celebrating' && s.ball?.outcome !== 'goal') errors.push('celebrating without a goal');
   if (s.phase === 'roundOver' && s.shown !== null) errors.push('shown square after the round ended');
-  if (s.line !== null && s.mode !== 'lines') errors.push(`line in ${s.mode} mode`);
-  if (s.mode === 'lines' && s.started && s.phase !== 'roundOver' && s.line === null) errors.push('line mode without a line');
   return errors;
 }
 
@@ -194,7 +172,7 @@ export interface MatchControllerOptions {
   /** The next target for the round; defaults to `nextTarget` from core/targets with the round's seeded `Rng`. */
   nextTarget?: (state: MatchState) => Target | null;
   /** The child's progress for target selection; T042 connects it. */
-  progress?: (mode: Mode) => TargetProgress;
+  progress?: () => TargetProgress;
   /** Saves the round so a refresh continues it; no saving without it. */
   store?: RoundStore;
   /** Receives one record per finished target: scored, or left when the round ended (T043, FR-037). */
@@ -208,7 +186,6 @@ export const START_HEARTS = 3;
 /** The match state fields a stored round keeps; `phase` and `goalsPerRound` are saved and restored on their own. */
 const STORED_KEYS = [
   'seed',
-  'mode',
   'roundType',
   'min',
   'max',
@@ -217,7 +194,6 @@ const STORED_KEYS = [
   'missesInRow',
   'helpStep',
   'target',
-  'line',
   'targetCount',
   'starsThisRound',
   'elapsedMs',
@@ -241,10 +217,9 @@ const TARGET_RESET = {
   shown: null,
 } as const satisfies Partial<MatchState>;
 
-function freshState(s: Settings, mode: Mode, seed: number, started: boolean): MatchState {
+function freshState(s: Settings, seed: number, started: boolean): MatchState {
   return {
     started,
-    mode,
     roundType: s.roundType,
     seed,
     min: s.range.min,
@@ -255,7 +230,6 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
     message: null,
     ball: null,
     target: null,
-    line: null,
     targetCount: 0,
     shown: null,
     goals: 0,
@@ -305,13 +279,13 @@ export class MatchController {
   private roundSettings: Settings;
   /** True while saved target-shaping settings wait for the round to be back in 'aiming' (FR-052). */
   private newTargetPending = false;
-  /** Play time left of the landing feedback of the last miss or line square; a pending new target waits for it. */
+  /** Play time left of the landing feedback of the last miss; a pending new target waits for it. */
   private feedbackMs = 0;
 
   constructor(options: MatchControllerOptions) {
     this.options = options;
     this.roundSettings = options.settings();
-    this.state = freshState(this.roundSettings, 'holes', 0, false);
+    this.state = freshState(this.roundSettings, 0, false);
   }
 
   getState(): MatchView {
@@ -342,7 +316,7 @@ export class MatchController {
   }
 
   /**
-   * The round on the board of the round settings' range with a new target or line. Goals, hearts, stars, time and the
+   * The round on the board of the round settings' range with a new target. Goals, hearts, stars, time and the
    * paused state stay; the unfinished target is dropped without an attempt record.
    */
   private withNewSettings(s: MatchState): MatchState {
@@ -356,7 +330,6 @@ export class MatchController {
       message: null,
       ball: null,
       target: null,
-      line: null,
     });
   }
 
@@ -366,13 +339,13 @@ export class MatchController {
     return () => this.listeners.delete(fn);
   }
 
-  /** Starts a new round in `mode` with the current settings. */
-  start(mode: Mode): void {
+  /** Starts a new round with the current settings. */
+  start(): void {
     this.newTargetPending = false;
     this.feedbackMs = 0;
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
-    this.set(this.withNextTarget(freshState(this.roundSettings, mode, seed, true)));
+    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true)));
   }
 
   /**
@@ -393,7 +366,7 @@ export class MatchController {
     // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
     // they were kept uses the current goals per round.
     this.roundSettings = { ...s, roundType: stored.roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
-    const state: MatchState = { ...freshState(this.roundSettings, stored.mode, stored.seed, true), ...storedFields(stored) };
+    const state: MatchState = { ...freshState(this.roundSettings, stored.seed, true), ...storedFields(stored) };
     // A round saved during the celebration goes on as if the celebration had ended.
     if (stored.phase === 'celebrating') this.set(this.afterCelebration(state));
     else this.set(state);
@@ -452,24 +425,17 @@ export class MatchController {
     const s = this.state;
     if (s.phase !== 'ballInFlight' || !s.ball) return;
     const hit = s.target !== null && s.ball.number === s.target.number;
-    if (hit && s.line && s.line.index < s.line.squares.length - 1) {
-      this.squareLit(s, s.line);
-      return;
-    }
     if (hit) {
       // A shot at the answer of help step 3 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
       const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
-      // In line mode the goal finishes the line: every square lights, and a correct square's star comes with the bonus.
-      const lineStars = starsFor(s.line ? 'lineDone' : 'goal', s.mode);
       this.set({
         ...s,
-        line: s.line ? { ...s.line, index: s.line.squares.length } : null,
         ball: { ...s.ball, outcome: 'goal' },
         lastAttempt: this.scored(s, s.ball),
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
-        starsThisRound: s.starsThisRound + lineStars,
+        starsThisRound: s.starsThisRound + GOAL_STARS,
         missesInRow: 0,
         message: { kind: 'goal' },
       });
@@ -517,28 +483,11 @@ export class MatchController {
     });
   }
 
-  /** Records the attempt at the target of `s` that `ball` just scored or lit, and returns it for `lastAttempt`. */
+  /** Records the attempt at the target of `s` that `ball` just scored, and returns it for `lastAttempt`. */
   private scored(s: MatchState, ball: Ball): FinishedAttempt {
     const solved = s.helpStep < MAX_HELP_STEP;
     this.recordAttempt(s, { solved, endedAt: ball.atMs });
     return { number: ball.number, solved, helpStep: s.helpStep };
-  }
-
-  /** A correct square of the line that is not its last: it lights, and the next square becomes the target (FR-016). */
-  private squareLit(s: MatchState, line: Line): void {
-    const ball = s.ball!;
-    const next: MatchState = {
-      ...s,
-      ...TARGET_RESET,
-      ball: { ...ball, outcome: 'square' },
-      line: { ...line, index: line.index + 1 },
-      lastAttempt: this.scored(s, ball),
-      starsThisRound: s.starsThisRound + starsFor('square', s.mode),
-      message: { kind: 'correctSquare' },
-      phase: 'aiming',
-    };
-    this.feedbackMs = SHOWN_MS;
-    this.set(this.withNextTarget(next));
   }
 
   /** Called by the scene when the goal celebration ends: the next target, or the end of the round. */
@@ -601,34 +550,16 @@ export class MatchController {
   /** The state with the round's next target. */
   private withNextTarget(state: MatchState): MatchState {
     const fresh = { targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
-    if (state.mode === 'lines') {
-      const line = state.line && state.line.index < state.line.squares.length ? state.line : this.newLine(state);
-      return { ...state, ...fresh, line, target: lineTarget(line) };
-    }
     const target = this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state);
     return { ...state, ...fresh, target };
   }
 
-  /**
-   * A new line for the round: the direction from the parent's line directions, weighting directions not yet mastered
-   * in line mode (FR-017, FR-040), and LINE_LENGTH squares (the line length setting went with settings version 2).
-   */
-  private newLine(state: MatchState): Line {
-    const s = this.roundSettings;
-    const rng = createRng(deriveSeed(state.seed, state.targetCount));
-    const enabled = DIRECTIONS.filter((d) => s.directions[d]);
-    const progress = this.options.progress?.('lines') ?? NO_PROGRESS;
-    const direction = pickDirection(enabled.length > 0 ? enabled : ['right'], progress.mastered, rng);
-    return makeLine(layoutChart(state.min, state.max), direction, LINE_LENGTH, rng);
-  }
-
-  /** Hole and goalkeeper targets from core/targets. */
+  /** The next target from core/targets, with the round's seeded `Rng`. */
   private defaultTarget(state: MatchState): Target | null {
     return nextTarget({
       layout: layoutChart(state.min, state.max),
-      mode: state.mode,
       settings: this.roundSettings,
-      progress: this.options.progress?.(state.mode) ?? NO_PROGRESS,
+      progress: this.options.progress?.() ?? NO_PROGRESS,
       rng: createRng(deriveSeed(state.seed, state.targetCount)),
       avoid: state.target?.number,
     });
@@ -639,7 +570,6 @@ export class MatchController {
     if (!this.options.onAttempt || !s.target) return;
     this.options.onAttempt(
       makeAttemptRecord({
-        mode: s.mode,
         min: s.min,
         max: s.max,
         target: s.target,
@@ -685,22 +615,7 @@ export class MatchController {
     }
     // While the ball flies the round is saved as it was before the shot; the shot is lost on a refresh.
     if (s.phase !== 'aiming' && s.phase !== 'celebrating') return;
-    store.save({ version: 1, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
+    store.save({ version: 2, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
   }
 }
 
-/**
- * The target of the line's current square. Its hint is the square before it, so help step 1 names the step of the line
- * ("+10") and the arrow starts there; it trains the line's direction (FR-038).
- */
-export function lineTarget(line: Line): Target {
-  const index = Math.min(line.index, line.squares.length - 1);
-  return {
-    mode: 'lines',
-    number: line.squares[index]!,
-    hints: index > 0 ? [line.squares[index - 1]!] : [],
-    patchedHoles: [],
-    directions: [line.direction],
-    difficultyStep: 0,
-  };
-}

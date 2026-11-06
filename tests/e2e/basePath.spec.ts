@@ -27,7 +27,7 @@ test('the game built for /math-soccer/ loads, plays a round and requests nothing
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 } });
 
   // Relative to baseURL, so the page opens at /math-soccer/.
-  await page.goto('./?mode=holes&seed=8');
+  await page.goto('./?start=play&seed=8');
   expect(new URL(page.url()).pathname).toBe(BASE);
   await expect(page.getByTestId('start')).toBeVisible();
 

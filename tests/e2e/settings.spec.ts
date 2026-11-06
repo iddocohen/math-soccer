@@ -22,7 +22,7 @@ async function holdGear(page: Page): Promise<void> {
 }
 
 test('the gear opens the settings; 200 to 500 gives its chart rows and survives a reload', async ({ page }) => {
-  await page.goto('/?mode=holes&seed=3');
+  await page.goto('/?start=play&seed=3');
   await expect(page.getByTestId('start')).toBeVisible();
 
   // A short click on the gear opens nothing.
@@ -60,7 +60,7 @@ test('the range 0 to 1000 plays a shot without page errors', async ({ page }) =>
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), range: { preset: '0-1000', min: 0, max: 1000 } } });
-  await page.goto('/?mode=holes&seed=5');
+  await page.goto('/?start=play&seed=5');
 
   const match = await startRound(page);
   await expect(match).toHaveAttribute('data-rows', '101');

@@ -17,13 +17,13 @@ import { MatchController, MAX_HELP_STEP } from './MatchController';
 const layout = layoutChart(1, 100);
 
 function target(number: number, hints: number[] = [number - 10]): Target {
-  return { mode: 'holes', number, hints, patchedHoles: [], directions: ['down'], difficultyStep: 0 };
+  return { number, hints, directions: ['down'], difficultyStep: 0, pattern: 'neighbors' };
 }
 
 function makeController(over: Partial<Settings> = {}, answer = 46) {
   const settings = { ...defaultSettings(), ...over };
   const c = new MatchController({ settings: () => settings, newSeed: () => 3, nextTarget: () => target(answer) });
-  c.start('holes');
+  c.start();
   return c;
 }
 

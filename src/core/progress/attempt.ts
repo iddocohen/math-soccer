@@ -2,18 +2,17 @@
  * Builds the AttemptRecord of one finished target (T043, FR-037, FR-038; data-model "AttemptRecord").
  *
  * Directions (FR-038): a target counts toward each direction its hints point from, which `Target.directions` already
- * holds. A target whose hints never showed (hints on request and no help asked) counts toward every direction offered
- * by the parent's hint distances. Line targets carry the line's direction in `Target.directions` (US4).
+ * holds. A target whose hints never showed (hints on request and no help asked) counts toward every direction the
+ * parent allows ("Richtungen", FR-066). Every new record has the mode `keeper` (amendment 05).
  */
 import { hintsVisible, targetHintDisplay } from '../match/help';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord } from '../storage/schemas';
-import { allowedDistances, DISTANCE_DIRECTIONS } from '../targets/nextTarget';
-import { DIRECTIONS, type Direction, type Mode, type Target } from '../types';
+import { allowedDirections } from './ladder';
+import { PLAYED_MODE, type Direction, type Target } from '../types';
 import { classifyAttempt } from './classify';
 
 export interface FinishedTarget {
-  mode: Mode;
   min: number;
   max: number;
   target: Target;
@@ -37,8 +36,7 @@ export function attemptDirections(target: Target, settings: Settings, helpStep: 
   const display = targetHintDisplay(settings, target);
   const shown = hintsVisible(display, helpStep);
   if (shown && target.directions.length > 0) return [...target.directions];
-  const offered = new Set(allowedDistances(settings).flatMap((d) => DISTANCE_DIRECTIONS[d]));
-  return DIRECTIONS.filter((d) => offered.has(d));
+  return allowedDirections(settings);
 }
 
 export function makeAttemptRecord(f: FinishedTarget): AttemptRecord {
@@ -53,7 +51,7 @@ export function makeAttemptRecord(f: FinishedTarget): AttemptRecord {
   });
   return {
     at: f.now.toISOString(),
-    mode: f.mode,
+    mode: PLAYED_MODE,
     min: f.min,
     max: f.max,
     target: f.target.number,

@@ -8,28 +8,25 @@ import { applyMatchAction } from './useKeyboard';
 
 const key = (k: string, extra: Partial<KeyLike> = {}): KeyLike => ({ key: k, ctrlKey: false, altKey: false, metaKey: false, repeat: false, ...extra });
 const SCREENS: KeyScreen[] = ['start', 'match', 'paused', 'roundEnd'];
-const ALL = { modes: ['holes', 'lines', 'keeper'] as const, lockerRoom: true };
+const ALL = { timeChallenge: true, lockerRoom: true };
 
 describe('keyToAction: start screen', () => {
-  it('1, 2 and 3 start hole, line and goalkeeper mode', () => {
-    expect(keyToAction(key('1'), 'start', ALL)).toEqual({ type: 'start', mode: 'holes' });
-    expect(keyToAction(key('2'), 'start', ALL)).toEqual({ type: 'start', mode: 'lines' });
-    expect(keyToAction(key('3'), 'start', ALL)).toEqual({ type: 'start', mode: 'keeper' });
+  it('Enter and Space start "Spielen" (FR-068)', () => {
+    expect(keyToAction(key('Enter'), 'start', ALL)).toEqual({ type: 'start', kind: 'play' });
+    expect(keyToAction(key(' '), 'start', {})).toEqual({ type: 'start', kind: 'play' });
   });
 
-  it('a mode key does nothing when that mode is not offered', () => {
-    expect(keyToAction(key('2'), 'start', { modes: ['holes', 'keeper'] })).toBeNull();
+  it('Z starts the time challenge only when the parent allows it (FR-075)', () => {
+    expect(keyToAction(key('z'), 'start', ALL)).toEqual({ type: 'start', kind: 'time' });
+    expect(keyToAction(key('Z'), 'start', ALL)).toEqual({ type: 'start', kind: 'time' });
+    expect(keyToAction(key('z'), 'start', { ...ALL, timeChallenge: false })).toBeNull();
+    expect(keyToAction(key('z', { repeat: true }), 'start', ALL)).toBeNull();
   });
 
-  it('Enter and Space start the first offered mode', () => {
-    expect(keyToAction(key('Enter'), 'start', ALL)).toEqual({ type: 'start', mode: 'holes' });
-    expect(keyToAction(key(' '), 'start', { modes: ['keeper', 'lines'] })).toEqual({ type: 'start', mode: 'lines' });
-    expect(keyToAction(key('Enter'), 'start', { modes: [] })).toBeNull();
-  });
-
-  it('Enter and Space start the mode named by ?mode= when it is offered, otherwise the first offered mode', () => {
-    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterMode: 'keeper' })).toEqual({ type: 'start', mode: 'keeper' });
-    expect(keyToAction(key(' '), 'start', { modes: ['holes'], enterMode: 'lines' })).toEqual({ type: 'start', mode: 'holes' });
+  it('Enter and Space start what ?start= names, the time challenge only when allowed', () => {
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'time' })).toEqual({ type: 'start', kind: 'time' });
+    expect(keyToAction(key(' '), 'start', { timeChallenge: false, enterStart: 'time' })).toEqual({ type: 'start', kind: 'play' });
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'play' })).toEqual({ type: 'start', kind: 'play' });
   });
 
   it('K opens the locker room only when it is on', () => {
@@ -38,8 +35,8 @@ describe('keyToAction: start screen', () => {
     expect(keyToAction(key('k'), 'start', { ...ALL, lockerRoom: false })).toBeNull();
   });
 
-  it('other digits and H do nothing on the start screen', () => {
-    expect(keyToAction(key('4'), 'start', ALL)).toBeNull();
+  it('digits, including the old mode keys 1 to 3, and H do nothing on the start screen', () => {
+    for (const d of ['1', '2', '3', '4']) expect(keyToAction(key(d), 'start', ALL)).toBeNull();
     expect(keyToAction(key('h'), 'start', ALL)).toBeNull();
   });
 });
@@ -98,9 +95,9 @@ describe('keyToAction: keys left to the browser', () => {
 
 describe('applyMatchAction: help chart open (help step 2)', () => {
   function chartOpen(): MatchController {
-    const target: Target = { mode: 'holes', number: 46, hints: [45], patchedHoles: [], directions: ['right'], difficultyStep: 0 };
+    const target: Target = { number: 46, hints: [45], directions: ['right'], difficultyStep: 0, pattern: 'neighbors' };
     const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target });
-    c.start('holes');
+    c.start();
     c.typeKey({ digit: 4 });
     c.askHelp();
     c.askHelp();

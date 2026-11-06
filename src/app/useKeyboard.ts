@@ -7,26 +7,25 @@
  */
 import { useLayoutEffect, useRef } from 'react';
 import type { MatchController } from '../core/match/MatchController';
-import type { Mode } from '../core/types';
-import { keyToAction, type KeyAction, type KeyScreen } from './keyboard';
+import { keyToAction, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
 
 export interface KeyboardOptions {
   screen: KeyScreen | null;
-  modes?: readonly Mode[];
+  timeChallenge?: boolean;
   lockerRoom?: boolean;
-  enterMode?: Mode;
+  enterStart?: StartKind;
   onAction: (action: KeyAction) => void;
 }
 
-export function useKeyboard({ screen, modes = [], lockerRoom = false, enterMode, onAction }: KeyboardOptions): void {
-  const latest = useRef({ screen, modes, lockerRoom, enterMode, onAction });
-  latest.current = { screen, modes, lockerRoom, enterMode, onAction };
+export function useKeyboard({ screen, timeChallenge = false, lockerRoom = false, enterStart, onAction }: KeyboardOptions): void {
+  const latest = useRef({ screen, timeChallenge, lockerRoom, enterStart, onAction });
+  latest.current = { screen, timeChallenge, lockerRoom, enterStart, onAction };
 
   useLayoutEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const { screen: current, modes: offered, lockerRoom: lockerOn, enterMode: wanted, onAction: handle } = latest.current;
+      const { screen: current, timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted, onAction: handle } = latest.current;
       if (current === null || isTextField(event.target)) return;
-      const action = keyToAction(event, current, { modes: offered, lockerRoom: lockerOn, enterMode: wanted });
+      const action = keyToAction(event, current, { timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted });
       if (action === null) return;
       event.preventDefault();
       handle(action);

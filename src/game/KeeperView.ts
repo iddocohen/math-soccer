@@ -1,5 +1,5 @@
 /**
- * The goalkeeper in goalkeeper mode (FR-019, FR-020; idea from the prototype's drawKeeper in
+ * The goalkeeper (FR-019, FR-020; idea from the prototype's drawKeeper in
  * specs/001-math-soccer/prototype/index.html). Drawn with shapes in code (FR-048): a blue jersey, dark shorts, yellow
  * gloves on arms that swing from the shoulders. Where he goes comes from keeperDive.ts.
  *
@@ -119,11 +119,6 @@ export class KeeperView {
 
   get phase(): KeeperPhase {
     return this.current;
-  }
-
-  setVisible(visible: boolean): void {
-    this.body.setVisible(visible);
-    this.shadow.setVisible(visible);
   }
 
   /** True when the waiting keeper covers none of the target and hint squares; false while he waits faded. */

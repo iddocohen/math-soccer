@@ -16,7 +16,7 @@ import {
   newStars,
   setShirtName,
   setShirtNumber,
-  starsFor,
+  GOAL_STARS,
   starsNeeded,
 } from './lockerRoom';
 
@@ -47,12 +47,8 @@ describe('items', () => {
 });
 
 describe('stars', () => {
-  it('gives 1 per correct square and 3 more per finished line in line mode, 2 per goal in hole and keeper mode', () => {
-    expect(starsFor('square', 'lines')).toBe(1);
-    expect(starsFor('lineDone', 'lines')).toBe(4);
-    expect(starsFor('goal', 'holes')).toBe(2);
-    expect(starsFor('goal', 'keeper')).toBe(2);
-    expect(starsFor('square', 'holes')).toBe(0);
+  it('gives 2 stars per goal (amendment 05)', () => {
+    expect(GOAL_STARS).toBe(2);
   });
 
   it('awards only stars not yet seen in the round, and nothing when a new round starts at 0', () => {

@@ -55,9 +55,9 @@ export async function seedStorage(page: Page, entries: Record<string, unknown>, 
 }
 
 /**
- * Starts a round from the start screen with a key (Enter, or 1, 2 and 3 for a mode) and waits on game state until the
- * match aims at a target, which it returns. The app attaches its key listener before the start screen is painted, so
- * the key is pressed once, as soon as the start screen is visible.
+ * Starts a round from the start screen with a key (Enter or Space for "Spielen", Z for the time challenge) and waits
+ * on game state until the match aims at a target, which it returns. The app attaches its key listener before the start
+ * screen is painted, so the key is pressed once, as soon as the start screen is visible.
  */
 export async function startRound(page: Page, key = 'Enter'): Promise<Locator> {
   await expect(page.getByTestId('start')).toBeVisible();

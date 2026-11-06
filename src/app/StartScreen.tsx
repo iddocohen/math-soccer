@@ -1,26 +1,21 @@
 // Structure adapted from math-tank src/app/StartScreen.tsx.
 /**
- * Start screen (contracts/screens.md "Start"): one big button per mode the parent offers, "Löcher", "Reihen" and
- * "Torwart" in this order, each with its key (1, 2, 3). The keys, and Enter or Space for the first offered mode (or the
- * mode named by `?mode=` in tests), are handled by the app's keyboard listener (src/app/keyboard.ts).
+ * Start screen (contracts/screens.md "Start", FR-068, FR-075): one big "Spielen" button (Enter or Space) and, when the
+ * parent allows it, a "Zeit-Challenge" button (Z). The keys, and `?start=` in tests, are handled by the app's keyboard
+ * listener (src/app/keyboard.ts).
  *
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a
  * 2-second press. The fullscreen button shows only where the browser lets a page use fullscreen.
  *
  * With the locker room on (FR-044), a "Kabine" button (K) and the star total (`data-testid="star-total"`) show below
- * the modes; with it off, both are hidden.
+ * the start buttons; with it off, both are hidden.
  *
  * Notices (FR-036, review H5 and M6): when stored data was reset on load, or a save failed during play, a short note
- * shows below the title with "OK" to close it. It never blocks the mode buttons or their keys.
+ * shows below the title with "OK" to close it. It never blocks the start buttons or their keys.
  */
 import type { ReactNode } from 'react';
-import { MODES, type Mode } from '../core/types';
 import { t } from '../i18n';
-
-/** The key that starts a mode on the start screen: 1, 2 or 3. */
-export function modeKey(mode: Mode): string {
-  return String(MODES.indexOf(mode) + 1);
-}
+import type { StartKind } from './keyboard';
 
 /** Asks the browser for fullscreen; a refusal leaves the game as it is. */
 export function requestFullscreen(): void {
@@ -32,9 +27,9 @@ export function requestFullscreen(): void {
 }
 
 interface Props {
-  /** The offered modes, in start screen order. */
-  modes: readonly Mode[];
-  onPlay: (mode: Mode) => void;
+  /** The parent allows the time challenge: its button shows. */
+  timeChallenge: boolean;
+  onPlay: (kind: StartKind) => void;
   gear?: ReactNode;
   /** The star balance and how to open the locker room; null when the parent turned the locker room off. */
   lockerRoom?: { stars: number; onOpen: () => void } | null;
@@ -42,7 +37,7 @@ interface Props {
   notices?: ReadonlyArray<{ id: string; lines: readonly string[]; onDismiss: () => void }>;
 }
 
-export function StartScreen({ modes, onPlay, gear, lockerRoom = null, notices = [] }: Props) {
+export function StartScreen({ timeChallenge, onPlay, gear, lockerRoom = null, notices = [] }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   return (
@@ -70,22 +65,18 @@ export function StartScreen({ modes, onPlay, gear, lockerRoom = null, notices = 
           ))}
         </div>
       )}
-      <div className="start-modes">
-        {modes.map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            className="mode-button"
-            data-mode={mode}
-            aria-keyshortcuts={modeKey(mode)}
-            onClick={() => onPlay(mode)}
-          >
-            {text.start.modes[mode]}
-            <span className="mode-key" aria-hidden="true">
-              {modeKey(mode)}
+      <div className="start-buttons">
+        <button type="button" className="start-button" data-start="play" aria-keyshortcuts="Enter Space" onClick={() => onPlay('play')}>
+          {text.start.play}
+        </button>
+        {timeChallenge && (
+          <button type="button" className="start-button" data-start="time" aria-keyshortcuts="Z" onClick={() => onPlay('time')}>
+            {text.start.timeChallenge}
+            <span className="start-key" aria-hidden="true">
+              Z
             </span>
           </button>
-        ))}
+        )}
       </div>
       {lockerRoom && (
         <div className="start-locker">
@@ -94,7 +85,7 @@ export function StartScreen({ modes, onPlay, gear, lockerRoom = null, notices = 
           </span>
           <button type="button" data-testid="open-locker-room" aria-keyshortcuts="K" onClick={lockerRoom.onOpen}>
             {text.start.lockerRoom}
-            <span className="mode-key" aria-hidden="true">
+            <span className="start-key" aria-hidden="true">
               {' '}
               K
             </span>

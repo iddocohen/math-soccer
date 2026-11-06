@@ -1,24 +1,25 @@
-// Copied from math-tank src/core/records/records.test.ts and adapted to goals, modes and round types.
+// Copied from math-tank src/core/records/records.test.ts and adapted to goals and round types.
 import { describe, expect, it } from 'vitest';
 import { emptyRecords, recordKey, recordsSchema, submitResult, type Records } from './records';
 
 describe('recordKey (data-model "PersonalBest")', () => {
-  it('names the range, the mode and the round type', () => {
-    expect(recordKey(1, 100, 'holes', 'untilHearts')).toBe('1-100|holes|untilHearts');
-    expect(recordKey(0, 1000, 'keeper', 'goalCount')).toBe('0-1000|keeper|goalCount');
+  it('names the range, the goalkeeper game and the round type', () => {
+    expect(recordKey(1, 100, 'untilHearts')).toBe('1-100|keeper|untilHearts');
+    expect(recordKey(0, 1000, 'goalCount')).toBe('0-1000|keeper|goalCount');
   });
 
-  it('differs when any part differs', () => {
-    const base = recordKey(1, 100, 'holes', 'untilHearts');
-    expect(recordKey(1, 101, 'holes', 'untilHearts')).not.toBe(base);
-    expect(recordKey(0, 100, 'holes', 'untilHearts')).not.toBe(base);
-    expect(recordKey(1, 100, 'lines', 'untilHearts')).not.toBe(base);
-    expect(recordKey(1, 100, 'holes', 'goalCount')).not.toBe(base);
+  it('differs when any part differs, and never matches a best of the removed hole or line mode (FR-070)', () => {
+    const base = recordKey(1, 100, 'untilHearts');
+    expect(recordKey(1, 101, 'untilHearts')).not.toBe(base);
+    expect(recordKey(0, 100, 'untilHearts')).not.toBe(base);
+    expect(recordKey(1, 100, 'goalCount')).not.toBe(base);
+    expect(base).not.toBe('1-100|holes|untilHearts');
+    expect(base).not.toBe('1-100|lines|untilHearts');
   });
 });
 
 describe('submitResult (FR-028)', () => {
-  const key = '1-100|holes|untilHearts';
+  const key = '1-100|keeper|untilHearts';
   const result = (goals: number, timeMs = 60_000, at = '2026-11-06T10:00:00.000Z') => ({ goals, timeMs, at });
 
   it('the first result with at least one goal is a new record and is stored', () => {

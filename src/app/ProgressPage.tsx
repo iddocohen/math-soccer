@@ -1,9 +1,10 @@
-// Structure adapted from math-tank src/app/ProgressPage.tsx: rows per direction and mode, no sessions and no garage.
+// Structure adapted from math-tank src/app/ProgressPage.tsx: rows per direction, no sessions and no garage.
 /**
  * Parent progress page (FR-039, contracts/screens.md "Progress"). Opened from the parent menu, so it sits behind the
- * same gate as the settings. It shows per direction and mode the attempts, the targets solved alone and with help in
- * separate columns, the adaptive step (with how many more targets alone raise it) and whether the direction is
- * mastered; then the personal bests as a plain list. "Fortschritt zurücksetzen" asks first and then empties the
+ * same gate as the settings. It shows per direction the attempts, the targets solved alone and with help in separate
+ * columns, the adaptive step (with how many more targets alone raise it) and whether the direction is mastered, all
+ * from the goalkeeper game, and in a "früher" column the attempts of the removed hole and line modes (amendment 05,
+ * FR-070). Then the personal bests as a plain list, and the bests of the removed modes under "Früher". "Fortschritt zurücksetzen" asks first and then empties the
  * progress; the personal bests and the stars stay. "Alles zurücksetzen" (amendment 01, FR-051, as math-tank amendment 24)
  * asks first, reminding the parent to save the data before, then clears progress, personal bests, stars and the locker
  * room together or not at all; the settings stay.
@@ -73,19 +74,18 @@ export function ProgressPage({ persistence, onClose }: Props) {
             <thead>
               <tr>
                 <th scope="col">{P.columns.direction}</th>
-                <th scope="col">{P.columns.mode}</th>
                 <th scope="col">{P.columns.attempts}</th>
                 <th scope="col">{P.columns.alone}</th>
                 <th scope="col">{P.columns.withHelp}</th>
                 <th scope="col">{P.columns.step}</th>
                 <th scope="col">{P.columns.mastered}</th>
+                <th scope="col">{P.columns.earlier}</th>
               </tr>
             </thead>
             <tbody>
               {summary.directions.map((r) => (
-                <tr key={`${r.mode}|${r.direction}`} data-direction={r.direction} data-mode={r.mode}>
+                <tr key={r.direction} data-direction={r.direction}>
                   <th scope="row">{P.directions[r.direction]}</th>
-                  <td>{P.modes[r.mode]}</td>
                   <td>{r.attempts}</td>
                   <td>{r.independent}</td>
                   <td>{r.withHelp}</td>
@@ -94,6 +94,7 @@ export function ProgressPage({ persistence, onClose }: Props) {
                     {r.toRaise !== null && <span className="hint step-hint">{P.toRaise(r.toRaise)}</span>}
                   </td>
                   <td>{r.mastered ? P.masteredYes : P.masteredNo}</td>
+                  <td data-testid="progress-earlier">{r.earlier}</td>
                 </tr>
               ))}
             </tbody>
@@ -108,11 +109,23 @@ export function ProgressPage({ persistence, onClose }: Props) {
         ) : (
           <ul className="progress-bests" data-testid="progress-bests">
             {summary.bests.map((b) => (
-              <li key={`${b.min}-${b.max}|${b.mode}|${b.roundType}`}>
-                {P.range(b.min, b.max)}, {P.modes[b.mode]}, {P.roundTypes[b.roundType]}: {P.bestLine(b.goals, b.timeMs)}
+              <li key={`${b.min}-${b.max}|${b.roundType}`}>
+                {P.range(b.min, b.max)}, {P.roundTypes[b.roundType]}: {P.bestLine(b.goals, b.timeMs)}
               </li>
             ))}
           </ul>
+        )}
+        {summary.earlierBests.length > 0 && (
+          <>
+            <h4>{P.earlierBests}</h4>
+            <ul className="progress-bests" data-testid="progress-earlier-bests">
+              {summary.earlierBests.map((b) => (
+                <li key={`${b.min}-${b.max}|${b.mode}|${b.roundType}`}>
+                  {P.range(b.min, b.max)}, {P.earlierModes[b.mode]}, {P.roundTypes[b.roundType]}: {P.bestLine(b.goals, b.timeMs)}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
 

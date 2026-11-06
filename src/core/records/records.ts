@@ -3,12 +3,14 @@
  * Personal bests (FR-028, data-model "PersonalBest"). Pure functions; storage.ts keeps them under
  * `mathsoccer.records.v1`, and the export file carries them.
  *
- * One best per number range, mode and round type: the most goals in one round, with the time of that round. With the
- * same number of goals a faster round is better, so a "Feste Zahl an Toren" round, where every finished round has the
- * same goals, keeps its fastest time. A round with no goal is never a record.
+ * One best per number range and round type of the goalkeeper game. Bests of the removed hole and line modes stay in
+ * storage under their own keys and show as "früher" on the progress page; new rounds are not compared with them
+ * (amendment 05, FR-070). A best is the most goals in one round, with the time of that round. With the same number of
+ * goals a faster round is better, so a "Feste Zahl an Toren" round, where every finished round has the same goals,
+ * keeps its fastest time. A round with no goal is never a record.
  */
 import { emptyRecords, recordsSchema, type Records } from '../storage/schemas';
-import type { Mode } from '../types';
+import { PLAYED_MODE } from '../types';
 
 export { emptyRecords, recordsSchema, type Records };
 
@@ -19,9 +21,9 @@ export interface BestResult {
   at: string;
 }
 
-/** `${min}-${max}|${mode}|${roundType}` (data-model "PersonalBest"). */
-export function recordKey(min: number, max: number, mode: Mode, roundType: 'untilHearts' | 'goalCount'): string {
-  return `${min}-${max}|${mode}|${roundType}`;
+/** `${min}-${max}|keeper|${roundType}` (data-model "PersonalBest"). */
+export function recordKey(min: number, max: number, roundType: 'untilHearts' | 'goalCount'): string {
+  return `${min}-${max}|${PLAYED_MODE}|${roundType}`;
 }
 
 export interface SubmitOutcome {

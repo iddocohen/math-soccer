@@ -15,7 +15,7 @@ const twoGoals = { ...defaultSettings(), roundType: 'goalCount' as const, goalsP
 
 test('three H presses: hint, help chart, answer; Enter closes the chart without shooting', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: twoGoals });
-  await page.goto('/?mode=holes&seed=1');
+  await page.goto('/?start=play&seed=1');
   const match = await startRound(page);
   const target = await targetNumber(match);
   const helpText = page.getByTestId('help-text');
@@ -57,7 +57,7 @@ test('three H presses: hint, help chart, answer; Enter closes the chart without 
 
 test('a miss after the hint opens the chart with the last typed number marked; Escape closes it', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: twoGoals });
-  await page.goto('/?mode=holes&seed=2');
+  await page.goto('/?start=play&seed=2');
   const match = await startRound(page);
   const target = await targetNumber(match);
   const wrong = target === 100 ? 99 : target + 1;
@@ -81,7 +81,7 @@ test('a miss after the hint opens the chart with the last typed number marked; E
 
 test('a tap on the help chart closes it', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: twoGoals });
-  await page.goto('/?mode=holes&seed=3');
+  await page.goto('/?start=play&seed=3');
   const match = await startRound(page);
   await page.getByTestId('help-button').click();
   await page.getByTestId('help-button').click();
