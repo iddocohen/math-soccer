@@ -14,8 +14,8 @@
  *   the round on the match screen, not on the start screen, so before this rule a reload never applied a waiting
  *   version while a round was stored. The round is stored, so the new version restores it.
  * - from the round end: `waiting()` and `subscribe` tell the app to show "Neue Version, startet gleich"; "Zurück" goes
- *   to the start screen, which applies it; "Nochmal" calls `applyNow` with the round kind, which the new page reads
- *   once with `takeStartAfterUpdate` and starts.
+ *   to the start screen (after a cup match to the bracket), which applies it; "Nochmal" calls `applyNow` with the round
+ *   kind, which the new page reads once with `takeStartAfterUpdate` and starts.
  *
  * Loop guard: before an automatic reload the app stores the version it reloads from in
  * sessionStorage (AUTO_RELOAD_KEY); a page that still runs that version after the reload does not reload again in this
@@ -72,12 +72,13 @@ function browserEnv(): SwUpdateEnv {
 }
 
 /**
- * Whether a waiting version may reload the page now (FR-051a, review R2): only on the start screen, and never while the
- * parent menu, the settings or progress page or the transfer dialog is open, so no unsaved setting or pending take-over
- * is lost.
+ * Whether a waiting version may reload the page now (FR-051a, review R2): only between rounds, on the start screen or
+ * the cup's bracket screen (`cup`, where "Weiter" and "Zurück" of a cup match's round end lead, FR-103), and never while
+ * the parent menu, the settings or progress page or the transfer dialog is open, so no unsaved setting or pending
+ * take-over is lost.
  */
 export function canApplyUpdate(view: { screen: string; parentOpen: boolean; transferOpen: boolean }): boolean {
-  return view.screen === 'start' && !view.parentOpen && !view.transferOpen;
+  return (view.screen === 'start' || view.screen === 'cup') && !view.parentOpen && !view.transferOpen;
 }
 
 export interface RegisterOptions {

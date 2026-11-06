@@ -76,8 +76,11 @@ describe('service worker update (FR-051, FR-051a, research R12)', () => {
 });
 
 describe('canApplyUpdate (review R2)', () => {
-  it('allows the reload only on the start screen with no parent screen and no transfer dialog open', () => {
+  it('allows the reload only on the start screen or the cup bracket with no parent screen and no transfer dialog open', () => {
     expect(canApplyUpdate({ screen: 'start', parentOpen: false, transferOpen: false })).toBe(true);
+    // A cup match's round end leads to the bracket, so a waiting version applies there (FR-103).
+    expect(canApplyUpdate({ screen: 'cup', parentOpen: false, transferOpen: false })).toBe(true);
+    expect(canApplyUpdate({ screen: 'cup', parentOpen: false, transferOpen: true })).toBe(false);
     expect(canApplyUpdate({ screen: 'battle', parentOpen: false, transferOpen: false })).toBe(false);
     expect(canApplyUpdate({ screen: 'garage', parentOpen: false, transferOpen: false })).toBe(false);
     expect(canApplyUpdate({ screen: 'start', parentOpen: true, transferOpen: false })).toBe(false);

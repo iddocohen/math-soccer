@@ -68,7 +68,7 @@ import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
-import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, type CupMatch } from '../core/cup/cup';
+import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf, type CupMatch } from '../core/cup/cup';
 import type { CupTeam } from '../core/cup/teams';
 import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
@@ -242,6 +242,8 @@ function createApp() {
   const speaker = createSpeaker();
   // A round stored before a refresh continues (T029); one that no longer fits the settings is discarded (FR-036a).
   const restored = controller.restore();
+  // The cup match the scene shows for a restored cup match: the cup's next match (FR-107, FR-110).
+  const restoredCup = controller.getState().roundType === 'cup' ? cupSceneOf(nextMatch(persistence.cup(), settings())) : null;
   // Stars go to the locker room as soon as they are earned (FR-042). A restored round's stars were awarded before.
   let seenStars = controller.getState().starsThisRound;
   controller.subscribe(() => {
@@ -257,7 +259,7 @@ function createApp() {
     if (message !== seenMessage && message?.kind === 'levelUp') sfx.clap();
     seenMessage = message;
   });
-  return { persistence, controller, sfx, speaker, settings, restored, saves };
+  return { persistence, controller, sfx, speaker, settings, restored, restoredCup, saves };
 }
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
@@ -275,14 +277,13 @@ function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, s
  */
 function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): CupRoundResult & { bonus: number } {
   const before = persistence.cup();
-  const match = nextMatch(before, persistence.settings());
   const won = cupMatchWon(s);
   const update = recordMatch(before, { won, goals: s.goals, against: START_HEARTS - s.hearts });
   saves.report(persistence.saveCup(update.cup));
   if (update.stars > 0) saves.report(persistence.awardStars(update.stars));
   const text = t().cup;
   let line: string;
-  if (!won) line = text.lost(match.team.name);
+  if (!won) line = text.lost(teamOf(before.cup, before.stage).name);
   else if (update.cupWon) line = text.cupWon(before.cup);
   else line = text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
   return { won, line, bonus: update.stars, cupWon: update.cupWon };
@@ -304,7 +305,7 @@ function clearSaveHash(): void {
 }
 
 export function App() {
-  const [{ persistence, controller, sfx, speaker, settings, restored, saves }] = useState(createApp);
+  const [{ persistence, controller, sfx, speaker, settings, restored, restoredCup, saves }] = useState(createApp);
   const saveFailed = useSyncExternalStore(saves.subscribe, saves.failed);
   // The note about data reset on load shows until the parent closes it (FR-036).
   const [resetLines, setResetLines] = useState(() => resetNoteLines(persistence.resetReasons()));
@@ -327,7 +328,7 @@ export function App() {
   // celebration) still goes to the personal bests (review M2).
   const lastPhase = useRef<Phase | null>(restored ? null : state.phase);
   // The cup match the scene shows (FR-107, FR-110); a restored cup match is the cup's next match.
-  const cupScene = useRef<CupScene | null>(controller.getState().roundType === 'cup' ? cupSceneOf(nextMatch(persistence.cup(), settings())) : null);
+  const cupScene = useRef<CupScene | null>(restoredCup);
   // What the scene shows of the cup, as `data-*` attributes for tests.
   const [cupShow, setCupShow] = useState<CupShow | null>(null);
   // The goal celebration that plays (FR-114), as `data-celebration` for tests.
@@ -388,8 +389,8 @@ export function App() {
   // A running round pauses while a parent screen, the transfer dialog or the locker room is open (FR-034, FR-049).
   useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null || matchLocker));
 
-  // A waiting new version is applied only on the start screen, never during a round (FR-051a), and never while a
-  // parent screen or the transfer dialog is open (review R2).
+  // A waiting new version is applied only between rounds, on the start screen or the cup's bracket, never during a
+  // round (FR-051a, FR-103), and never while a parent screen or the transfer dialog is open (review R2).
   const updateWaiting = useSyncExternalStore(swUpdate.subscribe, swUpdate.waiting);
   const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed', transferOpen: transfer !== null });
   useEffect(() => {

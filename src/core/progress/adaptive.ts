@@ -98,8 +98,6 @@ export function recordAttempt(p: Progress, a: AttemptRecord, settings: Settings)
     directions[key] = updateDirection(directions[key] ?? emptyDirectionState(), a);
   }
   const attempts = [...p.attempts, a].slice(-MAX_ATTEMPTS);
-  // Only goalkeeper attempts have a level; attempts of the removed modes only reach here in tests and old data.
-  if (a.mode !== PLAYED_MODE) return { ...p, attempts, directions };
   const key = String(a.level);
   const levels = { ...p.levels, [key]: updateCount(p.levels[key] ?? emptyLevelCount(), a) };
   const level = a.guess ? {} : nextLevel(p, a, settings);
