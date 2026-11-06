@@ -8,7 +8,7 @@
  * - The mesh hangs: the roof sags between the crossbar and the back bar, and the back net bellies a little toward its
  *   bottom (`sagOf`).
  * - GoalView paints the net once into a canvas texture named with `netKey()`, which depends only on the goal's layout,
- *   so the net is never redrawn per frame. Only the bulge after a goal moves (`startsBulge`, `bulgeAt`).
+ *   so the net is never redrawn per frame. Only the bulge after a goal moves (`bulgeAt`); a caught ball never reaches the net (FR-098).
  */
 import { GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import { lerp } from '../core/util';
@@ -131,11 +131,6 @@ export function diamondMesh(surface: Surface): Point[][] {
     }
   }
   return lines;
-}
-
-/** A goal moves the net; a caught ball does not (FR-098). */
-export function startsBulge(outcome: 'goal' | 'miss' | null | undefined): boolean {
-  return outcome === 'goal';
 }
 
 /** How far the net is pushed out at a time after the goal: 0 at the start, the most at about a third, 0 again at the end. */

@@ -34,6 +34,8 @@ export class FinalShow {
   private readonly scene: Phaser.Scene;
   private readonly pieces: Phaser.GameObjects.Rectangle[] = [];
   private readonly sparks: Phaser.GameObjects.Arc[] = [];
+  /** Sparks of finished bursts, hidden and kept for the next burst instead of new ones. */
+  private readonly spare: Phaser.GameObjects.Arc[] = [];
   private timer: Phaser.Time.TimerEvent | null = null;
   private bursts = 0;
 
@@ -64,8 +66,10 @@ export class FinalShow {
       this.scene.tweens.killTweensOf(s);
       s.destroy();
     }
+    for (const s of this.spare) s.destroy();
     this.pieces.length = 0;
     this.sparks.length = 0;
+    this.spare.length = 0;
     this.bursts = 0;
   }
 
@@ -92,7 +96,8 @@ export class FinalShow {
       rotation: piece.rotation + Phaser.Math.FloatBetween(4, 9),
       duration: Phaser.Math.Between(2600, 4200) * left,
       onComplete: () => {
-        if (!this.pieces.includes(piece)) return;
+        // Stopped: the piece is gone.
+        if (!this.running) return;
         piece.setPosition(Phaser.Math.Between(0, WORLD_WIDTH), -20);
         this.fall(piece);
       },
@@ -108,7 +113,7 @@ export class FinalShow {
     const radius = Phaser.Math.Between(70, 120);
     for (let i = 0; i < BURST_SPARKS; i++) {
       const angle = (i / BURST_SPARKS) * Math.PI * 2;
-      const spark = this.scene.add.circle(x, y, 5, color).setDepth(FIREWORKS_DEPTH);
+      const spark = this.spark(x, y, color);
       this.sparks.push(spark);
       this.scene.tweens.add({
         targets: spark,
@@ -122,9 +127,18 @@ export class FinalShow {
         onComplete: () => {
           const at = this.sparks.indexOf(spark);
           if (at >= 0) this.sparks.splice(at, 1);
-          spark.destroy();
+          spark.setVisible(false);
+          this.spare.push(spark);
         },
       });
     }
+  }
+
+  /** A spark at `x`, `y`: a kept one made new and put on top again, as a new one would be, or a new one. */
+  private spark(x: number, y: number, color: number): Phaser.GameObjects.Arc {
+    const kept = this.spare.pop();
+    if (!kept) return this.scene.add.circle(x, y, 5, color).setDepth(FIREWORKS_DEPTH);
+    this.scene.children.bringToTop(kept);
+    return kept.setPosition(x, y).setFillStyle(color).setAlpha(1).setScale(1).setVisible(true);
   }
 }

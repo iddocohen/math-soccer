@@ -47,12 +47,6 @@ function stageIndex(cup: number, stage: number, rangeLength: number): number {
   return first + Math.round((stage * (last - first)) / (CUP_MATCHES - 1));
 }
 
-/** The level of match `stage` of cup `cup` under the parent's settings, before any easing (FR-109, FR-111). */
-export function stageLevel(cup: number, stage: number, settings: LevelSettings): Level {
-  const range = levelRange(settings);
-  return range[stageIndex(cup, stage, range.length)]!;
-}
-
 /**
  * The level the next match plays: its stage level, or one level easier after EASIER_AFTER_TRIES lost tries, never below
  * the start level (FR-109).
@@ -67,23 +61,18 @@ export function matchLevel(cup: Cup, settings: LevelSettings): Level {
 /** What the next match of the cup is: its stage, the opponent, its level and the goals that win it. */
 export interface CupMatch {
   stage: number;
-  stageName: CupStage;
   team: CupTeam;
   level: Level;
   /** "Tore pro Spiel" (FR-108). */
   goals: number;
-  /** Lost tries of this match so far. */
-  tries: number;
 }
 
 export function nextMatch(cup: Cup, settings: LevelSettings & Pick<Settings, 'cupGoals'>): CupMatch {
   return {
     stage: cup.stage,
-    stageName: CUP_STAGES[cup.stage]!,
     team: teamOf(cup.cup, cup.stage),
     level: matchLevel(cup, settings),
     goals: settings.cupGoals,
-    tries: cup.tries,
   };
 }
 

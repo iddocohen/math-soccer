@@ -57,9 +57,6 @@ import { ANSWER_STEP, CHART_STEP } from './help';
 
 export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 
-/** The highest help step: step 4 shows the answer. */
-export const MAX_HELP_STEP = ANSWER_STEP;
-
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
 
@@ -397,11 +394,7 @@ export class MatchController {
 
   /** Starts a new round with the current settings: a normal round, or a time challenge with `'time'` (FR-075). */
   start(kind: StartKind = 'play'): void {
-    this.newTargetPending = false;
-    this.feedbackMs = 0;
-    this.roundSettings = this.options.settings();
-    const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
-    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind)));
+    this.begin(kind, null);
   }
 
   /**
@@ -409,11 +402,21 @@ export class MatchController {
    * at `match.goals` goals.
    */
   startCup(match: CupMatchSetup): void {
-    this.newTargetPending = false;
-    this.feedbackMs = 0;
+    this.begin('play', match);
+  }
+
+  /** A new round with the current settings and a new seed: a normal round, a time challenge or a cup match. */
+  private begin(kind: StartKind, cupMatch: CupMatchSetup | null): void {
+    this.clearPending();
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
-    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, 'play', match)));
+    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind, cupMatch)));
+  }
+
+  /** Drops a waiting settings change and the landing feedback's wait: a round starts, comes back or ends. */
+  private clearPending(): void {
+    this.newTargetPending = false;
+    this.feedbackMs = 0;
   }
 
   /**
@@ -430,8 +433,7 @@ export class MatchController {
       store.clear();
       return false;
     }
-    this.newTargetPending = false;
-    this.feedbackMs = 0;
+    this.clearPending();
     // Round type and goals per round keep their round-start values across a refresh (FR-052).
     const roundType = stored.roundType === 'time' || stored.roundType === 'cup' ? s.roundType : stored.roundType;
     this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound };
@@ -504,7 +506,7 @@ export class MatchController {
     if (hit) {
       // A shot at the answer of help step 4 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
-      const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
+      const counts = s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
       const { attempt, levelUp } = this.scored(s, s.ball);
       this.set({
         ...s,
@@ -540,21 +542,19 @@ export class MatchController {
         shown: hearts <= 0 ? null : shown,
         hearts,
         missesInRow: 0,
-        helpStep: MAX_HELP_STEP,
+        helpStep: ANSWER_STEP,
         helpChartOpen: false,
         phase: hearts <= 0 ? 'roundOver' : 'aiming',
         message: { kind: 'heartLost', number },
       };
-      this.set(next);
       // The round ends on this target: it counts as not solved (FR-037).
-      if (next.phase === 'roundOver') this.recordAttempt(next, { solved: false, endedAt: next.elapsedMs });
+      if (next.phase === 'roundOver') this.endRound(next);
+      else this.set(next);
       return;
     }
     if (timeUp(s)) {
       // The time ran out while the ball flew: it landed and missed, and the round ends (FR-077).
-      const over: MatchState = { ...missed, shown: null, phase: 'roundOver', helpChartOpen: false, message: { kind: 'miss', number } };
-      this.set(over);
-      this.recordAttempt(over, { solved: false, endedAt: over.elapsedMs });
+      this.endRound({ ...missed, shown: null, phase: 'roundOver', helpChartOpen: false, message: { kind: 'miss', number } });
       return;
     }
     this.set({
@@ -569,7 +569,7 @@ export class MatchController {
 
   /** Records the attempt at the target of `s` that `ball` just scored; returns it for `lastAttempt`, and a new level. */
   private scored(s: MatchState, ball: Ball): { attempt: FinishedAttempt; levelUp: Level | null } {
-    const solved = s.helpStep < MAX_HELP_STEP;
+    const solved = s.helpStep < ANSWER_STEP;
     const levelUp = this.recordAttempt(s, { solved, endedAt: ball.atMs });
     return { attempt: { number: ball.number, solved, helpStep: s.helpStep }, levelUp };
   }
@@ -590,7 +590,7 @@ export class MatchController {
   askHelp(): void {
     const s = this.state;
     if (!s.started || s.paused || s.phase !== 'aiming') return;
-    if (s.helpStep >= MAX_HELP_STEP) return;
+    if (s.helpStep >= ANSWER_STEP) return;
     this.set({ ...s, ...this.helpRaised(s.helpStep) });
   }
 
@@ -618,8 +618,7 @@ export class MatchController {
    */
   abandon(): void {
     if (!this.state.started) return;
-    this.newTargetPending = false;
-    this.feedbackMs = 0;
+    this.clearPending();
     this.options.store?.clear();
     this.set(freshState(this.roundSettings, 0, false), { save: false });
   }
@@ -651,14 +650,18 @@ export class MatchController {
 
   /** Ends a time challenge whose countdown reached zero while the child aimed; the current target counts as not solved. */
   private endAtZero(s: MatchState): void {
-    const over: MatchState = { ...s, ...TARGET_RESET, entry: '', phase: 'roundOver' };
+    this.endRound({ ...s, ...TARGET_RESET, entry: '', phase: 'roundOver' });
+  }
+
+  /** Ends the round with the state `over` (phase 'roundOver'); its current target counts as not solved. */
+  private endRound(over: MatchState): void {
     this.set(over);
     this.recordAttempt(over, { solved: false, endedAt: over.elapsedMs });
   }
 
   /** The help step after `step`, capped at 4; the help chart is open exactly at step 3. */
   private helpRaised(step: number): Pick<MatchState, 'helpStep' | 'helpChartOpen'> {
-    const helpStep = Math.min(MAX_HELP_STEP, step + 1);
+    const helpStep = Math.min(ANSWER_STEP, step + 1);
     return { helpStep, helpChartOpen: helpStep === CHART_STEP };
   }
 

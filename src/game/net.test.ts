@@ -1,7 +1,7 @@
 /** The goal net as plain data (amendment 11, FR-096 to FR-098). */
 import { describe, expect, it } from 'vitest';
 import { GOAL_FRAME } from '../core/match/world';
-import { bulgeAt, diamondMesh, goalCorners, NET_BULGE_MS, NET_MESH, netKey, sagOf, startsBulge, surfacePoint, type Surface } from './net';
+import { bulgeAt, diamondMesh, goalCorners, NET_BULGE_MS, NET_MESH, netKey, sagOf, surfacePoint, type Surface } from './net';
 
 const SURFACES: Surface[] = ['back', 'left', 'right', 'roof'];
 
@@ -69,12 +69,6 @@ describe('the diamond mesh (FR-096)', () => {
 });
 
 describe('the bulge after a goal (FR-098)', () => {
-  it('starts only on a goal, never on a caught ball', () => {
-    expect(startsBulge('goal')).toBe(true);
-    expect(startsBulge('miss')).toBe(false);
-    expect(startsBulge(null)).toBe(false);
-  });
-
   it('pushes out and settles back within about 0.4 s', () => {
     expect(NET_BULGE_MS).toBe(400);
     expect(bulgeAt(0)).toBe(0);

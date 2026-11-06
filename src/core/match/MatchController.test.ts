@@ -8,7 +8,6 @@ import {
   cupMatchWon,
   MatchController,
   matchInvariantErrors,
-  MAX_HELP_STEP,
   remainingMs,
   SHOWN_MS,
   START_HEARTS,
@@ -16,6 +15,7 @@ import {
   type RoundStore,
 } from './MatchController';
 import type { Digit } from './entry';
+import { ANSWER_STEP } from './help';
 
 function target(number: number): Target {
   return { number, hints: [number - 1], directions: ['right'], level: 1, pattern: 'neighbors' };
@@ -267,7 +267,7 @@ describe('hearts (FR-027)', () => {
   it('a lost heart keeps the target, jumps help to step 4, and the next correct shot moves on', () => {
     const c = fixed({ difficulty: 'challenging' });
     for (let i = 0; i < 3; i++) shootAndLand(c, 56);
-    expect(c.getState()).toMatchObject({ hearts: 2, helpStep: MAX_HELP_STEP, target: { number: 46 }, phase: 'aiming' });
+    expect(c.getState()).toMatchObject({ hearts: 2, helpStep: ANSWER_STEP, target: { number: 46 }, phase: 'aiming' });
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1 });
     c.celebrationDone();
@@ -497,9 +497,9 @@ describe('attempt records (T043, FR-037)', () => {
     expect(records[0]!.guess).toBe(true);
     c.celebrationDone();
     for (let i = 0; i < MISSES_PER_HEART.easy; i++) shot(c, 45, 2000);
-    expect(c.getState().helpStep).toBe(MAX_HELP_STEP);
+    expect(c.getState().helpStep).toBe(ANSWER_STEP);
     shot(c, 46, 2000);
-    expect(records[1]).toMatchObject({ solved: false, helpStep: MAX_HELP_STEP, misses: MISSES_PER_HEART.easy });
+    expect(records[1]).toMatchObject({ solved: false, helpStep: ANSWER_STEP, misses: MISSES_PER_HEART.easy });
   });
 
   it('records the target left when the round ends at 0 hearts as not solved', () => {

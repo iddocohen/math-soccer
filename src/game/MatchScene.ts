@@ -27,7 +27,7 @@
  *   A file that fails to load leaves the drawn pitch or the drawn ball in its place.
  */
 import Phaser from 'phaser';
-import { ballKind, cellRect, center, layoutChart } from '../core/chart/layout';
+import { ballKind, cellRect, center, layoutChart, type ChartLayout } from '../core/chart/layout';
 import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
 import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
@@ -37,7 +37,6 @@ import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
 import { HelperView } from './HelperView';
-import { startsBulge } from './net';
 import { FinalShow } from './FinalShow';
 import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
@@ -127,6 +126,8 @@ export class MatchScene extends Phaser.Scene {
   private pausedNow = false;
   /** The look the views show, as `lookKey`. */
   private lookKey = '';
+  /** The chart layout of the last range drawn; most draws keep the range, so it is laid out once. */
+  private layout: ChartLayout | null = null;
 
   constructor(controller: MatchController, options: MatchSceneOptions) {
     super('match');
@@ -152,7 +153,7 @@ export class MatchScene extends Phaser.Scene {
     this.keeper = new KeeperView(this, this.options.onKeeper);
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
-    this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)), look.ball);
+    this.ball = new BallView(this, ballKind(this.layoutOf(s)), look.ball);
     this.finalShow = new FinalShow(this);
     this.cupMatch = null;
     this.prev = null;
@@ -186,7 +187,7 @@ export class MatchScene extends Phaser.Scene {
     if (!s.started) return;
     // A clock tick changes nothing the scene draws.
     if (prev !== null && onlyTimeChanged(prev, s)) return;
-    const layout = layoutChart(s.min, s.max);
+    const layout = this.layoutOf(s);
 
     if (prev === null || this.isNewRound(prev, s)) {
       this.endCelebration();
@@ -201,7 +202,7 @@ export class MatchScene extends Phaser.Scene {
     if (s.target) {
       this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
     }
-    this.refreshLook(s);
+    this.refreshLook(layout);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
@@ -273,14 +274,20 @@ export class MatchScene extends Phaser.Scene {
    */
   showLook(): void {
     if (!this.player) return;
-    this.refreshLook(this.controller.getState());
+    this.refreshLook(this.layoutOf(this.controller.getState()));
   }
 
-  /** Shows the current look on the player, the scarves and the ball of the chart size of `s`. */
-  private refreshLook(s: MatchView): void {
+  /** Shows the current look on the player, the scarves and the ball of the chart size of `layout`. */
+  private refreshLook(layout: ChartLayout): void {
     const look = this.currentLook();
     this.applyLook(look);
-    this.ball.setLook(ballKind(layoutChart(s.min, s.max)), look.ball);
+    this.ball.setLook(ballKind(layout), look.ball);
+  }
+
+  /** The chart layout of the range of `s`. */
+  private layoutOf(s: MatchView): ChartLayout {
+    if (this.layout === null || this.layout.min !== s.min || this.layout.max !== s.max) this.layout = layoutChart(s.min, s.max);
+    return this.layout;
   }
 
   /** Redraws the shirt and recolors the scarves when the look changed. */
@@ -303,7 +310,7 @@ export class MatchScene extends Phaser.Scene {
     this.ballInNet = false;
     this.options.sounds?.kick();
     this.player.kick();
-    const square = cellRect(layoutChart(s.min, s.max), CHART_RECT, n);
+    const square = cellRect(this.layoutOf(s), CHART_RECT, n);
     // The same rule as the controller's: the target number scores, any other number is caught.
     this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
     this.ball.fly(square, () => this.arrived());
@@ -313,9 +320,9 @@ export class MatchScene extends Phaser.Scene {
     this.flying = false;
     this.controller.ballLanded();
     const s = this.controller.getState();
-    // Only a goal moves the net (FR-098); a caught ball never reaches it.
-    if (s.ball && startsBulge(s.ball.outcome)) this.goal.bulge(center(cellRect(layoutChart(s.min, s.max), CHART_RECT, s.ball.number)));
     if (s.ball?.outcome === 'goal') {
+      // Only a goal moves the net (FR-098); a caught ball never reaches it.
+      this.goal.bulge(center(cellRect(this.layoutOf(s), CHART_RECT, s.ball.number)));
       this.ballInNet = true;
       this.ball.intoNet();
       this.keeper.beaten();

@@ -68,33 +68,45 @@ export class StandsView {
   private final = false;
   /** Game time left of the chant's clapping, in milliseconds. */
   private chantLeft = 0;
+  private readonly scene: Phaser.Scene;
+  private readonly depth: number;
+  /** True once the extra fans of the final exist; they are made at the first final. */
+  private extrasMade = false;
 
   constructor(scene: Phaser.Scene, scarfColor: number, depth = 1) {
+    this.scene = scene;
+    this.depth = depth;
     this.scarfColor = scarfColor;
+    this.addFans(false);
+    this.update(0);
+  }
+
+  /**
+   * One fan per place of every row, back rows first so the front rows cover them. The extra fans of the final stand
+   * between the others, a little lower and in front of them, so the stand looks full.
+   */
+  private addFans(extra: boolean): void {
     const perRow = Math.ceil(WORLD_WIDTH / FAN_GAP) + 1;
     for (let row = 0; row < ROWS; row++) {
-      // Back rows first, so the front rows cover them.
       const y = ROW_TOP + row * ROW_GAP + 36;
-      // The extra fans of the final stand between the others, a little lower, so the stand looks full.
-      for (const extra of [false, true]) {
-        for (let i = 0; i < perRow; i++) {
-          const x = 10 + i * FAN_GAP + (row % 2) * (FAN_GAP / 2) + (extra ? FAN_GAP / 2 : 0);
-          const seed = (i * 7 + row * 13 + (extra ? 3 : 0)) % SHIRTS.length;
-          const shirt = SHIRTS[seed]!;
-          const fy = y + (extra ? 8 : 0);
-          const d = depth + (extra ? 0.01 : 0);
-          const body = scene.add.image(x, fy, TEX.fan).setOrigin(0.5, 1).setScale(SCALE).setTint(shirt).setDepth(d).setVisible(!extra);
-          const head = scene.add.image(x, fy, TEX.fanHead).setOrigin(0.5, 1).setScale(SCALE).setDepth(d).setVisible(!extra);
-          const arms = scene.add.image(x, fy, TEX.fanArms).setOrigin(0.5, 1).setScale(SCALE).setTint(shirt).setDepth(d).setVisible(false);
-          const scarf =
-            seed === 2 || seed === 4
-              ? scene.add.image(x, fy, TEX.scarf).setScale(SCALE * 0.9).setTint(scarfColor).setDepth(d).setVisible(false)
-              : null;
-          this.fans.push({ x, y: fy, phase: i * 0.7 + row * 1.3 + (extra ? 0.4 : 0), body, head, arms, scarf, away: seed === 4, extra });
-        }
+      for (let i = 0; i < perRow; i++) {
+        const x = 10 + i * FAN_GAP + (row % 2) * (FAN_GAP / 2) + (extra ? FAN_GAP / 2 : 0);
+        const seed = (i * 7 + row * 13 + (extra ? 3 : 0)) % SHIRTS.length;
+        const shirt = SHIRTS[seed]!;
+        const fy = y + (extra ? 8 : 0);
+        const d = this.depth + (extra ? 0.01 : 0);
+        const body = this.scene.add.image(x, fy, TEX.fan).setOrigin(0.5, 1).setScale(SCALE).setTint(shirt).setDepth(d);
+        const head = this.scene.add.image(x, fy, TEX.fanHead).setOrigin(0.5, 1).setScale(SCALE).setDepth(d);
+        const arms = this.scene.add.image(x, fy, TEX.fanArms).setOrigin(0.5, 1).setScale(SCALE).setTint(shirt).setDepth(d).setVisible(false);
+        const away = seed === 4;
+        const scarfTint = away && this.teamColor !== null ? this.teamColor : this.scarfColor;
+        const scarf =
+          seed === 2 || seed === 4
+            ? this.scene.add.image(x, fy, TEX.scarf).setScale(SCALE * 0.9).setTint(scarfTint).setDepth(d).setVisible(false)
+            : null;
+        this.fans.push({ x, y: fy, phase: i * 0.7 + row * 1.3 + (extra ? 0.4 : 0), body, head, arms, scarf, away, extra });
       }
     }
-    this.update(0);
   }
 
   /** The scarves in a new color (the locker room's scarf color). */
@@ -120,6 +132,10 @@ export class StandsView {
   setFinal(final: boolean): void {
     if (final === this.final) return;
     this.final = final;
+    if (final && !this.extrasMade) {
+      this.extrasMade = true;
+      this.addFans(true);
+    }
     for (const fan of this.fans) {
       if (!fan.extra) continue;
       fan.body.setVisible(final);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { cupSchema, emptyCup, type Cup } from '../storage/schemas';
-import { CUP_STAGES, CUP_WIN_STARS, matchLevel, MATCH_WIN_STARS, nextMatch, recordMatch, stageLevel, teamOf } from './cup';
+import { CUP_STAGES, CUP_WIN_STARS, matchLevel, MATCH_WIN_STARS, nextMatch, recordMatch, teamOf } from './cup';
 import { QUIRKS, TEAMS } from './teams';
 
 function settings(start: Settings['levels']['start'], hardest: Settings['levels']['hardest'], over: Partial<Settings> = {}): Settings {
@@ -11,6 +11,11 @@ function settings(start: Settings['levels']['start'], hardest: Settings['levels'
 
 function cupAt(over: Partial<Cup>): Cup {
   return { ...emptyCup(), ...over };
+}
+
+/** The level of match `stage` of cup `cup` before any easing: no lost tries yet. */
+function stageLevel(cup: number, stage: number, s: Settings) {
+  return matchLevel(cupAt({ cup, stage, tries: 0 }), s);
 }
 
 const NOW = new Date('2026-11-06T12:00:00.000Z');
@@ -42,7 +47,7 @@ describe('cup bracket (FR-106, FR-107)', () => {
 
   it('the next match names its stage, opponent, level and goals', () => {
     const m = nextMatch(cupAt({ stage: 2, scores: [{ goals: 5, against: 0 }, { goals: 5, against: 1 }] }), settings(1, 5, { cupGoals: 3 }));
-    expect(m).toMatchObject({ stage: 2, stageName: 'quarterFinal', level: 3, goals: 3, tries: 0 });
+    expect(m).toMatchObject({ stage: 2, level: 3, goals: 3 });
     expect(m.team).toBe(teamOf(1, 2));
   });
 });

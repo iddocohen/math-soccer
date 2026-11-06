@@ -51,10 +51,6 @@ export class GoalView {
   private readonly board: Phaser.GameObjects.Image;
   private readonly posts: Phaser.GameObjects.Graphics;
   private key = '';
-  /** How often the board was drawn; the scene shows it as `data-board-draws` for tests. */
-  draws = 0;
-  /** How often the net was painted: once per texture, never per frame. */
-  netDraws = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -68,7 +64,6 @@ export class GoalView {
         ctx.setTransform(NET_RESOLUTION, 0, 0, NET_RESOLUTION, -GOAL_FRAME.x * NET_RESOLUTION, -GOAL_FRAME.y * NET_RESOLUTION);
         paintNet(ctx);
         net.refresh();
-        this.netDraws++;
       }
     }
     this.netCanvas = scene.textures.exists(key) ? (scene.textures.get(key) as Phaser.Textures.CanvasTexture).getCanvas() : null;
@@ -84,14 +79,13 @@ export class GoalView {
     drawPosts(this.posts);
   }
 
-  /** Redraws the board when what it shows changed; returns true when it did. */
-  update(input: Omit<BoardInput, 'goal'>): boolean {
+  /** Redraws the board when what it shows changed. */
+  update(input: Omit<BoardInput, 'goal'>): void {
     const full: BoardInput = { ...input, goal: this.chart };
     const key = boardKey(full);
-    if (key === this.key) return false;
+    if (key === this.key) return;
     this.key = key;
     this.draw(full);
-    return true;
   }
 
   private draw(input: BoardInput): void {
@@ -111,7 +105,6 @@ export class GoalView {
     for (const s of board.squares) this.drawLabel(ctx, s, board.fontSize, board.numbersFit);
     if (board.arrow) this.drawArrow(ctx, board.arrow, board.squares[0]?.rect.height ?? 20);
     this.texture.refresh();
-    this.draws++;
   }
 
   private drawSquare(ctx: CanvasRenderingContext2D, s: Square, panel: boolean): void {

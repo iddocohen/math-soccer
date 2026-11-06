@@ -13,7 +13,7 @@ import type { Target } from '../types';
 import type { Digit } from './entry';
 import { ANSWER_STEP, CHART_STEP, COLUMN_STEP, columnLabel, helpHint, hintsVisible, ROW_STEP, rowColumnHelp, rowLabel, scalesShown, targetHintDisplay } from './help';
 import { GOAL_STARS } from '../rewards/lockerRoom';
-import { MatchController, MAX_HELP_STEP } from './MatchController';
+import { MatchController } from './MatchController';
 
 const layout = layoutChart(1, 100);
 
@@ -67,7 +67,6 @@ describe('help steps (FR-024, FR-025)', () => {
 
   it('follows the order row, column, whole chart, answer (FR-094)', () => {
     expect([ROW_STEP, COLUMN_STEP, CHART_STEP, ANSWER_STEP]).toEqual([1, 2, 3, 4]);
-    expect(MAX_HELP_STEP).toBe(ANSWER_STEP);
   });
 
   it('help never changes hearts, stars or goals', () => {
@@ -78,7 +77,7 @@ describe('help steps (FR-024, FR-025)', () => {
       c.closeHelpChart();
     }
     const after = c.getState();
-    expect(after.helpStep).toBe(MAX_HELP_STEP);
+    expect(after.helpStep).toBe(ANSWER_STEP);
     expect({ hearts: after.hearts, stars: after.starsThisRound, goals: after.goals }).toEqual({
       hearts: before.hearts,
       stars: before.starsThisRound,

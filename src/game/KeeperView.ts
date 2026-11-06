@@ -75,6 +75,27 @@ const LOOK_LEFT_PX = 3;
 /** How high the keeper who celebrates saves jumps with the ball, in world pixels. */
 const CELEBRATE_JUMP = 30;
 
+/** Easing curves of his moves: slow at both ends, slowing down at the end, speeding up. */
+const easeInOutSine = (k: number) => (1 - Math.cos(Math.PI * k)) / 2;
+const easeOutQuad = (k: number) => 1 - (1 - k) * (1 - k);
+const easeInQuad = (k: number) => k * k;
+
+/** What a quirk changes in his moves (looks only, FR-107); the drawn look is in `paint`. */
+interface QuirkProfile {
+  shuffleMs: number;
+  looksLeft: boolean;
+  celebratesSaves: boolean;
+}
+const PLAIN: QuirkProfile = { shuffleMs: SHUFFLE_MS, looksLeft: false, celebratesSaves: false };
+const QUIRK_PROFILE: Record<Quirk, QuirkProfile> = {
+  tall: PLAIN,
+  small: { ...PLAIN, shuffleMs: QUICK_SHUFFLE_MS },
+  beard: PLAIN,
+  cap: PLAIN,
+  celebratesSaves: { ...PLAIN, celebratesSaves: true },
+  looksLeft: { ...PLAIN, looksLeft: true },
+};
+
 /** What the keeper wears in a cup match: the opponent's colors (`#rrggbb`) and the keeper's quirk (FR-107). */
 export interface KeeperTeam {
   color: string;
@@ -98,6 +119,8 @@ export class KeeperView {
   private readonly eyes: Phaser.GameObjects.Graphics;
   /** The cup opponent's colors and quirk; null outside the cup (the blue keeper). */
   private team: KeeperTeam | null = null;
+  /** What the team's quirk changes in his moves; PLAIN outside the cup. */
+  private profile: QuirkProfile = PLAIN;
   private pose: KeeperPose = HOME_POSE;
   private tween: Phaser.Tweens.Tween | null = null;
   private current: KeeperPhase = 'idle';
@@ -140,16 +163,6 @@ export class KeeperView {
     return this.current;
   }
 
-  /** True when the waiting keeper covers none of the target and hint squares; false while he waits faded. */
-  get isClear(): boolean {
-    return this.clear;
-  }
-
-  /** Where he waits for the next shot. */
-  get waitingPose(): KeeperPose {
-    return this.home;
-  }
-
   /** The depth he is drawn at now: behind the grid while he waits, in front of it otherwise (FR-120). */
   get depth(): number {
     return this.body.depth;
@@ -176,10 +189,9 @@ export class KeeperView {
    * FR-064), and the faster shuffle of the small, quick keeper only moves him sooner to the same spot.
    */
   setTeam(team: KeeperTeam | null): void {
-    const key = team ? `${team.color}:${team.trim}:${team.quirk}` : '';
-    const now = this.team ? `${this.team.color}:${this.team.trim}:${this.team.quirk}` : '';
-    if (key === now) return;
+    if (team?.color === this.team?.color && team?.trim === this.team?.trim && team?.quirk === this.team?.quirk) return;
     this.team = team ? { ...team } : null;
+    this.profile = team ? QUIRK_PROFILE[team.quirk] : PLAIN;
     this.paint();
   }
 
@@ -218,8 +230,7 @@ export class KeeperView {
     this.setFaded(!spot.clear);
     if (first && this.tween === null) this.apply(spot.pose);
     else if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
-      const ms = this.team?.quirk === 'small' ? QUICK_SHUFFLE_MS : SHUFFLE_MS;
-      this.moveTo(spot.pose, ms, () => {}, (k) => (1 - Math.cos(Math.PI * k)) / 2);
+      this.moveTo(spot.pose, this.profile.shuffleMs, () => {}, easeInOutSine);
     }
   }
 
@@ -260,7 +271,7 @@ export class KeeperView {
 
   /** The keeper who looks left first glances left while the ball flies, then back to the ball (looks only). */
   private lookLeftFirst(): void {
-    if (this.team?.quirk !== 'looksLeft') return;
+    if (!this.profile.looksLeft) return;
     this.eyes.setPosition(-LOOK_LEFT_PX, 0);
   }
 
@@ -271,11 +282,11 @@ export class KeeperView {
   catchBall(): void {
     this.setPhase('caught');
     this.eyes.setPosition(0, 0);
-    if (this.team?.quirk === 'celebratesSaves') {
+    if (this.profile.celebratesSaves) {
       const held = this.pose;
       const jump: KeeperPose = { ...held, y: held.y - CELEBRATE_JUMP, arms: 1, rotation: 0 };
       this.moveTo(held, HOLD_MS / 2, () =>
-        this.moveTo(jump, HOLD_MS / 4, () => this.moveTo(held, HOLD_MS / 4, () => this.goHome()), (k) => 1 - (1 - k) * (1 - k)),
+        this.moveTo(jump, HOLD_MS / 4, () => this.moveTo(held, HOLD_MS / 4, () => this.goHome()), easeOutQuad),
       );
       return;
     }
@@ -285,7 +296,7 @@ export class KeeperView {
   /** The ball went past him: he lands on the grass, waits, then goes back to his waiting spot. */
   beaten(): void {
     this.setPhase('beaten');
-    this.moveTo(fallenPose(this.pose, this.home), FALL_MS, () => this.moveTo(this.pose, HOLD_MS, () => this.goHome()), (k) => k * k);
+    this.moveTo(fallenPose(this.pose, this.home), FALL_MS, () => this.moveTo(this.pose, HOLD_MS, () => this.goHome()), easeInQuad);
   }
 
   private goHome(): void {
@@ -294,7 +305,7 @@ export class KeeperView {
       this.setFaded(!this.clear);
       this.setPhase('idle');
       this.setWaitingLayer(true);
-    }, (k) => (1 - Math.cos(Math.PI * k)) / 2);
+    }, easeInOutSine);
     this.returning = true;
   }
 
