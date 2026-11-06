@@ -1,0 +1,368 @@
+<title>Mathe-Kicker Prototyp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one stadium screen; the canvas scales to the width, controls sit under it. Single look: an evening stadium. */
+:root {
+  --night: #0f1d2b;
+  --pitch: #2f7a3c;
+  --chalk: #f4f6ef;
+  --kit: #e8b923;
+  --miss: #d9733b;
+  --ink: #12202c;
+  --muted: #9fb3c2;
+  --display: "Bungee", "Arial Black", system-ui, sans-serif;
+  --body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--night); color: var(--chalk); font-family: var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 10px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+h1 { font-family: var(--display); font-weight: 400; font-size: 1.5rem; margin: 0; letter-spacing: .02em; color: var(--kit); }
+.note { color: var(--muted); font-size: .85rem; margin: 0; }
+.modes { display: flex; gap: 8px; flex-wrap: wrap; }
+button {
+  font: inherit; font-weight: 800; border: 2px solid var(--chalk); background: transparent; color: var(--chalk);
+  border-radius: 10px; padding: 8px 14px; cursor: pointer; min-height: 44px;
+}
+button[aria-pressed="true"] { background: var(--kit); color: var(--ink); border-color: var(--kit); }
+button:focus-visible { outline: 3px solid var(--kit); outline-offset: 2px; }
+canvas { width: 100%; height: auto; max-width: 100%; border-radius: 12px; display: block; background: var(--ink); touch-action: manipulation; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.entry { font-family: var(--display); font-size: 2rem; min-width: 4ch; text-align: center; background: var(--chalk); color: var(--ink); border-radius: 10px; padding: 2px 14px; font-variant-numeric: tabular-nums; }
+.pad { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 6px; flex: 1 1 320px; max-width: 460px; }
+.pad button { padding: 6px; }
+.pad .go { background: var(--kit); color: var(--ink); border-color: var(--kit); }
+.msg { min-height: 1.4em; font-weight: 800; font-size: 1.1rem; }
+.settings { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: .9rem; }
+.settings label { display: flex; gap: 6px; align-items: center; }
+select { font: inherit; background: var(--ink); color: var(--chalk); border: 1px solid var(--muted); border-radius: 6px; padding: 4px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;800&display=swap">
+
+<div class="wrap">
+  <header>
+    <h1>Mathe-Kicker</h1>
+    <div class="modes" role="group" aria-label="Spielart">
+      <button id="m-holes" data-mode="holes" aria-pressed="true">1 Löcher</button>
+      <button id="m-lines" data-mode="lines" aria-pressed="false">2 Reihen</button>
+      <button id="m-keeper" data-mode="keeper" aria-pressed="false">3 Torwart</button>
+    </div>
+  </header>
+  <p class="note">Wegwerf-Prototyp zum Ausprobieren. Zahl tippen, Enter schießt, H hilft. Nicht das fertige Spiel.</p>
+  <canvas id="c" width="960" height="620" aria-label="Spielfeld mit Tor und Hundertertafel"></canvas>
+  <div class="bar">
+    <div class="msg" id="msg" aria-live="polite"></div>
+    <div class="entry" id="entry" aria-label="Deine Zahl">&nbsp;</div>
+  </div>
+  <div class="bar">
+    <div class="pad" id="pad"></div>
+    <div class="settings">
+      <label for="hint">Hinweise
+        <select id="hint">
+          <option value="direct">Nachbarn</option>
+          <option value="vertical">nur oben und unten</option>
+          <option value="diagonal">schräg</option>
+          <option value="far">2 Felder weg</option>
+        </select>
+      </label>
+      <label for="dir">Reihe
+        <select id="dir">
+          <option value="10">runter (+10)</option>
+          <option value="11">schräg rechts (+11)</option>
+          <option value="9">schräg links (+9)</option>
+          <option value="1">quer (+1)</option>
+        </select>
+      </label>
+      <label for="range">Zahlenraum
+        <select id="range">
+          <option value="1-100">1 bis 100</option>
+          <option value="1-200">1 bis 200</option>
+        </select>
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const GOAL = { x: 200, y: 150, w: 560, h: 330 };
+  const KICK = { x: W / 2, y: 585 };
+  const $ = (id) => document.getElementById(id);
+
+  const st = {
+    mode: 'holes', min: 1, max: 100, entry: '', target: 46, hints: [], holes: [],
+    line: null, lit: new Set(), help: 0, misses: 0, goals: 0, shown: null,
+    ball: null, keeper: { x: W / 2, tx: W / 2, catchAt: null }, cheer: 0, ohh: 0, t: 0,
+  };
+
+  const rows = () => Math.ceil((st.max - st.min + 1) / 10);
+  const cell = () => ({ w: GOAL.w / 10, h: GOAL.h / rows() });
+  const pos = (n) => {
+    const i = n - st.min, r = Math.floor(i / 10), c = i % 10, s = cell();
+    return { x: GOAL.x + c * s.w + s.w / 2, y: GOAL.y + r * s.h + s.h / 2, r, c };
+  };
+  const inRange = (n) => n >= st.min && n <= st.max;
+  const rc = (n) => { const i = n - st.min; return [Math.floor(i / 10), i % 10]; };
+  const fromRC = (r, c) => { const n = st.min + r * 10 + c; return (r >= 0 && c >= 0 && c < 10 && inRange(n)) ? n : null; };
+  const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+  function hintsFor(n) {
+    const [r, c] = rc(n), k = $('hint').value;
+    const offs = { direct: [[0,-1],[0,1],[-1,0],[1,0]], vertical: [[-1,0],[1,0]], diagonal: [[-1,-1],[-1,1],[1,-1],[1,1]], far: [[0,-2],[0,2],[-2,0],[2,0]] }[k];
+    return offs.map(([dr, dc]) => fromRC(r + dr, c + dc)).filter((x) => x !== null);
+  }
+
+  function newTarget() {
+    st.help = 0; st.misses = 0; st.shown = null; st.entry = ''; drawEntry();
+    if (st.mode === 'lines') { nextLineSquare(); return; }
+    let n;
+    do { n = rand(st.min + 11, st.max - 11); } while (hintsFor(n).length < 2);
+    st.target = n; st.hints = hintsFor(n);
+    st.holes = [n];
+    while (st.holes.length < 3) { const d = rand(st.min, st.max); if (!st.holes.includes(d) && !st.hints.includes(d)) st.holes.push(d); }
+    say(st.mode === 'keeper' ? 'Welche Zahl fehlt? Schieß am Torwart vorbei!' : 'Welche Zahl gehört ins Loch?');
+  }
+
+  function newLine() {
+    const step = Number($('dir').value);
+    const len = 5;
+    let start;
+    for (let tries = 0; tries < 200; tries++) {
+      start = rand(st.min, st.max);
+      let ok = true, n = start;
+      for (let i = 1; i < len; i++) {
+        const [r, c] = rc(n); const dc = step === 1 ? 1 : step === 11 ? 1 : step === 9 ? -1 : 0;
+        const nx = fromRC(r + (step === 1 ? 0 : 1), c + dc); if (nx === null) { ok = false; break; } n = nx;
+      }
+      if (ok) break;
+    }
+    const squares = [start];
+    while (squares.length < len) squares.push(squares[squares.length - 1] + step);
+    st.line = { squares, step, idx: 2 };
+    st.lit = new Set(squares.slice(0, 2));
+  }
+
+  function nextLineSquare() {
+    if (!st.line || st.line.idx >= st.line.squares.length) newLine();
+    st.target = st.line.squares[st.line.idx];
+    st.hints = []; st.holes = [];
+    say('Wie geht die Reihe weiter?');
+  }
+
+  function say(t) { $('msg').textContent = t; }
+  function drawEntry() { $('entry').textContent = st.entry || ' '; }
+
+  function shoot() {
+    if (st.ball || !st.entry) return;
+    const n = Number(st.entry);
+    if (!inRange(n)) { say(`Zahlen von ${st.min} bis ${st.max}`); st.entry = ''; drawEntry(); return; }
+    const p = pos(n);
+    const hit = n === st.target;
+    st.ball = { n, hit, t: 0, x0: KICK.x, y0: KICK.y, x1: p.x, y1: p.y };
+    if (st.mode === 'keeper') st.keeper.tx = hit ? (p.x < W / 2 ? p.x + 160 : p.x - 160) : p.x;
+    st.entry = ''; drawEntry();
+    audio.kick();
+  }
+
+  function land(b) {
+    if (b.hit) {
+      st.lit.add(b.n);
+      if (st.mode === 'lines') {
+        st.line.idx++;
+        if (st.line.idx >= st.line.squares.length) { st.goals++; st.cheer = 1; audio.cheer(); say('TOR! Reihe geschafft!'); st.line = null; setTimeout(newTarget, 1400); }
+        else { audio.clap(); say('Richtig!'); setTimeout(newTarget, 500); }
+      } else { st.goals++; st.cheer = 1; audio.cheer(); say('TOR!'); setTimeout(() => { st.lit.clear(); newTarget(); }, 1400); }
+    } else {
+      st.misses++; st.shown = { n: b.n, until: st.t + 2 }; st.ohh = 1; audio.ohh();
+      say(st.mode === 'keeper' ? `Gehalten! ${b.n} ist hier. Nochmal!` : `${b.n} ist hier. Probier nochmal!`);
+      if (st.help < 3) st.help++;
+    }
+  }
+
+  function askHelp() { if (st.help < 3) st.help++; const t = { 1: 'Tipp: schau auf die Nachbarn', 2: 'Hier ist die ganze Tafel', 3: `Die Zahl ist ${st.target}` }[st.help]; say(t); }
+
+  // ---------- drawing ----------
+  function drawStands() {
+    const sky = g.createLinearGradient(0, 0, 0, 170); sky.addColorStop(0, '#0b1622'); sky.addColorStop(1, '#1b3247');
+    g.fillStyle = sky; g.fillRect(0, 0, W, 175);
+    // floodlights
+    [[80, 18], [W - 80, 18]].forEach(([x, y]) => { g.fillStyle = '#fff8d6'; g.fillRect(x - 22, y, 44, 10); g.fillStyle = 'rgba(255,248,214,.06)'; g.beginPath(); g.moveTo(x - 22, y + 10); g.lineTo(x - 140, 175); g.lineTo(x + 140, 175); g.lineTo(x + 22, y + 10); g.fill(); });
+    const scarf = '#e8b923', shirts = ['#c94f4f', '#3e6fb0', '#e8b923', '#f4f6ef', '#4f9c5f'];
+    for (let row = 0; row < 4; row++) {
+      const y = 60 + row * 28; g.fillStyle = row % 2 ? '#22384c' : '#1d3044'; g.fillRect(0, y + 8, W, 28);
+      for (let i = 0; i < 46; i++) {
+        const x = 12 + i * 21 + (row % 2) * 10;
+        const seed = (i * 7 + row * 13) % 5;
+        const excited = st.cheer > 0 ? Math.abs(Math.sin(st.t * 12 + i + row)) * 10 * st.cheer : 0;
+        const slump = st.ohh > 0 ? 3 * st.ohh : 0;
+        const fy = y - excited + slump;
+        g.fillStyle = shirts[seed]; g.fillRect(x - 6, fy + 10, 12, 12);
+        g.fillStyle = '#e9c4a0'; g.beginPath(); g.arc(x, fy + 6, 5, 0, Math.PI * 2); g.fill();
+        if (st.cheer > 0 && seed < 3) { g.strokeStyle = shirts[seed]; g.lineWidth = 3; g.beginPath(); g.moveTo(x - 6, fy + 12); g.lineTo(x - 10, fy - 4 - excited / 2); g.moveTo(x + 6, fy + 12); g.lineTo(x + 10, fy - 4 - excited / 2); g.stroke(); }
+        if (st.cheer > 0 && seed === 2) { g.fillStyle = scarf; g.fillRect(x - 14, fy - 10 - excited / 2, 28, 5); }
+      }
+    }
+  }
+
+  function drawPitch() {
+    const gr = g.createLinearGradient(0, 175, 0, H); gr.addColorStop(0, '#24612f'); gr.addColorStop(1, '#3a8a46');
+    g.fillStyle = gr; g.fillRect(0, 175, W, H - 175);
+    for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.04)'; g.fillRect(0, 175 + i * 75, W, 75); }
+    g.strokeStyle = 'rgba(244,246,239,.7)'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(60, 492); g.lineTo(W - 60, 492); g.stroke();
+    g.beginPath(); g.moveTo(140, 492); g.lineTo(90, 610); g.moveTo(W - 140, 492); g.lineTo(W - 90, 610); g.stroke();
+  }
+
+  function drawGoal() {
+    const s = cell(), fs = Math.min(20, s.h * 0.62);
+    // net behind
+    g.fillStyle = '#0e1a14'; g.fillRect(GOAL.x, GOAL.y, GOAL.w, GOAL.h);
+    g.strokeStyle = 'rgba(244,246,239,.18)'; g.lineWidth = 1;
+    for (let x = GOAL.x; x <= GOAL.x + GOAL.w; x += 14) { g.beginPath(); g.moveTo(x, GOAL.y); g.lineTo(x, GOAL.y + GOAL.h); g.stroke(); }
+    for (let y = GOAL.y; y <= GOAL.y + GOAL.h; y += 14) { g.beginPath(); g.moveTo(GOAL.x, y); g.lineTo(GOAL.x + GOAL.w, y); g.stroke(); }
+
+    const full = st.help >= 2;
+    for (let n = st.min; n <= st.max; n++) {
+      const p = pos(n), x = p.x - s.w / 2, y = p.y - s.h / 2;
+      const isHole = st.holes.includes(n);
+      if (st.mode === 'holes' || st.mode === 'lines') {
+        if (!isHole) { g.fillStyle = '#eef1e8'; g.fillRect(x + 1, y + 1, s.w - 2, s.h - 2); }
+      } else { g.strokeStyle = 'rgba(244,246,239,.22)'; g.strokeRect(x, y, s.w, s.h); }
+      let label = null, color = '#12202c';
+      if (st.hints.includes(n) && (st.help >= 1 || true)) label = n;
+      if (st.lit.has(n)) { label = n; if (st.mode === 'lines') { g.fillStyle = '#ffe58a'; g.fillRect(x + 1, y + 1, s.w - 2, s.h - 2); } }
+      if (full && n !== st.target) { label = n; color = st.mode === 'keeper' ? '#cfe0ea' : '#5d6f7c'; }
+      if (st.mode === 'keeper' && st.hints.includes(n)) { g.fillStyle = 'rgba(232,185,35,.85)'; g.fillRect(x + 2, y + 2, s.w - 4, s.h - 4); color = '#12202c'; }
+      if (st.shown && st.shown.n === n && st.t < st.shown.until) { g.fillStyle = '#d9733b'; g.fillRect(x + 1, y + 1, s.w - 2, s.h - 2); label = n; color = '#fff'; }
+      if (n === st.target && !st.ball?.hit) {
+        g.strokeStyle = '#e8b923'; g.lineWidth = 4; g.strokeRect(x + 3, y + 3, s.w - 6, s.h - 6); g.lineWidth = 1;
+        if (st.help >= 3) { label = n; color = st.mode === 'keeper' || isHole ? '#e8b923' : '#12202c'; }
+      }
+      if (label !== null) { g.fillStyle = color; g.font = `800 ${fs}px Nunito, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(label), p.x, p.y + 1); }
+    }
+    // posts
+    g.fillStyle = '#f4f6ef';
+    g.fillRect(GOAL.x - 10, GOAL.y - 10, 10, GOAL.h + 10); g.fillRect(GOAL.x + GOAL.w, GOAL.y - 10, 10, GOAL.h + 10); g.fillRect(GOAL.x - 10, GOAL.y - 10, GOAL.w + 20, 10);
+  }
+
+  function drawKeeper() {
+    if (st.mode !== 'keeper') return;
+    st.keeper.x += (st.keeper.tx - st.keeper.x) * 0.12;
+    const x = st.keeper.x, y = GOAL.y + GOAL.h - 70;
+    g.fillStyle = '#3e6fb0'; g.fillRect(x - 22, y, 44, 48);
+    g.fillStyle = '#12202c'; g.fillRect(x - 20, y + 48, 16, 22); g.fillRect(x + 4, y + 48, 16, 22);
+    g.fillStyle = '#e9c4a0'; g.beginPath(); g.arc(x, y - 14, 14, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#e8b923'; g.fillRect(x - 46, y + 4, 22, 14); g.fillRect(x + 24, y + 4, 22, 14);
+  }
+
+  function drawPlayer() {
+    const x = KICK.x - 40, y = 520;
+    g.fillStyle = '#e8b923'; g.fillRect(x - 22, y, 44, 50);
+    g.fillStyle = '#12202c'; g.font = '800 22px Bungee, sans-serif'; g.textAlign = 'center'; g.fillText('7', x, y + 30);
+    g.fillStyle = '#5b3b26'; g.beginPath(); g.arc(x, y - 14, 15, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f4f6ef'; g.fillRect(x - 20, y + 50, 16, 26); g.fillRect(x + 4, y + 50, 16, 26);
+  }
+
+  function drawBall() {
+    const r0 = rows() <= 10 ? 18 : 12;
+    let x = KICK.x, y = KICK.y, r = r0;
+    const b = st.ball;
+    if (b) {
+      const k = Math.min(1, b.t), e = 1 - Math.pow(1 - k, 2);
+      x = b.x0 + (b.x1 - b.x0) * e; y = b.y0 + (b.y1 - b.y0) * e - Math.sin(Math.PI * k) * 60;
+      r = r0 * (1 - 0.45 * e);
+    }
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x, (b ? b.y0 + (b.y1 - b.y0) * Math.min(1, b.t) : y) + r, r, r * 0.35, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#12202c'; g.beginPath(); g.arc(x, y, r * 0.35, 0, Math.PI * 2); g.fill();
+    for (let i = 0; i < 5; i++) { const a = i * 1.2566 + st.t * 4; g.beginPath(); g.arc(x + Math.cos(a) * r * 0.75, y + Math.sin(a) * r * 0.75, r * 0.18, 0, Math.PI * 2); g.fill(); }
+  }
+
+  function drawHud() {
+    g.fillStyle = 'rgba(15,29,43,.8)'; g.fillRect(16, 500, 150, 44);
+    g.fillStyle = '#e8b923'; g.font = '400 22px Bungee, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText(`Tore ${st.goals}`, 28, 523);
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; st.t += dt;
+    st.cheer = Math.max(0, st.cheer - dt * 0.6); st.ohh = Math.max(0, st.ohh - dt * 0.8);
+    if (st.ball) { st.ball.t += dt * 1.6; if (st.ball.t >= 1.25) { const b = st.ball; st.ball = null; land(b); if (st.mode === 'keeper') st.keeper.tx = W / 2; } }
+    g.clearRect(0, 0, W, H);
+    drawStands(); drawPitch(); drawGoal(); drawKeeper(); drawPlayer(); drawBall(); drawHud();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- sound (synthesized, starts after the first key or tap) ----------
+  const audio = (() => {
+    let ac = null;
+    const ctx = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); } catch { ac = null; } return ac; };
+    const noise = (dur, f, gain) => {
+      const a = ctx(); if (!a) return;
+      const buf = a.createBuffer(1, a.sampleRate * dur, a.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = a.createBufferSource(); src.buffer = buf;
+      const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 0.7;
+      const gn = a.createGain(); gn.gain.setValueAtTime(0, a.currentTime); gn.gain.linearRampToValueAtTime(gain, a.currentTime + dur * 0.3); gn.gain.linearRampToValueAtTime(0, a.currentTime + dur);
+      src.connect(bp).connect(gn).connect(a.destination); src.start();
+    };
+    const tone = (f0, f1, dur, gain) => {
+      const a = ctx(); if (!a) return;
+      const o = a.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(f0, a.currentTime); o.frequency.linearRampToValueAtTime(f1, a.currentTime + dur);
+      const gn = a.createGain(); gn.gain.setValueAtTime(gain, a.currentTime); gn.gain.linearRampToValueAtTime(0, a.currentTime + dur);
+      o.connect(gn).connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+    };
+    return {
+      kick: () => tone(160, 60, 0.12, 0.4),
+      cheer: () => { noise(2.2, 1200, 0.35); noise(2.0, 2600, 0.15); },
+      clap: () => { for (let i = 0; i < 6; i++) setTimeout(() => noise(0.08, 2200, 0.25), i * 110); },
+      ohh: () => { [220, 262, 330].forEach((f) => tone(f, f * 0.8, 0.9, 0.06)); setTimeout(() => { for (let i = 0; i < 5; i++) setTimeout(() => noise(0.08, 2200, 0.2), i * 120); }, 900); },
+    };
+  })();
+
+  // ---------- input ----------
+  function key(k) {
+    if (/^[0-9]$/.test(k)) { if (st.entry.length < String(st.max).length) st.entry += k; drawEntry(); }
+    else if (k === 'Backspace') { st.entry = st.entry.slice(0, -1); drawEntry(); }
+    else if (k === 'Enter' || k === ' ') shoot();
+    else if (k === 'h' || k === 'H') askHelp();
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLSelectElement) return;
+    if (!st.entry && ['1', '2', '3'].includes(e.key) && e.altKey) { setMode(['holes', 'lines', 'keeper'][Number(e.key) - 1]); return; }
+    if (/^[0-9]$/.test(e.key) || ['Backspace', 'Enter', ' ', 'h', 'H'].includes(e.key)) { e.preventDefault(); key(e.key); }
+  });
+  const pad = $('pad');
+  ['1','2','3','4','5','6','7','8','9','0','⌫','Schuss!'].forEach((t) => {
+    const b = document.createElement('button'); b.textContent = t; b.type = 'button';
+    if (t === 'Schuss!') b.className = 'go';
+    b.addEventListener('click', () => key(t === '⌫' ? 'Backspace' : t === 'Schuss!' ? 'Enter' : t));
+    pad.appendChild(b);
+  });
+  const help = document.createElement('button'); help.textContent = '? Hilfe'; help.type = 'button'; help.addEventListener('click', askHelp); pad.appendChild(help);
+
+  function setMode(m) {
+    st.mode = m; st.lit.clear(); st.line = null; st.keeper.tx = W / 2;
+    document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+    newTarget();
+  }
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $('hint').addEventListener('change', () => newTarget());
+  $('dir').addEventListener('change', () => { st.line = null; st.lit.clear(); newTarget(); });
+  $('range').addEventListener('change', (e) => { const [a, b] = e.target.value.split('-').map(Number); st.min = a; st.max = b; st.lit.clear(); st.line = null; newTarget(); });
+
+  newTarget();
+  requestAnimationFrame(frame);
+})();
+</script>
