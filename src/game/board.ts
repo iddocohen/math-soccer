@@ -8,7 +8,8 @@
  * from core/match/help.ts). Help step 3 writes the answer in the hole. The square of a missed number is warm orange
  * with its number while `shown` is set. Squares outside the range in a partial first or last row are empty board.
  *
- * Goalkeeper mode (US5 completes it): the goal is open, the grid faint, the hints lit in the kit color.
+ * Goalkeeper mode (FR-019): the goal is open, the grid faint, the hints lit in the kit color with dark numbers, and the
+ * target square empty and outlined.
  *
  * Line mode (T051, FR-015, FR-016): the board is mostly blank. The given squares of the line are printed, the squares
  * the child already shot are lit in the kit color with their number, and the next square is outlined as the target.

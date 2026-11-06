@@ -558,3 +558,42 @@ describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
     expect(again.getState().target!.number).toBe(line.squares[3]);
   });
 });
+
+describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
+  const keeperOnly: Settings = { ...defaultSettings(), modes: { holes: false, lines: false, keeper: true } };
+
+  function keeperController(seed = 11) {
+    const c = new MatchController({ settings: () => keeperOnly, newSeed: () => seed });
+    c.start('keeper');
+    return c;
+  }
+
+  it('aims at a keeper target with hint numbers around it and no patched holes', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const t = keeperController(seed).getState().target!;
+      expect(t.mode).toBe('keeper');
+      expect(t.hints.length).toBeGreaterThan(0);
+      expect(t.hints).not.toContain(t.number);
+      expect(t.patchedHoles).toEqual([]);
+    }
+  });
+
+  it('the target number scores a goal with the goal stars, and the next target is a new keeper target', () => {
+    const c = keeperController();
+    const first = c.getState().target!.number;
+    shootAndLand(c, first);
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, ball: { outcome: 'goal' } });
+    c.celebrationDone();
+    expect(c.getState().target!.mode).toBe('keeper');
+    expect(c.getState().target!.number).not.toBe(first);
+  });
+
+  it('another number is a miss: its square shows and the target stays', () => {
+    const c = keeperController();
+    const n = c.getState().target!.number;
+    const wrong = n === 100 ? 99 : n + 1;
+    shootAndLand(c, wrong);
+    expect(c.getState()).toMatchObject({ phase: 'aiming', goals: 0, ball: { outcome: 'miss' }, shown: { number: wrong }, message: { kind: 'miss', number: wrong } });
+    expect(c.getState().target!.number).toBe(n);
+  });
+});

@@ -27,6 +27,7 @@ import { clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
+import type { KeeperPhase } from '../game/KeeperView';
 import type { KeyAction, KeyScreen } from './keyboard';
 import { HelpChart } from './HelpChart';
 import { MatchOverlay } from './MatchOverlay';
@@ -124,6 +125,8 @@ export function App() {
   const gameParent = useRef<HTMLDivElement>(null);
   const offered: Mode[] = MODES.filter((m) => settings().modes[m]);
   const [record, setRecord] = useState<RoundRecord | null>(null);
+  // The keeper's phase from the scene, shown as `data-keeper` in goalkeeper mode (T054).
+  const [keeper, setKeeper] = useState<KeeperPhase>('idle');
   const lastPhase = useRef(state.phase);
 
   // Sound starts after the first key or tap (spec edge case "Sound blocked by the browser").
@@ -136,7 +139,7 @@ export function App() {
     let left = false;
     loadGame().then(
       ({ createGame }) => {
-        if (!left) handle = createGame(parent, controller, { sounds: sfx, settings });
+        if (!left) handle = createGame(parent, controller, { sounds: sfx, settings, onKeeper: setKeeper });
       },
       // Without the game chunk no ball can fly, so the round could not go on: back to the start screen.
       () => {
@@ -260,6 +263,7 @@ export function App() {
       <div className="game-parent" ref={gameParent} />
       <MatchOverlay
         state={state}
+        keeper={keeper}
         settings={settings()}
         gear={gear}
         onHelp={() => controller.askHelp()}

@@ -5,7 +5,8 @@
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
  * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, plus `data-rows` (chart rows), `data-ball` (ball kind) and,
- * in line mode, `data-line` (the line's numbers) and `data-line-index` (the target's place in it).
+ * in line mode, `data-line` (the line's numbers) and `data-line-index` (the target's place in it), and in goalkeeper
+ * mode `data-keeper` (the keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
  * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
  * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
@@ -16,6 +17,7 @@ import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
 import type { Settings } from '../core/settings/schema';
+import type { KeeperPhase } from '../game/KeeperView';
 import { t } from '../i18n';
 
 /** German text of a match message. */
@@ -55,6 +57,8 @@ export function formatClock(ms: number): string {
 
 interface Props {
   state: MatchState;
+  /** The keeper's phase from the scene; shown in goalkeeper mode only. */
+  keeper?: KeeperPhase;
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
@@ -63,7 +67,7 @@ interface Props {
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, settings, gear, onHelp, onPause, onResume }: Props) {
+export function MatchOverlay({ state, keeper = 'idle', settings, gear, onHelp, onPause, onResume }: Props) {
   const text = t();
   const layout = layoutChart(state.min, state.max);
   const help = helpText(state);
@@ -82,6 +86,7 @@ export function MatchOverlay({ state, settings, gear, onHelp, onPause, onResume 
       data-ball={ballKind(layout)}
       data-line={state.line?.squares.join(',') ?? ''}
       data-line-index={state.line?.index ?? ''}
+      data-keeper={state.mode === 'keeper' ? keeper : undefined}
     >
       <div className="overlay-top">
         <div className="overlay-status">

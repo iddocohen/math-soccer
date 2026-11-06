@@ -10,8 +10,9 @@
  *   and 2 a yellow arrow from the closest hint number to the hole, at step 3 the answer in the hole. The open hole is
  *   left transparent, so the net shows through it, and a ball placed between the net and the board
  *   (`BALL_IN_NET_DEPTH`) shows only through the hole.
- * - In hole and line mode a dark edge and ropes to the frame hang the panel in the goal. In goalkeeper mode the goal is
- *   open: no panel edge, and the faint grid lies inside the same `CHART_RECT`.
+ * - In hole and line mode a dark edge and ropes to the frame hang the panel in the goal. In goalkeeper mode (T055) the
+ *   goal is open: no panel edge, a faint chalk grid inside the same `CHART_RECT` over the net, the hint squares filled
+ *   in the team color with dark numbers, and the empty target square washed light and outlined in the team color.
  * - The posts and the crossbar are drawn once, in front of the board.
  */
 import Phaser from 'phaser';
@@ -136,7 +137,12 @@ export class GoalView {
         ctx.restore();
         break;
       case 'open':
-        ctx.strokeStyle = css(COLOR.chalk, 0.22);
+        // A faint chalk grid over the net. The empty target square gets a light wash so it reads as marked.
+        if (s.outlined) {
+          ctx.fillStyle = css(COLOR.chalk, 0.16);
+          ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+        }
+        ctx.strokeStyle = css(COLOR.chalk, 0.3);
         ctx.lineWidth = 1;
         ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
         break;
@@ -167,10 +173,13 @@ export class GoalView {
     if (!numbersFit) {
       // Squares are too small for a number: the label sits on a badge larger than the square.
       const w = ctx.measureText(s.label.text).width + 8;
-      ctx.fillStyle = s.label.style === 'shown' ? css(COLOR.miss) : css(COLOR.ink, 0.9);
+      // A lit square keeps its team color on the badge, with a dark number.
+      const litInk = s.lit && s.label.style === 'ink';
+      ctx.fillStyle = s.label.style === 'shown' ? css(COLOR.miss) : litInk ? css(COLOR.kit) : css(COLOR.ink, 0.9);
       ctx.fillRect(cx - w / 2, cy - fontSize * 0.7, w, fontSize * 1.4);
     }
-    const color = { ink: numbersFit ? COLOR.ink : COLOR.chalk, shown: 0xffffff, answer: COLOR.kit }[s.label.style];
+    const ink = numbersFit || (s.lit && !s.shown) ? COLOR.ink : COLOR.chalk;
+    const color = { ink, shown: 0xffffff, answer: COLOR.kit }[s.label.style];
     ctx.fillStyle = css(color);
     ctx.fillText(s.label.text, cx, cy + 1);
   }

@@ -136,10 +136,10 @@ description: "Task list for Math Soccer"
 
 **Independent Test**: quickstart scenario 10.
 
-- [ ] T053 [US5] Implement keeper mode in `MatchController.ts` using `nextTarget` with hints lit in the grid and an empty target square (FR-019)
-- [ ] T054 [US5] Create `src/game/KeeperView.ts`: on every shot the keeper jumps or dives toward the ball; on a wrong number he reaches the ball's square and catches it; on a correct number he dives toward it and falls short; then returns to the middle (FR-020)
-- [ ] T055 [US5] Draw keeper mode in `GoalView.ts`: open goal, faint grid over the net, hint squares filled in the team color with dark numbers, marked empty target
-- [ ] T056 [US5] `tests/e2e/keeper.spec.ts`: a correct number scores; a wrong number shows the miss message and `data-keeper="caught"`
+- [X] T053 [US5] Implement keeper mode in `MatchController.ts` using `nextTarget` with hints lit in the grid and an empty target square (FR-019)
+- [X] T054 [US5] Create `src/game/KeeperView.ts`: on every shot the keeper jumps or dives toward the ball; on a wrong number he reaches the ball's square and catches it; on a correct number he dives toward it and falls short; then returns to the middle (FR-020)
+- [X] T055 [US5] Draw keeper mode in `GoalView.ts`: open goal, faint grid over the net, hint squares filled in the team color with dark numbers, marked empty target
+- [X] T056 [US5] `tests/e2e/keeper.spec.ts`: a correct number scores; a wrong number shows the miss message and `data-keeper="caught"`
 
 ---
 

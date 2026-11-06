@@ -2,13 +2,17 @@
  * The match scene (FR-001, FR-003, FR-012, FR-021, FR-022; contracts/screens.md "Feedback contract"). It only draws
  * MatchController state and tells the controller when an animation has ended; all rules live in src/core.
  *
- * - Composes the views: the stadium backdrop, StandsView, GoalView, PlayerView and BallView.
+ * - Composes the views: the stadium backdrop, StandsView, GoalView, KeeperView (shown in goalkeeper mode only),
+ *   PlayerView and BallView.
  * - Subscribes to the controller in create() and unsubscribes on shutdown.
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
  *   When it arrives the scene calls `ballLanded()`. A goal sends the ball into the net, the fans cheer, and after
  *   CELEBRATION_MS the scene calls `celebrationDone()`. A miss bounces the ball off the board, the fans slump with a
  *   soft "ohhh" and then clap. In line mode a correct square that is not the last of the line lights on the board
  *   (GoalView), the ball bounces off it, and the fans clap (FR-016, FR-021).
+ * - Goalkeeper mode (T054, FR-020): on every shot the keeper leaps toward the ball, timed with its flight. A wrong
+ *   number lands in his gloves: he holds it and the ball fades. The correct number goes past his gloves into the net
+ *   and he lands on the grass. The keeper's phase goes to `onKeeper`.
  * - Sounds: a kick on every shot, a cheer on a goal, clapping on a correct line square, the "ohhh" with clapping on a
  *   miss.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
@@ -23,6 +27,7 @@ import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from
 import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
+import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { COLOR, css, DEFAULT_LOOK, type Look } from './palette';
 import { PlayerView } from './PlayerView';
 import { StandsView } from './StandsView';
@@ -44,6 +49,8 @@ export interface MatchSceneOptions {
   /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch"). */
   settings: () => Settings;
   look?: Look;
+  /** Hears the keeper's phase in goalkeeper mode (`data-keeper` for tests). */
+  onKeeper?: (phase: KeeperPhase) => void;
 }
 
 const BACKDROP_TEXTURE = 'stadium';
@@ -54,6 +61,7 @@ export class MatchScene extends Phaser.Scene {
   private unsubscribe: (() => void) | null = null;
   private stands!: StandsView;
   private goal!: GoalView;
+  private keeper!: KeeperView;
   private player!: PlayerView;
   private ball!: BallView;
   private prev: MatchState | null = null;
@@ -76,6 +84,7 @@ export class MatchScene extends Phaser.Scene {
     const look = this.options.look ?? DEFAULT_LOOK;
     this.stands = new StandsView(this, look.scarfColor);
     this.goal = new GoalView(this);
+    this.keeper = new KeeperView(this, this.options.onKeeper);
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
     this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)));
@@ -114,8 +123,10 @@ export class MatchScene extends Phaser.Scene {
       this.flying = false;
       this.ballInNet = false;
       this.ball.reset();
+      this.keeper.reset();
       this.stands.calm();
     }
+    this.keeper.setVisible(s.mode === 'keeper');
     this.ball.setKind(ballKind(layout));
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
@@ -143,7 +154,10 @@ export class MatchScene extends Phaser.Scene {
     this.ballInNet = false;
     this.options.sounds?.kick();
     this.player.kick();
-    this.ball.fly(cellRect(layoutChart(s.min, s.max), CHART_RECT, n), () => this.arrived());
+    const square = cellRect(layoutChart(s.min, s.max), CHART_RECT, n);
+    // The same rule as the controller's: the target number scores, any other number is caught.
+    if (s.mode === 'keeper') this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
+    this.ball.fly(square, () => this.arrived());
   }
 
   private arrived(): void {
@@ -153,6 +167,7 @@ export class MatchScene extends Phaser.Scene {
     if (s.ball?.outcome === 'goal') {
       this.ballInNet = true;
       this.ball.intoNet();
+      if (s.mode === 'keeper') this.keeper.beaten();
       this.stands.cheer();
       this.options.sounds?.cheer();
       this.celebration = this.time.delayedCall(CELEBRATION_MS, () => {
@@ -163,6 +178,11 @@ export class MatchScene extends Phaser.Scene {
       this.ball.bounce();
       this.stands.clap();
       this.options.sounds?.clap();
+    } else if (s.ball?.outcome === 'miss' && s.mode === 'keeper') {
+      this.keeper.catchBall();
+      this.ball.caught(HOLD_MS);
+      this.stands.ohh();
+      this.options.sounds?.ohh();
     } else if (s.ball?.outcome === 'miss') {
       this.ball.bounce();
       this.stands.ohh();

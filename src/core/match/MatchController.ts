@@ -23,6 +23,11 @@
  * finished line for `goalsPerRound`, and earns LINE_STARS on top. Misses, hearts and help work as in hole mode, on the
  * one square: after a lost heart the square stays the target with the answer shown, and the line goes on after it.
  * Every square is one attempt record with the line's direction.
+ *
+ * Goalkeeper mode (T053, FR-019, FR-020): targets come from `nextTarget` like hole mode, with the hint numbers lit in
+ * the grid around an empty target square and no patched holes. The rules are those of hole mode: the target number is
+ * a goal worth GOAL_STARS, any other number is a miss whose square shows. The keeper's dive and catch are drawn by
+ * KeeperView from this state; the controller does not track the keeper.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
