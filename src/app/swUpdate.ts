@@ -6,18 +6,29 @@
  * it) only while the start screen shows, never during a round: the app reports the start screen with
  * `setStartScreen`. Without `install` (unit tests, the dev server) nothing happens.
  *
- * Fast updates (Phase 24): the app asks the server for a new service worker on load, every UPDATE_CHECK_MS while it is
- * open, and when the page comes back to the front. A version found waiting at page load is applied at once, because
- * the start screen shows then. Loop guard: before an automatic reload the app stores the version it reloads from in
+ * Fast updates (Phase 24, amendment 12): the app asks the server for a new service worker on load, each time the start
+ * screen shows (FR-102), every UPDATE_CHECK_MS while it is open, and when the page comes back to the front.
+ *
+ * Amendment 12 (FR-103, FR-104): a version that waits is also applied
+ * - at page load, before the child presses a key or touches the screen, on any screen. A reload during a round restores
+ *   the round on the match screen, not on the start screen, so before this rule a reload never applied a waiting
+ *   version while a round was stored. The round is stored, so the new version restores it.
+ * - from the round end: `waiting()` and `subscribe` tell the app to show "Neue Version, startet gleich"; "Zurück" goes
+ *   to the start screen, which applies it; "Nochmal" calls `applyNow` with the round kind, which the new page reads
+ *   once with `takeStartAfterUpdate` and starts.
+ *
+ * Loop guard: before an automatic reload the app stores the version it reloads from in
  * sessionStorage (AUTO_RELOAD_KEY); a page that still runs that version after the reload does not reload again in this
  * browser tab, so a new worker that fails to take control cannot cause a reload loop.
  */
 import { BUILD_VERSION } from './buildInfo';
 
 /** How often an open game asks for a new version. */
-export const UPDATE_CHECK_MS = 30 * 60 * 1000;
+export const UPDATE_CHECK_MS = 5 * 60 * 1000;
 /** sessionStorage key: the version the page last reloaded from automatically. */
 export const AUTO_RELOAD_KEY = 'mathSoccer.autoReloadFrom';
+/** sessionStorage key: the round kind "Nochmal" asked for before the page reloaded with a new version (FR-103). */
+export const START_AFTER_UPDATE_KEY = 'mathSoccer.startAfterUpdate';
 
 /** Whether the page may reload automatically to apply a waiting version (one reload per version and browser tab). */
 export function mayAutoReload(currentVersion: string, reloadedFrom: string | null): boolean {
@@ -27,9 +38,18 @@ export function mayAutoReload(currentVersion: string, reloadedFrom: string | nul
 /** What swUpdate needs from the browser; tests pass their own. */
 export interface SwUpdateEnv {
   version: string;
-  session: { getItem(key: string): string | null; setItem(key: string, value: string): void } | null;
+  session: { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void } | null;
   setInterval(fn: () => void, ms: number): void;
-  document: { visibilityState: DocumentVisibilityState; addEventListener(type: 'visibilitychange', fn: () => void): void } | null;
+  document: {
+    visibilityState: DocumentVisibilityState;
+    addEventListener(type: 'visibilitychange' | 'keydown' | 'pointerdown', fn: () => void, options?: { capture?: boolean }): void;
+  } | null;
+  /**
+   * Reloads the page once the new service worker controls it. vite-plugin-pwa reloads only when a worker controlled the
+   * page when it loaded (workbox-window's `isUpdate`); a page from a first visit or after the browser data was cleared
+   * would keep running the old version (amendment 12, found by tests/e2e/update.spec.ts).
+   */
+  reloadOnControllerChange?(): void;
 }
 
 function browserEnv(): SwUpdateEnv {
@@ -44,6 +64,10 @@ function browserEnv(): SwUpdateEnv {
     session,
     setInterval: (fn, ms) => void setInterval(fn, ms),
     document: typeof document === 'undefined' ? null : document,
+    reloadOnControllerChange() {
+      if (typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+    },
   };
 }
 
@@ -70,13 +94,33 @@ export type RegisterSW = (options: RegisterOptions) => (reloadPage?: boolean) =>
 export interface SwUpdate {
   install(register: RegisterSW): void;
   setStartScreen(shown: boolean): void;
+  /** Whether a new version waits to be applied. */
+  waiting(): boolean;
+  /** Calls `fn` whenever `waiting()` changes; returns the function that stops it. */
+  subscribe(fn: () => void): () => void;
+  /**
+   * Applies the waiting version now and asks the new page to start a round of `startKind` (FR-103, "Nochmal"). Returns
+   * false when nothing waits or the loop guard holds; when the update fails (offline), `onFail` runs instead.
+   */
+  applyNow(startKind: string, onFail: () => void): boolean;
+  /** The round kind a "Nochmal" before the reload asked for, read once; null otherwise. */
+  takeStartAfterUpdate(): string | null;
 }
 
 export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
   let update: ((reloadPage?: boolean) => Promise<void>) | null = null;
   let waiting = false;
   let onStart = false;
+  // True from page load until the child's first key or touch (FR-104).
+  let fresh = true;
+  let registered: ServiceWorkerRegistration | null = null;
   let reloadedFromMemory: string | null = null;
+  const listeners = new Set<() => void>();
+  const setWaiting = (value: boolean) => {
+    if (waiting === value) return;
+    waiting = value;
+    for (const fn of listeners) fn();
+  };
 
   const readSession = (): string | null => {
     try {
@@ -99,18 +143,30 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
     registration.update().catch(() => {});
   };
 
-  const applyIfAllowed = () => {
-    if (!waiting || !onStart || !update) return;
+  /** Applies the waiting version if the loop guard allows it; false when it did not try. */
+  const apply = (onFail?: () => void): boolean => {
+    if (!waiting || !update) return false;
     const before = readSession();
-    if (!mayAutoReload(env.version, before)) return;
+    if (!mayAutoReload(env.version, before)) return false;
     writeSession(env.version);
-    waiting = false;
+    setWaiting(false);
+    env.reloadOnControllerChange?.();
     // Review L4: a failed update (for example offline) did not reload; it waits for the next time the start screen
     // shows, and does not count as the one automatic reload.
     update(true).catch(() => {
       writeSession(before ?? '');
-      waiting = true;
+      setWaiting(true);
+      onFail?.();
     });
+    return true;
+  };
+
+  const applyIfAllowed = () => {
+    if (onStart || fresh) apply();
+  };
+
+  const endFresh = () => {
+    fresh = false;
   };
 
   return {
@@ -119,11 +175,12 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
       update = register({
         immediate: true,
         onNeedRefresh() {
-          waiting = true;
+          setWaiting(true);
           applyIfAllowed();
         },
         onRegisteredSW(_swUrl, registration) {
           if (!registration) return;
+          registered = registration;
           checkForUpdate(registration);
           env.setInterval(() => checkForUpdate(registration), UPDATE_CHECK_MS);
           env.document?.addEventListener('visibilitychange', () => {
@@ -135,10 +192,49 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
           console.warn('Service worker registration failed', error);
         },
       });
+      env.document?.addEventListener('keydown', endFresh, { capture: true });
+      env.document?.addEventListener('pointerdown', endFresh, { capture: true });
     },
     setStartScreen(shown) {
+      // FR-102: every time the start screen shows, ask for a new version.
+      if (shown && !onStart && registered) checkForUpdate(registered);
       onStart = shown;
       applyIfAllowed();
+    },
+    // A version the loop guard holds back does not count: the round end would promise a reload that never comes.
+    waiting: () => waiting && mayAutoReload(env.version, readSession()),
+    subscribe(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    applyNow(startKind, onFail) {
+      try {
+        env.session?.setItem(START_AFTER_UPDATE_KEY, startKind);
+      } catch {
+        // Without storage the new page shows the start screen instead of the round.
+      }
+      const clear = () => {
+        try {
+          env.session?.removeItem(START_AFTER_UPDATE_KEY);
+        } catch {
+          // Nothing stored.
+        }
+      };
+      const tried = apply(() => {
+        clear();
+        onFail();
+      });
+      if (!tried) clear();
+      return tried;
+    },
+    takeStartAfterUpdate() {
+      try {
+        const kind = env.session?.getItem(START_AFTER_UPDATE_KEY) ?? null;
+        if (kind !== null) env.session?.removeItem(START_AFTER_UPDATE_KEY);
+        return kind;
+      } catch {
+        return null;
+      }
     },
   };
 }

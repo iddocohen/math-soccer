@@ -15,7 +15,7 @@ Many children can move along a row of the hundred chart but get stuck on columns
 - **Reihe:** two or three squares before the target in one direction, so the target continues the row: 16, 26, 36, then 46.
 - **Formen:** a four-square shape known from falling-block games (a bar, a square, a T, an L, a J, an S or a Z) placed on the chart, with one or two squares empty. With two empty squares the child shoots them one after the other, and each one is a goal ([amendment 06](specs/001-math-soccer/amendment-06-tetris-shapes.md)).
 
-With adaptive difficulty on, the game moves the child up a ladder from Nachbarn to Mitte, Reihe, Formen, Nachbarn two squares away and hints shown only on request, separately for each direction.
+The patterns are grouped into five difficulty levels ([amendment 09](specs/001-math-soccer/amendment-09-difficulty-levels.md)): 1 "Gerade Linien" (across and down), 2 "Schräge Linien" (the diagonals), 3 "Formen", 4 "Formen mit 2 Lücken" and 5 "X-Form" (the diagonal cross). With adaptive difficulty on, the child moves up one level after 3 targets in a row solved alone, and down one when 2 of the last 3 targets needed help. A new level shows a short line such as "Neue Stufe: Schräge Linien!"; a level going down shows nothing.
 
 The game never punishes a mistake. A wrong number still flies to its own square, so the child can see where that number is. Fans cheer on a goal, clap on a correct square and make a soft "ohhh" on a miss, followed by encouraging clapping.
 
@@ -25,10 +25,11 @@ The game never punishes a mistake. A wrong number still flies to its own square,
 2. Look at the empty target square and the numbers lit around it. Which number belongs there?
 3. Type the number with the keyboard or the number pad on the screen, then press Enter. The ball flies to the square of that number.
 4. The right number scores a goal. A wrong number lands on its own square; look where it landed and try again.
-5. Stuck? Press H or the help button. Help comes in steps: first a hint, then the full chart with the target and your last number marked, then the answer. Help costs nothing.
-6. Need a break? Press Escape or the pause button. Escape, Enter or the play button goes on.
-7. **Zeit-Challenge:** score as many goals as you can before the clock at the top reaches 0:00. There are no hearts, so a miss costs only time. In the last 10 seconds the clock turns yellow and pulses. A ball already flying when the time runs out still counts. The end screen says, for example, "5 Tore in 2 Minuten" and shows your record for that time.
-8. Goals earn stars. In the locker room ("Kabine") you spend stars on ball designs, a shirt color, your own shirt number and name, and the fans' scarf color. Stars never go down after a mistake.
+5. Stuck? Press H or the help button. Help comes in four steps ([amendment 10](specs/001-math-soccer/amendment-10-row-column-helper.md), [amendment 14](specs/001-math-soccer/amendment-14-help-scales-and-home.md)): first the target's row lights up with a hint arrow and a row scale (0, 10, 20 …) appears to the right of the goal; then the column lights up and a column scale (1 to 10) appears above the crossbar; then the full chart with the target and your last number marked; then the answer. The scales show only during help and go away when the target is scored. Help costs nothing.
+6. Need a break? Press Escape or the pause button. The pause screen has "Weiter" (Enter or Escape) and "Zum Start".
+7. Want to stop? The house button ("Zum Start") next to pause asks "Runde beenden?". "Weiter" (Enter) plays on; "Zum Start" ends the round without an end screen. Stars and finished targets stay; the open target does not count.
+8. **Zeit-Challenge:** score as many goals as you can before the clock at the top reaches 0:00. There are no hearts, so a miss costs only time. In the last 10 seconds the clock turns yellow and pulses. A ball already flying when the time runs out still counts. The end screen says, for example, "5 Tore in 2 Minuten" and shows your record for that time.
+9. Goals earn stars. In the locker room ("Kabine") you spend stars on ball designs, a shirt color, your own shirt number and name, and the fans' scarf color. Stars never go down after a mistake.
 
 ### Keys and buttons
 
@@ -42,6 +43,7 @@ The game never punishes a mistake. A wrong number still flies to its own square,
 | Enter or Space | ⚽ | Shoot |
 | H | ? | Next help step |
 | Escape | Pause, Weiter | Pause and go on |
+| (none) | Zum Start (house icon) | Ask "Runde beenden?" and go back to the start screen |
 | (none) | Vollbild | Fullscreen, where the browser allows it |
 | (none) | Vorlesen (speaker icon) | Read the task again, when "Vorlesen" is on |
 
@@ -50,13 +52,22 @@ On an iPad the number pad shows by itself: at the bottom right when the iPad is 
 ## Tutorial for parents
 
 - **Open the parent area:** hold the gear icon for 2 seconds. A short tap or a key press does not open it, so a child does not open it by chance. The game pauses while it is open.
-- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), hint display ("immer" or "auf Wunsch") and hint distance, the allowed hint patterns ("Hinweis-Muster": Nachbarn, Mitte, Reihe, Formen), the allowed directions ("Richtungen"), the allowed shapes ("Formen"), the time challenge ("Zeit-Challenge erlauben" and its length: 1, 2, 3 or 5 minutes), round type for "Spielen", difficulty, adaptive difficulty, sound options (effects, crowd, the "ohhh", and "Vorlesen", which reads each task aloud with the browser's German voice), the number pad ("automatisch" shows it only on touch screens, "immer", "nie"), a clock during play, personal bests and the locker room. Settings saved during a round apply when the settings page closes: a changed range, hint, pattern, direction, shape, difficulty, adaptive or "Punkt nach voller Hilfe" setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type, goals per round and the challenge length apply from the next round.
-- **Progress:** the progress page shows, per direction (+1, −1, +10, −10, +11, −11, +9, −9), how many targets the child solved alone and how many with help, the ladder step, and which directions count as mastered. Attempts and personal bests from the removed hole and line modes of earlier versions show as "früher". Time challenge records are listed per range and challenge length.
+- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), hint display ("immer" or "auf Wunsch") and hint distance, the levels under "Schwierigkeit" ("Stufe am Anfang" and "Schwerste Stufe", each with an example drawing), the allowed shapes ("Formen"; with every shape off, levels 3 and 4 are skipped), "Zeilen- und Spaltenhilfe" (on: a scale shown during help has all its labels; off: only the label of the target's row or column), the time challenge ("Zeit-Challenge erlauben" and its length: 1, 2, 3 or 5 minutes), round type for "Spielen", difficulty, adaptive difficulty, sound options (effects, crowd, the "ohhh", and "Vorlesen", which reads each task aloud with the browser's German voice), the number pad ("automatisch" shows it only on touch screens, "immer", "nie"), a clock during play, personal bests and the locker room. Settings saved during a round apply when the settings page closes: a changed range, hint, level, shape, difficulty, adaptive or "Punkt nach voller Hilfe" setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type, goals per round and the challenge length apply from the next round.
+- **Progress:** the progress page shows the child's current level ("Stufe jetzt: Stufe 2: Schräge Linien") and how many targets solved alone are still needed for the next one, targets solved alone and with help per level, and, per direction (+1, −1, +10, −10, +11, −11, +9, −9), how many targets the child solved alone and with help and which directions count as mastered. Attempts and personal bests from the removed hole and line modes of earlier versions show as "früher". Time challenge records are listed per range and challenge length.
 - **Backup and moving to another device:** "Daten sichern" downloads settings, progress, bests and locker room data to a file, and "Daten laden" loads that file. The QR transfer moves the same data to another browser by QR code or link.
 - **Start over:** the progress page has "Fortschritt zurücksetzen" (keeps the personal bests and the stars) and "Alles zurücksetzen" (progress, personal bests, stars and locker room; the settings stay). Each asks first. Save the data with "Daten sichern" before "Alles zurücksetzen" if you may want it back.
 - **Locker room during a match:** with the locker room on, the shirt icon next to the gear ("Kabine") opens it with one tap. The round pauses while it is open and continues after "Zurück", with the chosen look.
 
 All data stays in the browser where the game runs.
+
+### New versions
+
+The game installs itself in the browser for offline play, so a new version reaches a device in the background ([amendment 12](specs/001-math-soccer/amendment-12-reliable-updates.md)):
+
+- An open game looks for a new version when it loads, each time the start screen shows, when the tab comes back to the front, and every 5 minutes.
+- A new version that is ready applies at once on the start screen. During a round it waits: the round end then says "Neue Version, startet gleich", and "Zurück" or "Nochmal" reloads the page with it ("Nochmal" starts the new round in the new version).
+- Reloading the page applies a ready version, also during a round; the round continues in the new version. Clearing browser data is not needed for an update.
+- The page reloads by itself at most once per version in a browser tab, so a broken update cannot cause a reload loop.
 
 ### Keeping the child's progress
 
@@ -90,7 +101,7 @@ pnpm lint && pnpm typecheck
 
 `pnpm e2e` ends with a frame rate check in Chromium (`tests/e2e/performance.spec.ts`), which runs after every other browser has finished; `pnpm exec playwright test --project=performance --no-deps` runs it alone. Without a graphics card it is skipped.
 
-The browser tests build the game and serve it on port 4273, and a second build for GitHub Pages under `/math-soccer/` on port 4274. A server already running on one of these ports is used as it is, so stop it first to test fresh code.
+The browser tests build the game and serve it on port 4273, and a second build for GitHub Pages under `/math-soccer/` on port 4274. A server already running on one of these ports is used as it is, so stop it first to test fresh code. The update test (`tests/e2e/update.spec.ts`) builds two versions itself and serves them on port 4275.
 
 ## Deployment
 

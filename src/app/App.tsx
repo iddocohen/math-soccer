@@ -310,6 +310,7 @@ export function App() {
 
   // A waiting new version is applied only on the start screen, never during a round (FR-051a), and never while a
   // parent screen or the transfer dialog is open (review R2).
+  const updateWaiting = useSyncExternalStore(swUpdate.subscribe, swUpdate.waiting);
   const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed', transferOpen: transfer !== null });
   useEffect(() => {
     swUpdate.setStartScreen(updateAllowed);
@@ -441,7 +442,18 @@ export function App() {
   );
 
   // "Nochmal" starts the same kind of round again; a time challenge the parent no longer allows becomes "Spielen".
-  const playAgain = () => startMatch(lastStart.current === 'time' && !timeChallenge ? 'play' : lastStart.current);
+  const playAgain = () => {
+    const kind = lastStart.current === 'time' && !timeChallenge ? 'play' : lastStart.current;
+    // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round.
+    if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
+    startMatch(kind);
+  };
+  // FR-103: the round "Nochmal" asked for before the page reloaded with the new version.
+  useEffect(() => {
+    const asked = swUpdate.takeStartAfterUpdate();
+    const kind = START_KINDS.find((k) => k === asked);
+    if (kind) startMatch(kind);
+  }, [startMatch]);
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.kind);
     else if (action.type === 'again') playAgain();
@@ -568,6 +580,7 @@ export function App() {
           challengeMinutes={state.challengeMinutes}
           record={record}
           stars={lockerOn ? state.starsThisRound : null}
+          updateWaiting={updateWaiting}
           onAgain={playAgain}
           onBack={() => setScreen('start')}
         />

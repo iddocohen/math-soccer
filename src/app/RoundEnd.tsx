@@ -10,6 +10,8 @@
  * A time challenge (amendment 07, FR-080) shows "2 Tore in 1 Minute" and its record by goals ("Dein Rekord: 9"), per
  * range and challenge time.
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
+ * Amendment 12 (FR-103): when a new version waits, a short neutral line "Neue Version, startet gleich" shows
+ * (`data-testid="update-note"`); "Zurück" and "Nochmal" then apply it (App.tsx, swUpdate.ts).
  */
 import type { BestResult } from '../core/records/records';
 import { t } from '../i18n';
@@ -30,11 +32,13 @@ interface Props {
   record: RoundRecord | null;
   /** Stars earned in the round, or null when the locker room is off (FR-044). */
   stars?: number | null;
+  /** A new version waits and applies on "Zurück" or "Nochmal" (FR-103). */
+  updateWaiting?: boolean;
   onAgain: () => void;
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, onAgain, onBack }: Props) {
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, updateWaiting = false, onAgain, onBack }: Props) {
   const text = t().roundEnd;
   return (
     <div className="round-end" data-testid="round-end" role="dialog" aria-modal="true" aria-label={text.cheer}>
@@ -56,6 +60,11 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
           {roundType === 'goalCount' ? text.recordTime(record.best.goals, record.best.timeMs) : text.record(record.best.goals)}
         </p>
       ) : null}
+      {updateWaiting && (
+        <p className="update-note" data-testid="update-note">
+          {text.updateWaiting}
+        </p>
+      )}
       <div className="round-end-buttons">
         <button type="button" className="primary" onClick={onAgain}>
           {text.again}

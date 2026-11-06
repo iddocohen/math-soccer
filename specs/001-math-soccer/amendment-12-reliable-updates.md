@@ -23,3 +23,12 @@
   - the open start screen switches to B within the check interval;
   - a page in a running round stays on A until the round ends, then switches.
 - Unit: the check schedule (start screen, focus, 5 minutes); the round end line shows only when a version is waiting.
+
+## Found by the update test (T100)
+
+`tests/e2e/update.spec.ts` reproduced two causes on top of the 30-minute check interval:
+
+1. **A reload during a round never applied a waiting version.** A reload restores the stored round on the match screen, and the old rule applied a version only on the start screen. A child who keeps pressing "Nochmal" also never reaches the start screen. Fix: a waiting version applies at page load on any screen until the child's first key or touch; the restored round continues in the new version. With this rule turned off, the test "a reload during a round applies the new build" fails (the page stays on the old build).
+2. **A page opened on a first visit, or after the browser data was cleared, never reloaded itself.** vite-plugin-pwa reloads only when workbox-window reports `isUpdate`, which is true only if a service worker controlled the page when it loaded. On such a page the new worker took control, but the page kept running the old build until a manual reload. Fix: `swUpdate.ts` reloads the page itself when the controller changes after it applies a version. The test "\"Zurück\" after a round applies a build that appeared during it" failed before this fix.
+
+The test does not check the open start screen within the 5-minute interval (it would wait 5 minutes); the unit tests check the interval, and the e2e checks the start screen check and the check when the tab comes back to the front.

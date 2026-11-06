@@ -60,6 +60,7 @@ describe('texts from contracts/screens.md', () => {
     expect(de.roundEnd.record(9)).toBe('Dein Rekord: 9');
     expect(de.roundEnd.again).toBe('Nochmal');
     expect(de.roundEnd.back).toBe('Zurück');
+    expect(de.roundEnd.updateWaiting).toBe('Neue Version, startet gleich');
   });
 
   it('parent gate, settings groups, progress and locker room', () => {

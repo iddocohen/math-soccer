@@ -1,6 +1,18 @@
 // Copied from math-tank src/app/swUpdate.test.ts.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AUTO_RELOAD_KEY, canApplyUpdate, createSwUpdate, mayAutoReload, UPDATE_CHECK_MS, type RegisterSW, type SwUpdateEnv } from './swUpdate';
+import {
+  AUTO_RELOAD_KEY,
+  canApplyUpdate,
+  createSwUpdate,
+  mayAutoReload,
+  START_AFTER_UPDATE_KEY,
+  UPDATE_CHECK_MS,
+  type RegisterSW,
+  type SwUpdateEnv,
+} from './swUpdate';
+
+/** The child's first key ends the load window in which a waiting version applies on any screen (FR-104). */
+const firstKey = () => document.dispatchEvent(new KeyboardEvent('keydown'));
 
 // The loop guard keeps its marker in sessionStorage; every test starts without one.
 afterEach(() => sessionStorage.clear());
@@ -43,6 +55,7 @@ describe('service worker update (FR-051, FR-051a, research R12)', () => {
     const f = fakeRegister();
     const sw = createSwUpdate();
     sw.install(f.register);
+    firstKey();
     sw.setStartScreen(false);
     f.newVersion();
     expect(f.calls.update).toBe(0);
@@ -85,6 +98,7 @@ describe('canApplyUpdate (review R2)', () => {
     };
     const sw = createSwUpdate();
     sw.install(register);
+    firstKey();
     sw.setStartScreen(true);
     needRefresh?.();
     await Promise.resolve();
@@ -99,15 +113,19 @@ describe('canApplyUpdate (review R2)', () => {
 /** A test environment: a session store, interval timers that tests run by hand and a document with visibility. */
 function fakeEnv(version = 'v1', stored: Record<string, string> = {}) {
   const intervals: Array<{ fn: () => void; ms: number }> = [];
-  const visibility: Array<() => void> = [];
-  const doc = { visibilityState: 'visible' as DocumentVisibilityState, addEventListener: (_t: string, fn: () => void) => visibility.push(fn) };
+  const handlers: Record<string, Array<() => void>> = {};
+  const doc = {
+    visibilityState: 'visible' as DocumentVisibilityState,
+    addEventListener: (t: string, fn: () => void) => void (handlers[t] ??= []).push(fn),
+  };
+  const fire = (t: string) => (handlers[t] ?? []).forEach((fn) => fn());
   const env: SwUpdateEnv = {
     version,
-    session: { getItem: (k) => stored[k] ?? null, setItem: (k, v) => void (stored[k] = v) },
+    session: { getItem: (k) => stored[k] ?? null, setItem: (k, v) => void (stored[k] = v), removeItem: (k) => void delete stored[k] },
     setInterval: (fn, ms) => void intervals.push({ fn, ms }),
     document: doc,
   };
-  return { env, stored, intervals, doc, becomeVisible: () => visibility.forEach((fn) => fn()) };
+  return { env, stored, intervals, doc, becomeVisible: () => fire('visibilitychange'), touch: () => fire('pointerdown'), key: () => fire('keydown') };
 }
 
 function registration() {
@@ -116,7 +134,7 @@ function registration() {
 
 // Phase 24 "Fast updates and cache cleanup": new builds reach devices quickly, without a reload loop.
 describe('update checks (Phase 24)', () => {
-  it('asks the server for a new version on load, every 30 minutes and when the page comes back to the front', () => {
+  it('asks the server for a new version on load, every 5 minutes and when the page comes back to the front (FR-102)', () => {
     const f = fakeEnv();
     const reg = registration();
     const register: RegisterSW = (options) => {
@@ -125,7 +143,7 @@ describe('update checks (Phase 24)', () => {
     };
     createSwUpdate(f.env).install(register);
     expect(reg.update).toHaveBeenCalledTimes(1);
-    expect(UPDATE_CHECK_MS).toBe(30 * 60 * 1000);
+    expect(UPDATE_CHECK_MS).toBe(5 * 60 * 1000);
     expect(f.intervals.map((i) => i.ms)).toEqual([UPDATE_CHECK_MS]);
     f.intervals[0]!.fn();
     expect(reg.update).toHaveBeenCalledTimes(2);
@@ -182,6 +200,7 @@ describe('applying a waiting version (Phase 24, FR-051a)', () => {
   it('mid-round it waits for the start screen', () => {
     const f = fakeEnv('v1');
     const s = setupWith(f);
+    f.touch();
     s.sw.setStartScreen(false);
     s.newVersion();
     expect(s.calls).toEqual([]);
@@ -204,5 +223,121 @@ describe('applying a waiting version (Phase 24, FR-051a)', () => {
     s.newVersion();
     expect(s.calls).toEqual([true]);
     expect(f.stored[AUTO_RELOAD_KEY]).toBe('v2');
+  });
+});
+
+describe('amendment 12: new versions reach open pages', () => {
+  function setup(f: ReturnType<typeof fakeEnv>, fail = false) {
+    const calls: Array<boolean | undefined> = [];
+    const reg = registration();
+    let needRefresh: (() => void) | undefined;
+    const register: RegisterSW = (options) => {
+      needRefresh = options.onNeedRefresh;
+      options.onRegisteredSW?.('/sw.js', reg as unknown as ServiceWorkerRegistration);
+      return (reload?: boolean) => {
+        calls.push(reload);
+        return fail ? Promise.reject(new Error('offline')) : Promise.resolve();
+      };
+    };
+    const sw = createSwUpdate(f.env);
+    sw.install(register);
+    return { sw, calls, reg, newVersion: () => needRefresh?.() };
+  }
+
+  it('asks for a new version each time the start screen shows, not again while it stays (FR-102)', () => {
+    const f = fakeEnv();
+    const s = setup(f);
+    expect(s.reg.update).toHaveBeenCalledTimes(1);
+    s.sw.setStartScreen(true);
+    expect(s.reg.update).toHaveBeenCalledTimes(2);
+    s.sw.setStartScreen(true);
+    expect(s.reg.update).toHaveBeenCalledTimes(2);
+    s.sw.setStartScreen(false);
+    s.sw.setStartScreen(true);
+    expect(s.reg.update).toHaveBeenCalledTimes(3);
+  });
+
+  it('a reload that restores a round applies a waiting version before the first key or touch (FR-104)', () => {
+    const f = fakeEnv('v1');
+    const s = setup(f);
+    s.sw.setStartScreen(false);
+    s.newVersion();
+    expect(s.calls).toEqual([true]);
+  });
+
+  it('after the first key a version found during the round waits, and the round end reports it (FR-103)', () => {
+    const f = fakeEnv('v1');
+    const s = setup(f);
+    s.sw.setStartScreen(false);
+    f.key();
+    const seen: boolean[] = [];
+    s.sw.subscribe(() => seen.push(s.sw.waiting()));
+    expect(s.sw.waiting()).toBe(false);
+    s.newVersion();
+    expect(s.calls).toEqual([]);
+    expect(s.sw.waiting()).toBe(true);
+    expect(seen).toEqual([true]);
+    // "Zurück": the start screen applies it.
+    s.sw.setStartScreen(true);
+    expect(s.calls).toEqual([true]);
+    expect(s.sw.waiting()).toBe(false);
+    expect(seen).toEqual([true, false]);
+  });
+
+  it('"Nochmal" applies it and leaves the round kind for the new page, which reads it once (FR-103)', () => {
+    const f = fakeEnv('v1');
+    const s = setup(f);
+    f.touch();
+    s.newVersion();
+    const onFail = vi.fn();
+    expect(s.sw.applyNow('time', onFail)).toBe(true);
+    expect(s.calls).toEqual([true]);
+    expect(f.stored[START_AFTER_UPDATE_KEY]).toBe('time');
+    const next = createSwUpdate(fakeEnv('v2', f.stored).env);
+    expect(next.takeStartAfterUpdate()).toBe('time');
+    expect(next.takeStartAfterUpdate()).toBeNull();
+    expect(onFail).not.toHaveBeenCalled();
+  });
+
+  it('"Nochmal" without a waiting version does nothing and stores no round kind', () => {
+    const f = fakeEnv('v1');
+    const s = setup(f);
+    f.touch();
+    expect(s.sw.applyNow('play', () => {})).toBe(false);
+    expect(f.stored[START_AFTER_UPDATE_KEY]).toBeUndefined();
+  });
+
+  it('a failed "Nochmal" update starts the round in the old version and clears the round kind', async () => {
+    const f = fakeEnv('v1');
+    const s = setup(f, true);
+    f.touch();
+    s.newVersion();
+    const onFail = vi.fn();
+    expect(s.sw.applyNow('play', onFail)).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onFail).toHaveBeenCalledTimes(1);
+    expect(f.stored[START_AFTER_UPDATE_KEY]).toBeUndefined();
+    expect(s.sw.waiting()).toBe(true);
+  });
+
+  it('applying a version also reloads the page itself when the new worker takes control (first visit)', () => {
+    const f = fakeEnv('v1');
+    const reloads = vi.fn();
+    f.env.reloadOnControllerChange = reloads;
+    const s = setup(f);
+    s.sw.setStartScreen(true);
+    expect(reloads).not.toHaveBeenCalled();
+    s.newVersion();
+    expect(reloads).toHaveBeenCalledTimes(1);
+  });
+
+  it('a version the loop guard holds back does not count as waiting', () => {
+    const f = fakeEnv('v1', { [AUTO_RELOAD_KEY]: 'v1' });
+    const s = setup(f);
+    f.touch();
+    s.newVersion();
+    expect(s.sw.waiting()).toBe(false);
+    expect(s.sw.applyNow('play', () => {})).toBe(false);
   });
 });

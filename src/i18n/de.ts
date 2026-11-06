@@ -114,6 +114,8 @@ export const de = {
     record: (n: number) => `Dein Rekord: ${n}`,
     recordTime: (goals: number, timeMs: number) => `Dein Rekord: ${goalCount(goals)} in ${clock(timeMs)}`,
     stars: (n: number) => `+${starCount(n)}`,
+    /** A new version waits (amendment 12, FR-103). */
+    updateWaiting: 'Neue Version, startet gleich',
     again: 'Nochmal',
     back: 'Zurück',
   },

@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './app/App';
 import './app/styles.css';
+import { BUILD_VERSION } from './app/buildInfo';
 import { swUpdate } from './app/swUpdate';
 import { requestPersistentStorage } from './core/storage/storage';
 
@@ -11,6 +12,10 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element #root is missing from index.html');
 }
+
+// The running build on the page (`data-version`), so tests and a parent with the browser tools can see which build
+// runs (amendment 12).
+document.documentElement.dataset.version = BUILD_VERSION;
 
 // The service worker precaches the game for offline play; a new version waits for the start screen (FR-046).
 swUpdate.install(registerSW);
