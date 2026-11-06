@@ -1,3 +1,15 @@
+node_modules/
+dist/
+dist-base/
+dev-dist/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.vitest/
+*.log
+.DS_Store
 
 # spec-kit tooling stays local
 .specify/

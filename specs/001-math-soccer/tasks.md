@@ -23,15 +23,15 @@ description: "Task list for Math Soccer"
 
 **Purpose**: project tooling, copied from math-tank.
 
-- [ ] T001 Create `package.json` with the same scripts and dependency versions as `~/dev/private/math-tank/package.json` (name `math-soccer`), `pnpm-lock.yaml` via `pnpm install`, and `.gitignore` additions for `node_modules/`, `dist/`, `dist-base/`, `dev-dist/`, `coverage/`, `test-results/`, `playwright-report/`, `blob-report/`, `.vitest/` (keep the existing `.specify/` and `.claude/` lines)
-- [ ] T002 [P] Copy `tsconfig.json` and `eslint.config.js` from math-tank (engine-free `src/core`: no `phaser`, `react` or DOM imports; no `Math.random` in `src/core`)
-- [ ] T003 [P] Copy `vite.config.ts` from math-tank: PWA manifest name and short name "Mathe-Kicker", `lang: 'de'`, theme and background `#0f1d2b`; Vitest projects `node` (src/core) and `jsdom` (src/app)
-- [ ] T004 [P] Create `index.html` (German, title "Mathe-Kicker", root div, no external resources) and `src/main.tsx` (React root, service worker registration as math-tank)
-- [ ] T005 [P] Create PWA icons `public/icons/icon.svg`, `icon-192.png`, `icon-512.png` (a ball in front of a goal, drawn as simple shapes)
-- [ ] T006 [P] Create `playwright.config.ts` from math-tank with projects `chromium`, `firefox`, `webkit` (desktop), `ipad-landscape` and `ipad-portrait` (WebKit, touch, device specs only), and `base-path` (build with `--base=/math-soccer/` on port 4174); no phone or Fire projects
-- [ ] T007 [P] Create `.github/workflows/pages.yml` from math-tank's workflow with `pnpm exec vite build --base=/math-soccer/`
-- [ ] T008 [P] Create `README.md`: what the game is for, how to play (child tutorial), parent tutorial (gear hold, settings, progress, backup), run commands, and an "Assets and licenses" section stating that all art and sound are drawn or synthesized in code
-- [ ] T009 Run `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` on the empty project and make them pass
+- [X] T001 Create `package.json` with the same scripts and dependency versions as `~/dev/private/math-tank/package.json` (name `math-soccer`), `pnpm-lock.yaml` via `pnpm install`, and `.gitignore` additions for `node_modules/`, `dist/`, `dist-base/`, `dev-dist/`, `coverage/`, `test-results/`, `playwright-report/`, `blob-report/`, `.vitest/` (keep the existing `.specify/` and `.claude/` lines)
+- [X] T002 [P] Copy `tsconfig.json` and `eslint.config.js` from math-tank (engine-free `src/core`: no `phaser`, `react` or DOM imports; no `Math.random` in `src/core`)
+- [X] T003 [P] Copy `vite.config.ts` from math-tank: PWA manifest name and short name "Mathe-Kicker", `lang: 'de'`, theme and background `#0f1d2b`; Vitest projects `node` (src/core) and `jsdom` (src/app)
+- [X] T004 [P] Create `index.html` (German, title "Mathe-Kicker", root div, no external resources) and `src/main.tsx` (React root, service worker registration as math-tank)
+- [X] T005 [P] Create PWA icons `public/icons/icon.svg`, `icon-192.png`, `icon-512.png` (a ball in front of a goal, drawn as simple shapes)
+- [X] T006 [P] Create `playwright.config.ts` from math-tank with projects `chromium`, `firefox`, `webkit` (desktop), `ipad-landscape` and `ipad-portrait` (WebKit, touch, device specs only), and `base-path` (build with `--base=/math-soccer/` on port 4174); no phone or Fire projects
+- [X] T007 [P] Create `.github/workflows/pages.yml` from math-tank's workflow with `pnpm exec vite build --base=/math-soccer/`
+- [X] T008 [P] Create `README.md`: what the game is for, how to play (child tutorial), parent tutorial (gear hold, settings, progress, backup), run commands, and an "Assets and licenses" section stating that all art and sound are drawn or synthesized in code
+- [X] T009 Run `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` on the empty project and make them pass
 
 ---
 
