@@ -4,7 +4,7 @@ World size 1600 by 1000, scaled to fit. Goal rectangle: x 300 to 1300, y 230 to 
 
 | Screen | Built with | Opens from | Content and keys |
 |--------|-----------|-----------|---------|
-| Start | React | App load | One big button per offered mode: "Löcher" (`data-mode="holes"`, key 1), "Reihen" (`data-mode="lines"`, key 2), "Torwart" (`data-mode="keeper"`, key 3); Enter or Space starts the first offered mode; "Kabine" button (K) and star total when the locker room is on; gear (hold 2 s); fullscreen button. `?mode=holes\|lines\|keeper` starts that mode (tests) |
+| Start | React | App load | One big button per offered mode: "Löcher" (`data-mode="holes"`, key 1), "Reihen" (`data-mode="lines"`, key 2), "Torwart" (`data-mode="keeper"`, key 3); Enter or Space starts the first offered mode; "Kabine" button (K) and star total when the locker room is on; gear (hold 2 s); fullscreen button. `?mode=holes\|lines\|keeper` makes Enter or Space start that mode (tests) |
 | Match | Phaser + React overlay | A mode button | Scene; overlay with the typed number (`data-testid="entry"`), message line (`data-testid="message"`), goal counter, hearts (with `untilHearts`), help button (`?`), speaker icon when speech is on, pause, fullscreen, gear; number pad by setting. Keys: digits, Backspace, Enter or Space shoot, H help, Escape pause. `data-testid="match"` carries `data-target`, `data-phase`, `data-help`, `data-goals`, `data-hearts` for tests |
 | Help chart | React overlay | Help step 2 | The full chart of the range in a modal panel, target square and last typed number marked; closes with Enter, Escape or a tap; `data-testid="help-chart"` |
 | Round end | React overlay | Round over | Encouraging line, "8 Tore in 5:40", "Neuer Rekord!" or "Dein Rekord: 9", stars earned; "Nochmal" (Enter or Space), "Zurück" |
@@ -13,6 +13,15 @@ World size 1600 by 1000, scaled to fit. Goal rectangle: x 300 to 1300, y 230 to 
 | Progress | React | Parent menu | Table per direction and mode: attempts, alone, with help, step, "gemeistert"; personal bests; reset with confirmation (keeps stars) |
 | Locker room | React | "Kabine" or K | Preview player and ball; groups Ball, Trikot, Nummer und Name, Fans; locked items show "noch N Sterne"; Escape back |
 | Transfer dialog | React | Link with `#save=` | As math-tank |
+
+## Test query parameters
+
+These parameters exist for the end-to-end tests, as in math-tank. A child never needs them.
+
+- `?mode=holes|lines|keeper`: Enter or Space on the start screen starts that mode when the parent offers it, instead of the first offered mode.
+- `?seed=N`: the round seed, a whole number from 0 to 9999999999, so targets follow the same order on every run.
+- Short rounds: specs store settings before the page loads (`seedStorage` in `tests/e2e/fixtures.ts`), for example `roundType: 'goalCount'` with `goalsPerRound: 2`, instead of a query parameter.
+- A running round is saved under `mathsoccer.round.v1` between shots, so a reload continues it.
 
 ## Feedback contract
 

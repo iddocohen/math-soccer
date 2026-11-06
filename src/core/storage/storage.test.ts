@@ -4,7 +4,7 @@ import { defaultSettings } from '../settings/defaults';
 import { exportData, importData } from './exportImport';
 import { memoryKeyValue, type KeyValue } from './keyValue';
 import { migrate } from './migrate';
-import { emptyLockerRoom, emptyProgress, emptyRecords } from './schemas';
+import { emptyLockerRoom, emptyProgress, emptyRecords, type StoredRound } from './schemas';
 import {
   clearRound,
   LOCKER_ROOM_KEY,
@@ -25,6 +25,28 @@ import {
   SETTINGS_KEY,
   unreadableKey,
 } from './storage';
+
+/** A full stored round in hole mode; `over` replaces fields. */
+function storedRound(over: Partial<StoredRound> = {}): StoredRound {
+  return {
+    version: 1,
+    seed: 1,
+    mode: 'holes',
+    roundType: 'untilHearts',
+    min: 1,
+    max: 100,
+    goals: 0,
+    hearts: 3,
+    missesInRow: 0,
+    helpStep: 0,
+    target: { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [], directions: ['right', 'left', 'down', 'up'], difficultyStep: 0 },
+    targetCount: 1,
+    starsThisRound: 0,
+    elapsedMs: 0,
+    phase: 'aiming',
+    ...over,
+  };
+}
 
 function throwingKeyValue(): KeyValue {
   const fail = () => {
@@ -50,7 +72,7 @@ describe('storage keys', () => {
     saveProgress(kv, emptyProgress());
     saveRecords(kv, emptyRecords());
     saveLockerRoom(kv, emptyLockerRoom());
-    saveRound(kv, { version: 1, seed: 1, mode: 'holes', roundType: 'untilHearts', goals: 0 });
+    saveRound(kv, storedRound());
     for (const key of [SETTINGS_KEY, PROGRESS_KEY, LOCKER_ROOM_KEY, RECORDS_KEY, ROUND_KEY]) expect(kv.get(key)).not.toBeNull();
   });
 });
@@ -61,7 +83,7 @@ describe('round trip', () => {
     const settings = { ...defaultSettings(), lineLength: 7, difficulty: 'normal' as const };
     const records = { version: 1 as const, bests: { '1-100|holes|untilHearts': { goals: 8, timeMs: 340000, at: '2026-11-06T10:00:00.000Z' } } };
     const locker = { ...emptyLockerRoom(), stars: 12, totalEarned: 20, shirtName: 'MIA' };
-    const round = { version: 1 as const, seed: 42, mode: 'lines' as const, roundType: 'goalCount' as const, goals: 3, hearts: 2 };
+    const round = storedRound({ seed: 42, mode: 'keeper', roundType: 'goalCount', goals: 3, hearts: 2, elapsedMs: 61_500 });
     saveSettings(kv, settings);
     saveRecords(kv, records);
     saveLockerRoom(kv, locker);
@@ -69,13 +91,12 @@ describe('round trip', () => {
     expect(loadSettings(kv)).toEqual({ value: settings, resetReason: 'none' });
     expect(loadRecords(kv)).toEqual({ value: records, resetReason: 'none' });
     expect(loadLockerRoom(kv)).toEqual({ value: locker, resetReason: 'none' });
-    // Fields the round schema does not check yet are kept.
     expect(loadRound(kv)).toEqual({ value: round, resetReason: 'none' });
   });
 
   it('clearRound removes the stored round', () => {
     const kv = memoryKeyValue();
-    saveRound(kv, { version: 1, seed: 1, mode: 'keeper', roundType: 'untilHearts', goals: 0 });
+    saveRound(kv, storedRound({ mode: 'keeper' }));
     clearRound(kv);
     expect(loadRound(kv)).toEqual({ value: null, resetReason: 'none' });
   });
@@ -103,7 +124,7 @@ describe('damaged data resets with a reason (FR-036)', () => {
     const kv = memoryKeyValue({
       [PROGRESS_KEY]: JSON.stringify({ version: 1, attempts: 'many' }),
       [LOCKER_ROOM_KEY]: JSON.stringify({ ...emptyLockerRoom(), stars: -3 }),
-      [ROUND_KEY]: JSON.stringify({ version: 1, seed: 1, mode: 'penalty', roundType: 'untilHearts', goals: 0 }),
+      [ROUND_KEY]: JSON.stringify({ ...storedRound(), mode: 'penalty' }),
     });
     expect(loadProgress(kv)).toEqual({ value: emptyProgress(), resetReason: 'invalid' });
     expect(loadLockerRoom(kv)).toEqual({ value: emptyLockerRoom(), resetReason: 'invalid' });

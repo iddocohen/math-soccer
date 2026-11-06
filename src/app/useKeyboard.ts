@@ -14,18 +14,19 @@ export interface KeyboardOptions {
   screen: KeyScreen | null;
   modes?: readonly Mode[];
   lockerRoom?: boolean;
+  enterMode?: Mode;
   onAction: (action: KeyAction) => void;
 }
 
-export function useKeyboard({ screen, modes = [], lockerRoom = false, onAction }: KeyboardOptions): void {
-  const latest = useRef({ screen, modes, lockerRoom, onAction });
-  latest.current = { screen, modes, lockerRoom, onAction };
+export function useKeyboard({ screen, modes = [], lockerRoom = false, enterMode, onAction }: KeyboardOptions): void {
+  const latest = useRef({ screen, modes, lockerRoom, enterMode, onAction });
+  latest.current = { screen, modes, lockerRoom, enterMode, onAction };
 
   useLayoutEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const { screen: current, modes: offered, lockerRoom: lockerOn, onAction: handle } = latest.current;
+      const { screen: current, modes: offered, lockerRoom: lockerOn, enterMode: wanted, onAction: handle } = latest.current;
       if (current === null || isTextField(event.target)) return;
-      const action = keyToAction(event, current, { modes: offered, lockerRoom: lockerOn });
+      const action = keyToAction(event, current, { modes: offered, lockerRoom: lockerOn, enterMode: wanted });
       if (action === null) return;
       event.preventDefault();
       handle(action);

@@ -23,6 +23,11 @@ describe('keyToAction: start screen', () => {
     expect(keyToAction(key('Enter'), 'start', { modes: [] })).toBeNull();
   });
 
+  it('Enter and Space start the mode named by ?mode= when it is offered, otherwise the first offered mode', () => {
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterMode: 'keeper' })).toEqual({ type: 'start', mode: 'keeper' });
+    expect(keyToAction(key(' '), 'start', { modes: ['holes'], enterMode: 'lines' })).toEqual({ type: 'start', mode: 'holes' });
+  });
+
   it('K opens the locker room only when it is on', () => {
     expect(keyToAction(key('k'), 'start', ALL)).toEqual({ type: 'lockerRoom' });
     expect(keyToAction(key('K'), 'start', ALL)).toEqual({ type: 'lockerRoom' });

@@ -4,14 +4,16 @@
  * over the match. The screens here are placeholders that US1 replaces: StartScreen.tsx and MatchOverlay.tsx (T034),
  * RoundEnd.tsx (T035) and MatchScene.ts (T033).
  *
- * Phaser loads in its own chunk when a match starts, so the start screen shows quickly.
+ * Phaser loads in its own chunk when a match starts, so the start screen shows quickly. A round stored before a refresh
+ * continues on load (T029). Test query parameters: `?mode=` makes Enter and Space start that mode, `?seed=` fixes the
+ * round seed (contracts/screens.md).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSfx } from '../audio/sfx';
-import { MatchController, type MatchMessage } from '../core/match/MatchController';
+import { MatchController, type MatchMessage, type RoundStore } from '../core/match/MatchController';
 import type { Settings } from '../core/settings/schema';
 import { localStorageKeyValue } from '../core/storage/keyValue';
-import { loadSettings } from '../core/storage/storage';
+import { clearRound, loadRound, loadSettings, saveRound } from '../core/storage/storage';
 import { MODES, type Mode } from '../core/types';
 import { t } from '../i18n';
 import type { GameHandle } from '../game/createGame';
@@ -29,12 +31,37 @@ function loadGame(): Promise<typeof import('../game/createGame')> {
   return import('../game/createGame');
 }
 
+/** How often the app adds time played to the round (FR-029). */
+const TICK_MS = 200;
+
+/** The `seed` query parameter as a non-negative integer, or undefined (as math-tank). */
+export function seedFromUrl(search: string): number | undefined {
+  const raw = new URLSearchParams(search).get('seed');
+  if (raw === null || !/^\d{1,10}$/.test(raw)) return undefined;
+  return Number(raw) >>> 0;
+}
+
+/** The `mode` query parameter when it names a mode, or undefined. */
+export function modeFromUrl(search: string): Mode | undefined {
+  const raw = new URLSearchParams(search).get('mode');
+  return MODES.find((m) => m === raw);
+}
+
 function createApp() {
+  const kv = localStorageKeyValue();
   // The settings page (US3) will replace this snapshot when the parent saves.
-  const settings: Settings = loadSettings(localStorageKeyValue()).value;
-  const controller = new MatchController({ settings: () => settings });
+  const settings: Settings = loadSettings(kv).value;
+  const store: RoundStore = {
+    load: () => loadRound(kv).value,
+    save: (round) => void saveRound(kv, round),
+    clear: () => void clearRound(kv),
+  };
+  const seed = seedFromUrl(window.location.search);
+  const controller = new MatchController({ settings: () => settings, store, newSeed: seed === undefined ? undefined : () => seed });
   const sfx = createSfx({ sound: () => settings.sound });
-  return { controller, sfx, settings: () => settings };
+  // A round stored before a refresh continues (T029); one that no longer fits the settings is discarded (FR-036a).
+  const restored = controller.restore();
+  return { controller, sfx, settings: () => settings, restored };
 }
 
 /** German text of a match message. */
@@ -48,12 +75,14 @@ function messageText(message: MatchMessage | null): string {
       return f.goal;
     case 'miss':
       return f.miss(message.number);
+    case 'heartLost':
+      return f.heartLost;
   }
 }
 
 export function App() {
-  const [{ controller, sfx, settings }] = useState(createApp);
-  const [screen, setScreen] = useState<Screen>('start');
+  const [{ controller, sfx, settings, restored }] = useState(createApp);
+  const [screen, setScreen] = useState<Screen>(restored ? 'match' : 'start');
   const state = useMatchState(controller);
   const gameParent = useRef<HTMLDivElement>(null);
   const offered: Mode[] = MODES.filter((m) => settings().modes[m]);
@@ -95,6 +124,18 @@ export function App() {
     }
   }, [screen, state.phase, state.paused, controller]);
 
+  // Time played runs while the match shows and the tab is visible (FR-029); the controller stops it while paused.
+  useEffect(() => {
+    if (screen !== 'match') return;
+    let last = performance.now();
+    const id = window.setInterval(() => {
+      const now = performance.now();
+      if (!document.hidden) controller.tick(now - last);
+      last = now;
+    }, TICK_MS);
+    return () => window.clearInterval(id);
+  }, [screen, controller]);
+
   const startMatch = useCallback(
     (mode: Mode) => {
       controller.start(mode);
@@ -111,7 +152,7 @@ export function App() {
     else if (action.type === 'again') startMatch(state.mode);
     else if (action.type !== 'lockerRoom') applyMatchAction(controller, action);
   };
-  useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: settings().lockerRoom, onAction });
+  useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: settings().lockerRoom, enterMode: modeFromUrl(window.location.search), onAction });
 
   if (screen === 'start') {
     return (

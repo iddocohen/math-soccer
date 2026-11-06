@@ -5,8 +5,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
-import { SETTINGS_KEY } from '../core/storage/storage';
-import { App } from './App';
+import { ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { App, modeFromUrl, seedFromUrl } from './App';
 
 const game = vi.hoisted(() => ({ created: 0, destroyed: 0 }));
 
@@ -54,5 +54,23 @@ describe('App', () => {
     expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByTestId('message').textContent).toBe('');
+  });
+
+  it('continues a stored round after a refresh: the match shows with the same goals and target', () => {
+    const first = render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    const target = screen.getByTestId('match').getAttribute('data-target');
+    expect(localStorage.getItem(ROUND_KEY)).not.toBeNull();
+    first.unmount();
+    render(<App />);
+    expect(screen.getByTestId('match').getAttribute('data-target')).toBe(target);
+    expect(screen.getByTestId('match').getAttribute('data-goals')).toBe('0');
+  });
+
+  it('reads ?seed= and ?mode= for tests', () => {
+    expect(seedFromUrl('?seed=42')).toBe(42);
+    expect(seedFromUrl('?seed=x')).toBeUndefined();
+    expect(modeFromUrl('?mode=keeper')).toBe('keeper');
+    expect(modeFromUrl('?mode=penalty')).toBeUndefined();
   });
 });

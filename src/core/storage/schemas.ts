@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MODES } from '../types';
+import { DIRECTIONS, MODES } from '../types';
 
 /**
  * Schemas of the stored kinds other than settings (data-model.md). These are first versions: later tasks extend them
@@ -63,15 +63,36 @@ export function emptyLockerRoom(): LockerRoom {
   };
 }
 
+/** A hole or goalkeeper target (data-model "Target"). */
+export const targetSchema = z.object({
+  mode: modeSchema,
+  number: z.number().int(),
+  hints: z.array(z.number().int()),
+  patchedHoles: z.array(z.number().int()),
+  directions: z.array(z.enum(DIRECTIONS)),
+  difficultyStep: z.number().int().min(0).max(3),
+});
+
 /**
- * `mathsoccer.round.v1`: the running round, kept on refresh (data-model "Round"). Only the fields every round has are
- * checked here; T029 adds the rest. No stored round means no round to continue.
+ * `mathsoccer.round.v1`: the running round, kept on refresh (data-model "Round"). No stored round means no round to
+ * continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`.
  */
-export const roundSchema = z.looseObject({
+export const roundSchema = z.object({
   version: z.literal(1),
   seed: z.number().int(),
   mode: modeSchema,
   roundType: z.enum(['untilHearts', 'goalCount']),
+  min: z.number().int(),
+  max: z.number().int(),
   goals: z.number().int().min(0),
+  hearts: z.number().int().min(0).max(3),
+  missesInRow: z.number().int().min(0),
+  helpStep: z.number().int().min(0).max(3),
+  target: targetSchema.nullable(),
+  /** How many targets the round has had; the seed of the next target derives from it. */
+  targetCount: z.number().int().min(0),
+  starsThisRound: z.number().int().min(0),
+  elapsedMs: z.number().min(0),
+  phase: z.enum(['aiming', 'celebrating']),
 });
 export type StoredRound = z.infer<typeof roundSchema>;
