@@ -109,7 +109,7 @@ description: "Task list for Math Soccer"
 - [ ] T041 [P] [US3] Copy `src/app/ParentGate.tsx` and test from math-tank: gear held 2 s opens the parent menu and pauses; short tap and keys do nothing (FR-034)
 - [ ] T042 [P] [US3] Create `src/core/progress/` (`classify.ts`, `adaptive.ts`, `mastery.ts`, `summarize.ts`) adapted from math-tank with `skill` renamed to `direction` and the same thresholds: guess under 1.5 s or after 3 wrong answers within 5 s; step up after 3 independent in a row, down when 2 of the last 3 needed help; mastered at 10 independent attempts with 8 of the last 10 correct; ladder 0 always+direct, 1 vertical or diagonal, 2 far, 3 on request, clamped to the parent's settings (FR-039, FR-040); with tests
 - [ ] T043 [US3] Record an AttemptRecord per target in `src/core/progress/` and `MatchController.ts` with fields `{ at, mode, min, max, target, directions[], hintDistance, hintDisplay, difficultyStep, solved, helpStep, misses, responseMs, guess }`, capped at the last 2000 (FR-037, FR-038)
-- [ ] T044 [US3] Create `src/app/SettingsPage.tsx` with all Settings fields grouped Zahlenraum, Spielarten, Hinweise, Reihen, Runde, Schwierigkeit, Ton, Bedienung, Kabine, Daten; Save disabled while invalid; errors next to fields; changes apply at the next round (FR-035, FR-036a)
+- [ ] T044 [US3] Create `src/app/SettingsPage.tsx` with all Settings fields grouped Zahlenraum, Spielarten, Hinweise, Reihen, Runde, Schwierigkeit, Ton, Bedienung, Kabine, Daten; Save disabled while invalid; errors next to fields (FR-035); how saved changes reach a running round is T047b (amendment 01)
 - [ ] T045 [US3] Create `src/app/ProgressPage.tsx`: table per direction and mode (attempts, alone, with help, step, "gemeistert"), personal bests, reset with confirmation that keeps stars
 - [ ] T046 [P] [US3] Copy `src/core/transfer/` and `src/app/TransferDialog.tsx` with tests from math-tank (QR code or link, `#save=`) and wire "Daten sichern", "Daten laden" in `SettingsPage.tsx` (FR-041)
 - [ ] T047 [US3] `tests/e2e/settings.spec.ts`: gear hold opens settings, range 200 to 500 gives 30 rows (check `data-rows` on `match`), range 0 to 1000 plays a shot without errors, settings survive a reload
@@ -156,6 +156,22 @@ description: "Task list for Math Soccer"
 
 ---
 
+## Phase 8b: Amendment 01 (math-tank amendments 23, 24, 25)
+
+**Goal**: locker room from the match, keeping progress, settings apply at once. See [amendment-01-from-math-tank-23-25.md](./amendment-01-from-math-tank-23-25.md).
+
+**Independent Test**: the amendment's "Tests first" list.
+
+- [ ] T069 Change `playwright.config.ts` web server ports to 4273 (`pnpm build && pnpm preview --port 4273 --strictPort`) and 4274 (`/math-soccer/` base path), `baseURL` to `http://localhost:4273`, and every spec or helper that names 4173 or 4174 (amendment 01 section 4)
+- [ ] T070 [US3] Add `applySettings(settings)` to `src/core/match/MatchController.ts` with tests in `MatchController.test.ts`: target-shaping settings give a new target on the new layout, keeping goals, hearts, stars and time; round type and goals per round keep their round-start values; display-only changes keep the target; the dropped target records no attempt (FR-052)
+- [ ] T071 [US3] Call `applySettings` from `src/app/App.tsx` when the settings page closes after one or more saves (once), not when nothing was saved; keep the paused state; tests in `src/app/App.test.tsx`
+- [ ] T072 [US3] Copy math-tank's kept-copy restore and `resetAll` (`src/app/persistence.ts` and its test) for the `mathsoccer.*` keys; "Kopie wiederherstellen" with notice on `SettingsPage.tsx`; "Alles zurücksetzen" with a confirmation that reminds to save first on `ProgressPage.tsx`; all or none; settings stay (FR-050, FR-051); i18n texts in `src/i18n/de.ts`
+- [ ] T073 [US6] Locker room icon next to the gear in `src/app/MatchOverlay.tsx` (only with the locker room on, accessible name "Kabine"); one tap opens `LockerRoom.tsx` over the match, pauses a running round, keys do nothing while open, "Zurück" or Escape closes and resumes, a child-paused round stays paused; equipped looks show at once (FR-049); tests in `App.test.tsx` and `MatchOverlay` tests
+- [ ] T074 [US6] e2e in Chromium: `tests/e2e/settingsLive.spec.ts` (range 1 to 100 → 1 to 20 mid-round, 2 rows, goals kept), `tests/e2e/persistence.spec.ts` (restore a kept locker room copy, stars on the start screen), `tests/e2e/lockerMatch.spec.ts` (open from a running round, equip a ball, close, round continues with `data-ball` changed)
+- [ ] T075 Update `README.md`: section "Keeping the child's progress", Home Screen advice for iPad, "save first" before every step that clears browser data (amendment 01 section 2)
+
+---
+
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [ ] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
@@ -173,6 +189,7 @@ description: "Task list for Math Soccer"
 
 - **Setup (Phase 1)** → **Foundational (Phase 2)** → user stories.
 - **US1** first (MVP). **US2** and **US3** depend on the controller from US1. **US4** and **US5** depend on US1's scene and controller and can run in parallel with each other. **US6** depends on US1 (stars come from goals and squares).
+- **Amendment 01 (Phase 8b)** after US3 and US6; T069 can run any time and is done first.
 - **Polish** after the stories it touches.
 
 ## Parallel Examples

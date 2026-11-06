@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft
+**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md)
 
 **Input**: User description: "Build the browser game described in docs/superpowers/specs/2026-11-06-math-soccer-design.md. Copy that document verbatim into the feature directory as source-prd.md and treat it as the full requirements. Follow math-tank (~/dev/private/math-tank) wherever the document says "as math-tank"." The design document is stored verbatim in [source-prd.md](./source-prd.md).
 
@@ -208,7 +208,7 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 
 - **FR-034**: Settings and the progress page MUST open only after holding the gear icon for 2 seconds; a short tap or any key MUST NOT open them, and opening them MUST pause the game, as math-tank.
 - **FR-035**: The settings MUST cover at least: range (presets 1 to 100, 0 to 1000, and custom minimum and maximum); which modes are offered; hint display and hint distance; line directions and line length; round type and goals per round; difficulty; adaptive difficulty; the crowd "ohhh"; sound effects, crowd sound and "Vorlesen"; number pad; clock; personal bests; locker room.
-- **FR-036a**: Settings changes MUST take effect at the next round. A stored round whose range or mode no longer matches the settings MUST be discarded on load (critique E2).
+- **FR-036a**: *Replaced by amendment 01 (FR-052): saved settings apply to the running round when the settings page closes.* A stored round whose range no longer matches the settings MUST be discarded on load (critique E2).
 - **FR-036**: Settings, progress records, personal bests and locker room data MUST be stored in the browser with a version number, kept across sessions, and migrated or reset on load when old or damaged, as math-tank.
 - **FR-037**: The game MUST record every target attempt with: mode, range, target number, the directions it trains, hint settings, whether it was solved, whether help was used and up to which step, the number of misses before the solve, and response time.
 - **FR-038**: A target MUST count toward each direction its hints point from (for example, the hint 36 above target 46 counts as +10; the hint 45 counts as +1). A line-mode target counts toward the line's direction. A target with no visible hints counts toward every direction offered by its hint distance setting.
@@ -221,6 +221,13 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 - **FR-042**: The child MUST earn stars for correct shots and goals: in line mode one star per correct square plus a bonus for a finished line; in hole and goalkeeper mode stars per goal. Stars MUST never be taken away.
 - **FR-043**: A locker room ("Kabine") MUST let the child spend stars on looks: ball designs (colors, patterns, special balls), shirt color, own shirt number and name, and the fans' scarf color. Looks MUST NOT affect the math or the difficulty.
 - **FR-044**: The parent MUST be able to turn the locker room and star total off.
+
+**Amendment 01** (see [amendment-01-from-math-tank-23-25.md](./amendment-01-from-math-tank-23-25.md) for full behavior)
+
+- **FR-049**: The locker room MUST open from the match with one tap on an icon next to the gear; the round pauses and continues on "Zurück"; new looks show at once.
+- **FR-050**: The settings page MUST offer "Kopie wiederherstellen" for readable kept copies, all or none.
+- **FR-051**: The progress page MUST offer "Alles zurücksetzen" (progress, bests, stars, locker room; settings stay), after a question that reminds the parent to save first.
+- **FR-052**: Saved settings MUST apply to a running round when the settings page closes: a new target for target-shaping settings, round length unchanged, display-only settings at once.
 
 **Devices, offline and publishing**
 
