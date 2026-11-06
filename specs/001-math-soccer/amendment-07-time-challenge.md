@@ -15,6 +15,7 @@
 - **FR-081**: In the last 10 seconds the clock MUST turn kit yellow and pulse gently. There is no ticking sound and no red, so the end does not feel like a threat. Design call, in line with the low-frustration rule.
 - Normal rounds ("Spielen") keep the parent's round type (hearts or a number of goals).
 - Saved settings change the challenge time only from the next round, as FR-052 says for round-shaping settings.
+- A stored time challenge is discarded on load when the parent no longer allows the challenge.
 
 ## Tests
 

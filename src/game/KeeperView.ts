@@ -4,7 +4,7 @@
  * gloves on arms that swing from the shoulders. Where he goes comes from keeperDive.ts.
  *
  * - He has one size for the whole shot, half as tall as the goal mouth, and waits with his feet on the goal line
- *   (FR-062, FR-063). `keepClear()` hears the target and hint squares: he shuffles sideways to a spot that leaves them
+ *   (FR-062, FR-063). `keepClear()` hears the target, hint and waiting shape squares: he shuffles sideways to a spot that leaves them
  *   visible, or waits half transparent in the middle when no spot does (FR-064) (`idle`).
  * - On every shot he watches the ball for a moment, then leaps along a short arc (DIVE_MS, timed to end when the ball
  *   arrives): the body tilts toward the ball and the arms stretch over the head (`diving`).

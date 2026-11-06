@@ -27,6 +27,7 @@ import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
 import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
+import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
 import { emptyLockerRoom } from '../core/storage/schemas';
 import { COLOR, css } from './palette';
@@ -147,9 +148,9 @@ export class MatchScene extends Phaser.Scene {
       this.keeper.reset();
       this.stands.calm();
     }
-    // The waiting keeper leaves the target and hint squares visible (FR-064).
+    // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
     if (s.target) {
-      this.keeper.keepClear([s.target.number, ...s.target.hints].map((n) => cellRect(layout, CHART_RECT, n)));
+      this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
     }
     this.refreshLook(s);
 

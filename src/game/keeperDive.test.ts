@@ -15,6 +15,7 @@ import {
   KEEPER_SCALE,
   MAX_TILT,
   mixPose,
+  squaresToKeepClear,
   waitingSpot,
 } from './keeperDive';
 
@@ -139,5 +140,23 @@ describe('fallenPose and mixPose', () => {
     expect(mixPose(a, b, 0)).toEqual(a);
     expect(mixPose(a, b, 1)).toEqual(b);
     expect(mixPose(a, b, 0.5).arms).toBe(0.5);
+  });
+});
+
+describe('the waiting keeper keeps the shape squares clear (FR-064, amendment 06)', () => {
+  it('lists the target, the hints and the waiting empty squares of a shape', () => {
+    const target = {
+      number: 45,
+      hints: [44, 35],
+      directions: [],
+      difficultyStep: 7,
+      pattern: 'shape' as const,
+      queue: [{ number: 46, directions: [] }],
+    };
+    expect(squaresToKeepClear(target)).toEqual([45, 44, 35, 46]);
+  });
+
+  it('lists only the target and hints when nothing waits', () => {
+    expect(squaresToKeepClear({ number: 12, hints: [11], directions: [], difficultyStep: 0, pattern: 'shape' as const })).toEqual([12, 11]);
   });
 });

@@ -62,7 +62,7 @@ export const SETTINGS: StoredKind<Settings> = {
 export const PROGRESS: StoredKind<Progress> = {
   name: 'progress',
   key: PROGRESS_KEY,
-  version: 1,
+  version: 2,
   parse: schemaParser('progress', progressSchema),
   empty: emptyProgress,
 };

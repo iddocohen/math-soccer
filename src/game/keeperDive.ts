@@ -7,8 +7,8 @@
  * arms from 0 (the ready stance, gloves out low) to 1 (both arms stretched over the head). With the arms stretched, the
  * gloves sit REACH units from the hips along the body.
  *
- * - Waiting: feet on the goal line (FR-063). He shuffles sideways to a spot where he covers neither the target square
- *   nor a hint square; when no such spot exists he waits in the middle, drawn half transparent (FR-064).
+ * - Waiting: feet on the goal line (FR-063). He shuffles sideways to a spot where he covers none of the target square,
+ *   the hint squares and the waiting empty squares of a shape (`squaresToKeepClear`); when no such spot exists he waits in the middle, drawn half transparent (FR-064).
  * - Catch: on a wrong number the keeper jumps or dives so his gloves end on the middle of the ball's square.
  * - Beaten: on the correct number he dives toward the ball and his gloves end well short of it. When the ball's square
  *   is so close to him that any dive toward it would reach it, he guesses the other side and dives that way.
@@ -17,7 +17,7 @@
 import { center } from '../core/chart/layout';
 import { GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import { clamp } from '../core/util';
-import type { Rect } from '../core/types';
+import type { DeepReadonly, Rect, Target } from '../core/types';
 
 export interface Point {
   x: number;
@@ -98,6 +98,11 @@ function overlaps(a: Rect, b: Rect, margin: number): boolean {
 /** The farthest left and right the waiting keeper's hips go, so his gloves stay inside the posts. */
 const SPOT_MIN_X = GOAL_FRAME.x + POST_WIDTH - IDLE_OUTLINE[1]!.x * KEEPER_SCALE;
 const SPOT_MAX_X = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH - (IDLE_OUTLINE[1]!.x + IDLE_OUTLINE[1]!.width) * KEEPER_SCALE;
+
+/** The numbers the waiting keeper must not cover: the target, its hints and a shape's waiting empty squares (FR-064). */
+export function squaresToKeepClear(target: DeepReadonly<Target>): number[] {
+  return [target.number, ...target.hints, ...(target.queue ?? []).map((q) => q.number)];
+}
 
 export interface WaitingSpot {
   pose: KeeperPose;

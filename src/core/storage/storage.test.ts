@@ -156,6 +156,30 @@ describe('damaged data resets with a reason (FR-036)', () => {
     expect(value).toEqual({ ...defaultSettings(), directions: { ...defaultSettings().directions, up: true }, difficulty: 'challenging' });
   });
 
+  it('progress of version 1 maps old keeper ladder steps 0 to 3 to the new steps 0, 2, 6 and 7 (amendment 05)', () => {
+    const ds = (step: number) => ({ step, recent: ['independent' as const], masteryWindow: [], attempts: 1, independent: 1, assisted: 0, guesses: 0 });
+    const v1 = {
+      version: 1,
+      attempts: [],
+      directions: { 'keeper|right': ds(0), 'keeper|left': ds(1), 'keeper|down': ds(2), 'keeper|up': ds(3), 'holes|down': ds(2) },
+    };
+    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v1) }));
+    expect(resetReason).toBe('none');
+    expect(value.version).toBe(2);
+    expect(value.directions).toEqual({
+      'keeper|right': ds(0),
+      'keeper|left': ds(2),
+      'keeper|down': ds(6),
+      'keeper|up': ds(7),
+      'holes|down': ds(2),
+    });
+  });
+
+  it('progress of version 2 keeps its ladder steps', () => {
+    const v2 = { ...emptyProgress(), directions: { 'keeper|down': { step: 3, recent: [], masteryWindow: [], attempts: 0, independent: 0, assisted: 0, guesses: 0 } } };
+    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v2) }))).toEqual({ value: v2, resetReason: 'none' });
+  });
+
   it('settings of a version above 2 give defaults with resetReason newer', () => {
     const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 3 }) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'newer' });

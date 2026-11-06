@@ -47,6 +47,31 @@ function roundV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...rest, version: 2, target };
 }
 
+/** Old keeper ladder step (0 to 3, before amendment 05) to the step of the 8-step ladder that offers the same hints. */
+const OLD_KEEPER_STEP = [0, 2, 6, 7];
+
+/**
+ * Progress version 1 to version 2 (amendment 05): keeper steps stored on the old 4-step ladder move to the new one,
+ * 0, 1, 2 and 3 to 0, 2, 6 and 7. A keeper step above 3 was already stored on the new ladder by a build before this
+ * migration, so then no step moves. Steps of the removed modes stay as they are; they no longer steer anything.
+ */
+function progressV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const directions = isRecord(raw.directions) ? raw.directions : {};
+  const keeper = Object.entries(directions).filter(([key, ds]) => key.startsWith('keeper|') && isRecord(ds));
+  const oldLadder = keeper.every(([, ds]) => {
+    const step = (ds as Record<string, unknown>).step;
+    return typeof step !== 'number' || step <= 3;
+  });
+  if (!oldLadder) return { ...raw, version: 2 };
+  const moved = Object.fromEntries(
+    Object.entries(directions).map(([key, ds]) => {
+      if (!key.startsWith('keeper|') || !isRecord(ds) || typeof ds.step !== 'number') return [key, ds];
+      return [key, { ...ds, step: OLD_KEEPER_STEP[ds.step] ?? ds.step }];
+    }),
+  );
+  return { ...raw, version: 2, directions: moved };
+}
+
 /** True for a round of version 1 in hole or line mode: the game discards it on load (FR-070). */
 export function isRemovedModeRound(raw: unknown): boolean {
   return isRecord(raw) && raw.version === 1 && (raw.mode === 'holes' || raw.mode === 'lines');
@@ -58,7 +83,7 @@ export function isRemovedModeRound(raw: unknown): boolean {
  */
 const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Record<string, unknown>>> = {
   settings: [settingsV1toV2],
-  progress: [],
+  progress: [progressV1toV2],
   records: [],
   lockerRoom: [],
   round: [roundV1toV2],

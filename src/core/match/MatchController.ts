@@ -380,14 +380,15 @@ export class MatchController {
 
   /**
    * Continues the stored round after a refresh. Returns false, and deletes the stored round, when there is none or it
-   * no longer fits the settings: another range (FR-036a).
+   * no longer fits the settings: another range (FR-036a), or a time challenge the parent no longer allows (amendment 07).
    */
   restore(): boolean {
     const store = this.options.store;
     const stored = store?.load() ?? null;
     if (!store || !stored) return false;
     const s = this.options.settings();
-    if (stored.min !== s.range.min || stored.max !== s.range.max) {
+    const challengeOff = stored.roundType === 'time' && !s.timeChallenge.allowed;
+    if (stored.min !== s.range.min || stored.max !== s.range.max || challengeOff) {
       store.clear();
       return false;
     }

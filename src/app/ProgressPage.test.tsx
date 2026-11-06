@@ -88,7 +88,7 @@ describe('ProgressPage (T045)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: P.reset }));
     fireEvent.click(screen.getByRole('button', { name: P.resetYes }));
-    expect(loadProgress(kv).value).toEqual({ version: 1, attempts: [], directions: {} });
+    expect(loadProgress(kv).value).toEqual({ version: 2, attempts: [], directions: {} });
     expect(loadLockerRoom(kv).value.stars).toBe(12);
     expect(screen.getByText(P.resetDone)).toBeTruthy();
     expect(screen.getByText(P.empty)).toBeTruthy();

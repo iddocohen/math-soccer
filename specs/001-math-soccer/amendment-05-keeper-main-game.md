@@ -48,6 +48,7 @@ Every target is an empty square in the faint grid over the open goal. A **hint p
 - Stored rounds in hole or line mode are discarded on load.
 - Progress keeps all old attempts: progress per direction counts every mode, and the progress page shows mode columns only for the keeper game, plus a "früher" (earlier) total for the removed modes.
 - Personal bests from the removed modes are kept under "früher" and are no longer compared with new rounds.
+- Old adaptive steps 0 to 3 map to new steps 0, 2, 6 and 7.
 
 ## Code to remove
 

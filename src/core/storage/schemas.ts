@@ -46,7 +46,7 @@ export type AttemptRecord = z.infer<typeof attemptRecordSchema>;
 
 /** The adaptive state of one direction in one mode (data-model "DirectionProgress", as math-tank's SkillProgress). */
 export const directionStateSchema = z.object({
-  /** Adaptive step, 0 to 7 (core/progress/ladder.ts); older data holds 0 to 3. */
+  /** Adaptive step, 0 to 7 (core/progress/ladder.ts); migrate.ts moves steps of the older 4-step ladder. */
   step: z.number().int().min(0).max(7),
   /** Newest last, at most 6; cleared on a step change. Guesses never enter it. */
   recent: z.array(outcomeSchema),
@@ -64,14 +64,15 @@ export type DirectionState = z.infer<typeof directionStateSchema>;
  * counting after old attempts drop out of the list.
  */
 export const progressSchema = z.object({
-  version: z.literal(1),
+  /** Version 2 (amendment 05): steps on the 8-step keeper ladder. */
+  version: z.literal(2),
   attempts: z.array(attemptRecordSchema),
   directions: z.record(z.string(), directionStateSchema).default({}),
 });
 export type Progress = z.infer<typeof progressSchema>;
 
 export function emptyProgress(): Progress {
-  return { version: 1, attempts: [], directions: {} };
+  return { version: 2, attempts: [], directions: {} };
 }
 
 /** `mathsoccer.records.v1`: personal bests by `min-max|mode|roundType` (data-model "PersonalBest"). */

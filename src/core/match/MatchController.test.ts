@@ -808,6 +808,17 @@ describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
     expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 0, shown: null });
   });
 
+  it('discards a stored time challenge when the parent no longer allows the challenge (amendment 07)', () => {
+    const store = memoryStore();
+    const { c } = challenge({}, store);
+    c.tick(20_000);
+    expect(store.round).toMatchObject({ roundType: 'time' });
+    const again = new MatchController({ settings: () => ({ ...defaultSettings(), timeChallenge: { allowed: false, minutes: 1 } }), store });
+    expect(again.restore()).toBe(false);
+    expect(store.round).toBeNull();
+    expect(again.getState().started).toBe(false);
+  });
+
   it('a refresh continues the countdown from the stored time played; saved minutes apply from the next round', () => {
     const store = memoryStore();
     const { c } = challenge({}, store);
