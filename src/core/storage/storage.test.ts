@@ -29,7 +29,7 @@ import {
 /** A full stored round; `over` replaces fields. */
 function storedRound(over: Partial<StoredRound> = {}): StoredRound {
   return {
-    version: 3,
+    version: 4,
     seed: 1,
     roundType: 'untilHearts',
     challengeMinutes: null,
@@ -140,7 +140,7 @@ describe('damaged data resets with a reason (FR-036)', () => {
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'invalid' });
   });
 
-  it('settings stored by the first published game (version 1) load as version 3 without a reset (FR-070)', () => {
+  it('settings stored by the first published game (version 1) load as version 4 without a reset (FR-070)', () => {
     const v1 = {
       ...defaultSettings(),
       version: 1,
@@ -156,7 +156,7 @@ describe('damaged data resets with a reason (FR-036)', () => {
     expect(value).toEqual({ ...defaultSettings(), difficulty: 'challenging' });
   });
 
-  it('settings stored by the published game (version 2) load as version 3 without a reset (amendment 09)', () => {
+  it('settings stored by the published game (version 2) load as version 4 without a reset (amendment 09)', () => {
     const v2 = {
       ...defaultSettings(),
       version: 2,
@@ -181,7 +181,7 @@ describe('damaged data resets with a reason (FR-036)', () => {
     };
     const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v1) }));
     expect(resetReason).toBe('none');
-    expect(value.version).toBe(3);
+    expect(value.version).toBe(4);
     expect(value.level).toBe(4);
     expect(value.directions).toEqual({
       'keeper|right': counters,
@@ -235,13 +235,46 @@ describe('damaged data resets with a reason (FR-036)', () => {
     });
   });
 
-  it('progress of version 3 loads as it is', () => {
-    const v3 = { ...emptyProgress(), level: 2 as const, levelWins: 1, directions: { 'keeper|down': counters } };
-    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v3) }))).toEqual({ value: v3, resetReason: 'none' });
+  it('progress of version 4 loads as it is', () => {
+    const v4 = { ...emptyProgress(), level: 2 as const, levelWins: 1, directions: { 'keeper|down': counters } };
+    expect(loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v4) }))).toEqual({ value: v4, resetReason: 'none' });
   });
 
-  it('settings of a version above 3 give defaults with resetReason newer', () => {
-    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 4 }) });
+  it('progress of version 3 moves each attempt to the four-step help: 0 and 1 stay, 2 becomes 3, 3 becomes 4 (amendment 10)', () => {
+    const attempt = (helpStep: number) => ({
+      at: '2026-11-06T12:00:00.000Z',
+      mode: 'keeper',
+      min: 1,
+      max: 100,
+      target: 46,
+      directions: ['down'],
+      hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
+      hintDisplay: 'always',
+      level: 1,
+      solved: helpStep < 3,
+      helpStep,
+      misses: helpStep,
+      responseMs: 4000,
+      guess: false,
+    });
+    const v3 = { ...emptyProgress(), version: 3, attempts: [0, 1, 2, 3].map(attempt) };
+    const { value, resetReason } = loadProgress(memoryKeyValue({ [PROGRESS_KEY]: JSON.stringify(v3) }));
+    expect(resetReason).toBe('none');
+    expect(value.version).toBe(4);
+    expect(value.attempts.map((a) => a.helpStep)).toEqual([0, 1, 3, 4]);
+    expect(value.attempts.map((a) => a.solved)).toEqual([true, true, true, false]);
+  });
+
+  it('settings of version 3 (the published game) load as version 4 with the row and column helper on (amendment 10)', () => {
+    const v3: Record<string, unknown> = { ...defaultSettings(), version: 3, showClock: true };
+    delete v3.rowColumnHelper;
+    const { value, resetReason } = loadSettings(memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v3) }));
+    expect(resetReason).toBe('none');
+    expect(value).toEqual({ ...defaultSettings(), showClock: true, rowColumnHelper: true });
+  });
+
+  it('settings of a version above 4 give defaults with resetReason newer', () => {
+    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 5 }) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'newer' });
   });
 
@@ -383,13 +416,13 @@ describe('rounds of version 1 (amendment 05, FR-070)', () => {
     }
   });
 
-  it('turns a goalkeeper round of version 1 into version 3: no mode, no line, a Nachbarn target at level 1', () => {
+  it('turns a goalkeeper round of version 1 into version 4: no mode, no line, a Nachbarn target at level 1', () => {
     expect(loadRound(kvWith(v1Round('keeper')))).toEqual({ value: storedRound(), resetReason: 'none' });
     const withPattern = v1Round('keeper', { target: { ...v1Round('keeper').target, pattern: 'middle' } });
     expect(loadRound(kvWith(withPattern)).value?.target?.pattern).toBe('middle');
   });
 
-  it('turns a round of version 2 (the published game) into version 3: the target ladder step becomes its level', () => {
+  it('turns a round of version 2 into version 4: the target ladder step becomes its level', () => {
     const { target, ...rest } = storedRound();
     const shape = { ...target!, pattern: 'shape' as const, queue: [{ number: 47, directions: ['right' as const] }] };
     const v2 = (difficultyStep: number) => ({ ...rest, version: 2, target: { ...shape, level: undefined, difficultyStep } });
@@ -398,5 +431,18 @@ describe('rounds of version 1 (amendment 05, FR-070)', () => {
       expect(resetReason).toBe('none');
       expect(value).toEqual({ ...storedRound(), target: { ...shape, level } });
     }
+  });
+
+  it('turns a round of version 3 (the published game) into version 4: help steps 2 and 3 become 3 and 4 (amendment 10)', () => {
+    for (const [old, now] of [[0, 0], [1, 1], [2, 3], [3, 4]] as const) {
+      const { value, resetReason } = loadRound(kvWith({ ...storedRound(), version: 3, helpStep: old }));
+      expect(resetReason).toBe('none');
+      expect(value).toEqual(storedRound({ helpStep: now }));
+    }
+  });
+
+  it('accepts help step 4 in a round of version 4 and refuses 5', () => {
+    expect(loadRound(kvWith(storedRound({ helpStep: 4 }))).value?.helpStep).toBe(4);
+    expect(loadRound(kvWith({ ...storedRound(), helpStep: 5 })).resetReason).toBe('invalid');
   });
 });

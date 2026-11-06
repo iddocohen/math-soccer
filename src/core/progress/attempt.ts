@@ -18,7 +18,7 @@ export interface FinishedTarget {
   target: Target;
   settings: Settings;
   solved: boolean;
-  /** Highest help step used, 0 to 3. */
+  /** Highest help step used, 0 to 4. */
   helpStep: number;
   misses: number;
   /** Play time when the target appeared. */

@@ -21,8 +21,8 @@
  * keeper's dive and catch are drawn by KeeperView from this state; the controller does not track the keeper. The round
  * is saved between shots so a refresh continues it (FR-036a: a stored round for another range is discarded).
  *
- * Help (T038, FR-024, FR-025): H, the help button and each miss raise the help step up to 3. Step 2 opens the help
- * chart; Enter, Space, Escape or a tap close it, and that Enter does not shoot. Help never changes hearts, stars or
+ * Help (T038, T096, FR-024, FR-025, amendment 10): H, the help button and each miss raise the help step up to 4: the
+ * row, the column, the help chart, the answer. Step 3 opens the help chart; Enter, Space, Escape or a tap close it, and that Enter does not shoot. Help never changes hearts, stars or
  * goals. What each step shows comes from help.ts.
  *
  * Settings saved during a round (amendment 01, FR-052, after math-tank's `applySettingsNow`): `applySettings` takes them
@@ -50,7 +50,7 @@ import { ANSWER_STEP, CHART_STEP } from './help';
 
 export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 
-/** The highest help step: step 3 shows the answer. */
+/** The highest help step: step 4 shows the answer. */
 export const MAX_HELP_STEP = ANSWER_STEP;
 
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
@@ -84,12 +84,12 @@ export interface ShownSquare {
 
 /**
  * The target the child just scored, for the round end; the full attempt record goes to `onAttempt` (T043).
- * `solved` is false when the goal came after help step 3, the answer (FR-025b).
+ * `solved` is false when the goal came after help step 4, the answer (FR-025b, FR-094).
  */
 export interface FinishedAttempt {
   number: number;
   solved: boolean;
-  /** The highest help step used on the target, 0 to 3. */
+  /** The highest help step used on the target, 0 to 4. */
   helpStep: number;
 }
 
@@ -117,9 +117,9 @@ export interface MatchState {
   /** 3 down to 0; used with `untilHearts`. */
   hearts: number;
   missesInRow: number;
-  /** 0 to 3. */
+  /** 0 to 4: none, row, column, help chart, answer (help.ts). */
   helpStep: number;
-  /** The help chart of step 2 is open (FR-025a). */
+  /** The help chart of step 3 is open (FR-025a). */
   helpChartOpen: boolean;
   /** The last number shot at the current target, marked on the help chart; null before the first miss. */
   lastGuess: number | null;
@@ -462,7 +462,7 @@ export class MatchController {
     if (s.phase !== 'ballInFlight' || !s.ball) return;
     const hit = s.target !== null && s.ball.number === s.target.number;
     if (hit) {
-      // A shot at the answer of help step 3 scores and celebrates; it counts for the goal counter only when the parent
+      // A shot at the answer of help step 4 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
       const counts = s.helpStep < MAX_HELP_STEP || this.roundSettings.pointAfterFullHelp;
       const { attempt, levelUp } = this.scored(s, s.ball);
@@ -540,7 +540,7 @@ export class MatchController {
     this.set(this.afterCelebration(this.state));
   }
 
-  /** One help step further, up to step 3, while the child aims. Step 2 opens the help chart. */
+  /** One help step further, up to step 4, while the child aims. Step 3 opens the help chart. */
   askHelp(): void {
     const s = this.state;
     if (!s.started || s.paused || s.phase !== 'aiming') return;
@@ -596,7 +596,7 @@ export class MatchController {
     this.recordAttempt(over, { solved: false, endedAt: over.elapsedMs });
   }
 
-  /** The help step after `step`, capped at 3; the help chart is open exactly at step 2. */
+  /** The help step after `step`, capped at 4; the help chart is open exactly at step 3. */
   private helpRaised(step: number): Pick<MatchState, 'helpStep' | 'helpChartOpen'> {
     const helpStep = Math.min(MAX_HELP_STEP, step + 1);
     return { helpStep, helpChartOpen: helpStep === CHART_STEP };
@@ -684,7 +684,7 @@ export class MatchController {
     }
     // While the ball flies the round is saved as it was before the shot; the shot is lost on a refresh.
     if (s.phase !== 'aiming' && s.phase !== 'celebrating') return;
-    store.save({ version: 3, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
+    store.save({ version: 4, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
   }
 }
 

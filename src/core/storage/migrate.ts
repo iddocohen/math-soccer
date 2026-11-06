@@ -43,6 +43,20 @@ function settingsV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...rest, version: 3, levels: defaultSettings().levels, shapes };
 }
 
+/** Settings version 3 to version 4 (amendment 10): the row and column helper is new and starts on (FR-093). */
+function settingsV3toV4(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 4, rowColumnHelper: true };
+}
+
+/**
+ * A help step of the three-step help (1 hint, 2 help chart, 3 answer) as a step of the four-step help of amendment 10
+ * (1 row, 2 column, 3 help chart, 4 answer): 1 stays, since the row step keeps the hint; 2 becomes 3 and 3 becomes 4.
+ * Anything that is not a help step of the old help stays as it is, so the schema refuses it.
+ */
+export function helpStepOfThreeStepHelp(step: unknown): unknown {
+  return step === 2 ? 3 : step === 3 ? 4 : step;
+}
+
 /**
  * The level of a ladder step of amendment 05 (amendment 09, "Stored data"): steps 0 to 2 are level 1, 3 and 4 level 2,
  * 5 level 3, and 6 and 7 level 4. Anything else is level 1.
@@ -108,6 +122,19 @@ function roundV2toV3(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, version: 3, target };
 }
 
+/** Round version 3 to version 4 (amendment 10): the help step moves to the four-step help. */
+function roundV3toV4(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, version: 4, helpStep: helpStepOfThreeStepHelp(raw.helpStep) };
+}
+
+/** Progress version 3 to version 4 (amendment 10): each attempt's help step moves to the four-step help. */
+function progressV3toV4(raw: Record<string, unknown>): Record<string, unknown> {
+  const attempts: unknown = Array.isArray(raw.attempts)
+    ? raw.attempts.map((a: unknown) => (isRecord(a) ? { ...a, helpStep: helpStepOfThreeStepHelp(a.helpStep) } : a))
+    : raw.attempts;
+  return { ...raw, version: 4, attempts };
+}
+
 /**
  * Progress version 2 to version 3 (amendment 09): the ladder steps per direction become one current level, from the
  * highest keeper step (design call, T095: the level falls again after 2 helped targets in 3, so starting high costs
@@ -157,11 +184,11 @@ export function isRemovedModeRound(raw: unknown): boolean {
  * and adds a step here, as math-tank does. The storage keys keep their `.v1` names.
  */
 const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Record<string, unknown>>> = {
-  settings: [settingsV1toV2, settingsV2toV3],
-  progress: [progressV1toV2, progressV2toV3],
+  settings: [settingsV1toV2, settingsV2toV3, settingsV3toV4],
+  progress: [progressV1toV2, progressV2toV3, progressV3toV4],
   records: [],
   lockerRoom: [],
-  round: [roundV1toV2, roundV2toV3],
+  round: [roundV1toV2, roundV2toV3, roundV3toV4],
 };
 
 /**

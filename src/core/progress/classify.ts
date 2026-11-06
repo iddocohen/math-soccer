@@ -1,7 +1,7 @@
 // Adapted from math-tank src/core/progress/classify.ts: a target instead of a guided search, misses instead of wrong answers.
 /**
  * Classifies one finished target for the progress records (FR-039): alone ('independent'), with help or misses
- * ('assisted'), or not solved before help step 3 showed the answer ('unsolved'). Guesses use math-tank's rule.
+ * ('assisted'), or not solved before help step 4 showed the answer ('unsolved'). Guesses use math-tank's rule.
  */
 import type { Outcome } from '../storage/schemas';
 
@@ -13,9 +13,9 @@ export const GUESS_MISS_COUNT = 3;
 export const GUESS_MISS_WINDOW_MS = 5000;
 
 export interface ClassifyInput {
-  /** Scored before help step 3 showed the answer. */
+  /** Scored before help step 4 showed the answer. */
   solved: boolean;
-  /** Highest help step reached; 3 means the answer was shown. */
+  /** Highest help step reached; 4 means the answer was shown. */
   helpStep: number;
   misses: number;
   /** From the target appearing to the scoring shot. */

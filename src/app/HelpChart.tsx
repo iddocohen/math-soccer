@@ -1,5 +1,5 @@
 /**
- * Help step 2 (FR-024, FR-025a, contracts/screens.md "Help chart"): the full chart of the configured range in a modal
+ * Help step 3 (FR-024, FR-025a, contracts/screens.md "Help chart"): the full chart of the configured range in a modal
  * panel, laid out with the same `layoutChart` as the goal board. The target square has a thick yellow outline; the last
  * typed number is a filled warm square with a ball icon, so the two differ by shape as well as color.
  *

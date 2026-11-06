@@ -87,10 +87,10 @@ describe('MatchController skeleton', () => {
     expect(c.getState()).toMatchObject({ entry: '', helpStep: 0, phase: 'ballInFlight' });
   });
 
-  it('H raises the help step up to 3', () => {
+  it('H raises the help step up to 4', () => {
     const c = makeController();
-    for (let i = 0; i < 5; i++) c.typeKey('help');
-    expect(c.getState().helpStep).toBe(3);
+    for (let i = 0; i < 6; i++) c.typeKey('help');
+    expect(c.getState().helpStep).toBe(4);
   });
 
   it('Escape pauses and resumes; time played stops while paused (FR-029)', () => {
@@ -232,7 +232,7 @@ describe('hearts (FR-027)', () => {
     }
   });
 
-  it('a lost heart keeps the target, jumps help to step 3, and the next correct shot moves on', () => {
+  it('a lost heart keeps the target, jumps help to step 4, and the next correct shot moves on', () => {
     const c = fixed({ difficulty: 'challenging' });
     for (let i = 0; i < 3; i++) shootAndLand(c, 56);
     expect(c.getState()).toMatchObject({ hearts: 2, helpStep: MAX_HELP_STEP, target: { number: 46 }, phase: 'aiming' });
@@ -245,7 +245,7 @@ describe('hearts (FR-027)', () => {
   it('with goalCount no heart is lost', () => {
     const c = fixed({ roundType: 'goalCount', difficulty: 'challenging' });
     for (let i = 0; i < 10; i++) shootAndLand(c, 56);
-    expect(c.getState()).toMatchObject({ hearts: 3, phase: 'aiming', missesInRow: 10, helpStep: 3 });
+    expect(c.getState()).toMatchObject({ hearts: 3, phase: 'aiming', missesInRow: 10, helpStep: 4 });
   });
 });
 
@@ -277,22 +277,23 @@ describe('round end', () => {
 });
 
 describe('point after full help (FR-025b)', () => {
-  it('a shot at the answer of help step 3 scores and counts by default', () => {
+  it('a shot at the answer of help step 4 scores and counts by default', () => {
     const c = fixed();
-    for (let i = 0; i < 3; i++) c.askHelp();
+    for (let i = 0; i < 4; i++) c.askHelp();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS });
   });
 
   it('with the setting off it celebrates and earns stars but does not count for the goals', () => {
     const c = fixed({ pointAfterFullHelp: false });
-    for (let i = 0; i < 3; i++) c.askHelp();
+    for (let i = 0; i < 4; i++) c.askHelp();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 0, starsThisRound: GOAL_STARS });
   });
 
-  it('a shot after help step 2 still counts with the setting off', () => {
+  it('a shot after help step 3 still counts with the setting off', () => {
     const c = fixed({ pointAfterFullHelp: false });
+    c.askHelp();
     c.askHelp();
     c.askHelp();
     shootAndLand(c, 46);

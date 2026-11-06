@@ -23,14 +23,14 @@ describe('classifyAttempt (FR-039, as math-tank)', () => {
   });
 
   it('never flags an unsolved target as a guess', () => {
-    expect(classifyAttempt(input({ solved: false, helpStep: 3, responseMs: 500 })).guess).toBe(false);
+    expect(classifyAttempt(input({ solved: false, helpStep: 4, responseMs: 500 })).guess).toBe(false);
   });
 
   it('is independent only for a first-shot goal without help', () => {
     expect(classifyAttempt(input())).toEqual({ independent: true, guess: false, outcome: 'independent' });
     expect(classifyAttempt(input({ misses: 1, missTimes: [99_000] })).outcome).toBe('assisted');
     expect(classifyAttempt(input({ helpStep: 1 })).outcome).toBe('assisted');
-    expect(classifyAttempt(input({ solved: false, helpStep: 3 })).outcome).toBe('unsolved');
+    expect(classifyAttempt(input({ solved: false, helpStep: 4 })).outcome).toBe('unsolved');
   });
 
   it('isGuess ignores misses after the shot', () => {

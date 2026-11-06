@@ -213,6 +213,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
             <Check key={d} label={O.hintDistance[d]} {...flag('hintDistance', d)} />
           ))}
           <Check label={L.pointAfterFullHelp} checked={draft.pointAfterFullHelp} onChange={(v) => set('pointAfterFullHelp', v)} />
+          <Check label={L.rowColumnHelper} checked={draft.rowColumnHelper} onChange={(v) => set('rowColumnHelper', v)} />
         </Group>
 
         <Group title={S.groups.shapes}>

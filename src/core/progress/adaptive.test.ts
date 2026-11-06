@@ -22,7 +22,7 @@ function attempt(kind: Kind, directions: Direction[] = ['down'], extra: Partial<
     hintDisplay: 'always',
     level: 1,
     solved: kind !== 'unsolved',
-    helpStep: kind === 'unsolved' ? 3 : kind === 'assisted' ? 1 : 0,
+    helpStep: kind === 'unsolved' ? 4 : kind === 'assisted' ? 1 : 0,
     misses: 0,
     responseMs: kind === 'guess' ? 800 : 4000,
     guess: kind === 'guess',

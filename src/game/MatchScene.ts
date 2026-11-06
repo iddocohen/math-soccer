@@ -2,7 +2,8 @@
  * The match scene (FR-001, FR-003, FR-012, FR-021, FR-022; contracts/screens.md "Feedback contract"). It only draws
  * MatchController state and tells the controller when an animation has ended; all rules live in src/core.
  *
- * - Composes the views: the stadium backdrop, StandsView, GoalView, KeeperView, PlayerView and BallView. The look from the locker room (ball design, shirt color, number and name, scarf color)
+ * - Composes the views: the stadium backdrop, StandsView, GoalView, HelperView (the row and column helper, amendment 10),
+ *   KeeperView, PlayerView and BallView. The look from the locker room (ball design, shirt color, number and name, scarf color)
  *   applies on every draw, so a changed look shows without a new round (FR-043).
  * - Subscribes to the controller in create() and unsubscribes on shutdown.
  * - When the phase becomes `ballInFlight`, the player kicks and the ball flies to the `cellRect` of the typed number.
@@ -26,6 +27,7 @@ import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from
 import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
+import { HelperView } from './HelperView';
 import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
@@ -49,7 +51,7 @@ export interface MatchSounds {
 
 export interface MatchSceneOptions {
   sounds?: MatchSounds;
-  /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch"). */
+  /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch") and the row and column helper. */
   settings: () => Settings;
   /**
    * The look chosen in the locker room (ball design, shirt, scarves). Read on every draw, so a new look shows at the
@@ -71,6 +73,7 @@ export class MatchScene extends Phaser.Scene {
   private unsubscribe: (() => void) | null = null;
   private stands!: StandsView;
   private goal!: GoalView;
+  private helper!: HelperView;
   private keeper!: KeeperView;
   private player!: PlayerView;
   private ball!: BallView;
@@ -104,6 +107,7 @@ export class MatchScene extends Phaser.Scene {
     this.lookKey = lookKey(look);
     this.stands = new StandsView(this, look.scarfColor);
     this.goal = new GoalView(this);
+    this.helper = new HelperView(this);
     this.keeper = new KeeperView(this, this.options.onKeeper);
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
@@ -157,6 +161,7 @@ export class MatchScene extends Phaser.Scene {
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
     this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom });
+    this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper);
 
     this.setPaused(s.paused);
 

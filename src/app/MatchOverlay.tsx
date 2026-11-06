@@ -10,8 +10,10 @@
  * `data-round-type` (untilHearts, goalCount or time), `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
  * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
- * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
- * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
+ * Help (T040, T096, FR-024, FR-094): from help step 1 a line above the typed number (`data-testid="help-text"`) names
+ * the way from the closest hint number to the target ("Von 36 eine Reihe runter: +10") and the target's row ("Die Zahl
+ * ist in der Reihe 40"); from step 2 also its column ("und in der Spalte 6"); at step 4 it says the answer.
+ * `data-help-row` and `data-help-col` carry the lit row and column labels, empty while none is lit.
  * The overlay lets taps through to the canvas except on its buttons.
  *
  * Locker room from the match (amendment 01, FR-049, as math-tank amendment 23): with `onLockerRoom` (the locker room is
@@ -25,9 +27,9 @@
  * these icons never take focus, so Enter and Space keep shooting.
  */
 import { memo, type ReactNode } from 'react';
-import { ballKind, layoutChart } from '../core/chart/layout';
+import { ballKind, cellOf, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
-import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
+import { ANSWER_STEP, columnLabel, COLUMN_STEP, HINT_STEP, helpHint, rowColumnHelp, rowLabel } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
 import type { Digit } from '../core/match/entry';
@@ -57,15 +59,33 @@ export function messageText(message: MatchMessage | null): string {
   }
 }
 
-/** The help line for the help step: the hint from step 1, the answer at step 3, or '' without help. */
+/**
+ * The help line for the help step: from step 1 the hint and the row, from step 2 also the column, the answer at step 4,
+ * or '' without help.
+ */
 export function helpText(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max'>): string {
   const h = t().help;
   const target = state.target;
   if (!target || state.helpStep < HINT_STEP) return '';
   if (state.helpStep >= ANSWER_STEP) return h.answer(target.number);
-  const hint = helpHint(layoutChart(state.min, state.max), target);
-  if (!hint) return '';
-  return hint.direction ? h.fromNeighbor(hint.from, h.direction[hint.direction]) : h.fromHint(hint.from, hint.offset);
+  const layout = layoutChart(state.min, state.max);
+  const hint = helpHint(layout, target);
+  const way = hint ? (hint.direction ? h.fromNeighbor(hint.from, h.direction[hint.direction]) : h.fromHint(hint.from, hint.offset)) : '';
+  const { row, col } = cellOf(layout, target.number);
+  const place = state.helpStep >= COLUMN_STEP ? h.inRowAndColumn(rowLabel(layout, row), columnLabel(col)) : h.inRow(rowLabel(layout, row));
+  return way ? `${way}. ${place}.` : `${place}.`;
+}
+
+/** The lit row and column labels for `data-help-row` and `data-help-col`; '' while none is lit. */
+export function litLabels(state: Pick<MatchView, 'helpStep' | 'target' | 'min' | 'max'>): { row: string; col: string } {
+  const target = state.target;
+  if (!target) return { row: '', col: '' };
+  const layout = layoutChart(state.min, state.max);
+  const { litRow, litColumn } = rowColumnHelp(layout, target, state.helpStep, false);
+  return {
+    row: litRow === null ? '' : String(rowLabel(layout, litRow)),
+    col: litColumn === null ? '' : String(columnLabel(litColumn)),
+  };
 }
 
 /** Minutes and two-digit seconds, "5:40". */
@@ -119,6 +139,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
+  const lit = litLabels(state);
   const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
   return (
     <div
@@ -128,6 +149,8 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-phase={state.phase}
       data-help={state.helpStep}
       data-help-chart={state.helpChartOpen ? 'open' : 'closed'}
+      data-help-row={lit.row}
+      data-help-col={lit.col}
       data-goals={state.goals}
       data-hearts={state.hearts}
       data-rows={layout.rows}

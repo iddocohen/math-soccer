@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutChart } from '../core/chart/layout';
+import { cellRect, layoutChart } from '../core/chart/layout';
 import { CHART_RECT } from '../core/match/world';
 import type { Target } from '../core/types';
 import { boardKey, buildBoard, type BoardInput } from './board';
@@ -20,7 +20,7 @@ describe('buildBoard: the open goal (FR-013, FR-019)', () => {
     expect(b.squares.filter((s) => s.lit).map((s) => s.n).sort()).toEqual([36, 45, 47, 56]);
   });
 
-  it('shows only the hint numbers; the target square stays empty before help step 3', () => {
+  it('shows only the hint numbers; the target square stays empty before help step 4', () => {
     const b = buildBoard(input());
     const labelled = b.squares.filter((s) => s.label).map((s) => s.n);
     expect(labelled.sort((a, z) => a! - z!)).toEqual([36, 45, 47, 56]);
@@ -83,7 +83,7 @@ describe('boardKey (plan decision 9)', () => {
 });
 
 describe('buildBoard: help on the board (T040)', () => {
-  it('draws an arrow from the hint square to the target at help steps 1 and 2 only', () => {
+  it('draws an arrow from the hint square to the target at help steps 1 to 3 only', () => {
     expect(buildBoard(input({ helpStep: 0, hintFrom: 36 })).arrow).toBeNull();
     const arrow = buildBoard(input({ helpStep: 1, hintFrom: 36 })).arrow;
     expect(arrow).not.toBeNull();
@@ -91,12 +91,26 @@ describe('buildBoard: help on the board (T040)', () => {
     expect(arrow!.from.x).toBeCloseTo(arrow!.to.x);
     expect(arrow!.to.y).toBeGreaterThan(arrow!.from.y);
     expect(buildBoard(input({ helpStep: 2, hintFrom: 36 })).arrow).not.toBeNull();
-    expect(buildBoard(input({ helpStep: 3, hintFrom: 36 })).arrow).toBeNull();
+    expect(buildBoard(input({ helpStep: 3, hintFrom: 36 })).arrow).not.toBeNull();
+    expect(buildBoard(input({ helpStep: 4, hintFrom: 36 })).arrow).toBeNull();
   });
 
-  it('writes the answer in the target square at help step 3', () => {
-    expect(square(buildBoard(input({ helpStep: 2 })), 46).label).toBeNull();
-    expect(square(buildBoard(input({ helpStep: 3 })), 46).label).toEqual({ text: '46', style: 'answer' });
+  it('writes the answer in the target square at help step 4', () => {
+    expect(square(buildBoard(input({ helpStep: 3 })), 46).label).toBeNull();
+    expect(square(buildBoard(input({ helpStep: 4 })), 46).label).toEqual({ text: '46', style: 'answer' });
+  });
+
+  it('lays a band over the target row from step 1 and its column from step 2, crossing at the target (amendment 10)', () => {
+    expect(buildBoard(input({ helpStep: 0 })).bands).toEqual({ row: null, column: null });
+    const cell = cellRect(layoutChart(1, 100), CHART_RECT, 46);
+    const one = buildBoard(input({ helpStep: 1 }));
+    expect(one.bands.row).toEqual({ x: CHART_RECT.x, y: cell.y, width: CHART_RECT.width, height: cell.height });
+    expect(one.bands.column).toBeNull();
+    expect(square(one, 46).crossing).toBe(false);
+    const two = buildBoard(input({ helpStep: 2 }));
+    expect(two.bands.column).toEqual({ x: cell.x, y: CHART_RECT.y, width: cell.width, height: CHART_RECT.height });
+    expect(square(two, 46).crossing).toBe(true);
+    expect(two.squares.filter((s) => s.crossing).map((s) => s.n)).toEqual([46]);
   });
 
   it('the board key changes with the arrow start', () => {

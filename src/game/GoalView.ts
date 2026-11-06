@@ -8,8 +8,8 @@
  *   faint chalk grid over the net, the hint squares filled in the team color with dark numbers, and the empty target
  *   square washed light and outlined in the team color (T055). It is redrawn only when `boardKey` changes, that is
  *   when the target, the hints shown, the help step or the shown square change (plan decision 9), not every frame.
- *   Help shows on the grid too (T040): at steps 1 and 2 a yellow arrow from the closest hint number to the target, at
- *   step 3 the answer in the target square. A ball after a goal sits between the net and the grid
+ *   Help shows on the grid too (T040, T096): at steps 1 to 3 a yellow arrow from the closest hint number to the target,
+ *   soft bands over the target's row (step 1 on) and column (step 2 on), at step 4 the answer in the target square. A ball after a goal sits between the net and the grid
  *   (`BALL_IN_NET_DEPTH`).
  * - The posts and the crossbar are drawn once, in front of the grid.
  */
@@ -87,6 +87,9 @@ export class GoalView {
     const { x: gx, y: gy, width, height } = this.chart;
     ctx.setTransform(RESOLUTION, 0, 0, RESOLUTION, -gx * RESOLUTION, -gy * RESOLUTION);
     ctx.clearRect(gx, gy, width, height);
+    // The soft bands of help steps 1 and 2 under the grid (amendment 10).
+    ctx.fillStyle = css(COLOR.kit, 0.2);
+    for (const band of [board.bands.row, board.bands.column]) if (band) ctx.fillRect(band.x, band.y, band.width, band.height);
     for (const s of board.squares) this.drawSquare(ctx, s);
     // Labels after all squares, so a badge larger than its square is not covered by the next square.
     ctx.font = `${GAME_FONT_WEIGHT} ${board.fontSize}px ${GAME_FONT}`;
@@ -103,7 +106,8 @@ export class GoalView {
     const gap = Math.min(1, h / 8);
     // A faint chalk grid over the net. The empty target square gets a light wash so it reads as marked.
     if (s.outlined) {
-      ctx.fillStyle = css(COLOR.chalk, 0.16);
+      // Where the row and column bands cross, the target square stands out more.
+      ctx.fillStyle = css(COLOR.chalk, s.crossing ? 0.4 : 0.16);
       ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
     }
     ctx.strokeStyle = css(COLOR.chalk, 0.3);
@@ -163,34 +167,13 @@ export class GoalView {
     const ux = dx / length;
     const uy = dy / length;
     const width = clamp(cellHeight / 6, 3, 9);
-    const head = width * 3;
     // Start beside the hint's number and end at the target's edge, so neither number is covered.
     const start = Math.min(length / 3, cellHeight * 0.35);
     const sx = from.x + ux * start;
     const sy = from.y + uy * start;
     const ex = to.x - ux * Math.min(length / 3, cellHeight * 0.3);
     const ey = to.y - uy * Math.min(length / 3, cellHeight * 0.3);
-    const bx = ex - ux * head;
-    const by = ey - uy * head;
-    for (const [color, extra] of [
-      [COLOR.ink, 3],
-      [COLOR.kit, 0],
-    ] as const) {
-      ctx.strokeStyle = css(color);
-      ctx.fillStyle = css(color);
-      ctx.lineWidth = width + extra;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(bx, by);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(ex + ux * extra, ey + uy * extra);
-      ctx.lineTo(bx - uy * (head * 0.6 + extra), by + ux * (head * 0.6 + extra));
-      ctx.lineTo(bx + uy * (head * 0.6 + extra), by - ux * (head * 0.6 + extra));
-      ctx.closePath();
-      ctx.fill();
-    }
+    paintArrow(ctx, { from: { x: sx, y: sy }, to: { x: ex, y: ey } }, width);
   }
 
   destroy(): void {
@@ -198,6 +181,37 @@ export class GoalView {
     this.board.destroy();
     this.posts.destroy();
     if (this.scene.textures.exists(BOARD_TEXTURE)) this.scene.textures.remove(BOARD_TEXTURE);
+  }
+}
+
+/** A thick yellow arrow with a dark edge from `arrow.from` to its head's tip at `arrow.to` (help, T040 and T096). */
+export function paintArrow(ctx: CanvasRenderingContext2D, arrow: Arrow, width: number): void {
+  const { from, to } = arrow;
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length === 0) return;
+  const ux = (to.x - from.x) / length;
+  const uy = (to.y - from.y) / length;
+  const head = width * 3;
+  const bx = to.x - ux * head;
+  const by = to.y - uy * head;
+  for (const [color, extra] of [
+    [COLOR.ink, 3],
+    [COLOR.kit, 0],
+  ] as const) {
+    ctx.strokeStyle = css(color);
+    ctx.fillStyle = css(color);
+    ctx.lineWidth = width + extra;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(to.x + ux * extra, to.y + uy * extra);
+    ctx.lineTo(bx - uy * (head * 0.6 + extra), by + ux * (head * 0.6 + extra));
+    ctx.lineTo(bx + uy * (head * 0.6 + extra), by - ux * (head * 0.6 + extra));
+    ctx.closePath();
+    ctx.fill();
   }
 }
 

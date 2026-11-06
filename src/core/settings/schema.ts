@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { CHALLENGE_MINUTES, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
 
 /**
- * Structural schema of the stored settings, version 3 (stored under `mathsoccer.settings.v1`, data-model.md
- * "Settings"; amendments 05 to 07 and 09). Version 1 had game modes, line directions and a line length; version 2 had
- * "Richtungen" and "Hinweis-Muster", which the difficulty levels replace; migrate.ts turns both into version 3. Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of
+ * Structural schema of the stored settings, version 4 (stored under `mathsoccer.settings.v1`, data-model.md
+ * "Settings"; amendments 05 to 07, 09 and 10). Version 1 had game modes, line directions and a line length; version 2
+ * had "Richtungen" and "Hinweis-Muster", which the difficulty levels replace; version 3 had no row and column helper
+ * switch. migrate.ts turns each into version 4. Rules across fields (range order and width, "at least one true") live in validate.ts; the limits of
  * goals per round and the challenge minutes are checked here too, so stored settings outside them are invalid on load.
  */
 
@@ -17,7 +18,7 @@ export const rangeSchema = z.object({
 });
 
 export const settingsSchema = z.object({
-  version: z.literal(3),
+  version: z.literal(4),
   range: rangeSchema,
   hintDisplay: z.enum(['always', 'onRequest']),
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
@@ -40,6 +41,8 @@ export const settingsSchema = z.object({
   showRecords: z.boolean(),
   lockerRoom: z.boolean(),
   pointAfterFullHelp: z.boolean(),
+  /** "Zeilen- und Spaltenhilfe" (FR-093): the row scale beside the goal and the column scale above it. */
+  rowColumnHelper: z.boolean(),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;

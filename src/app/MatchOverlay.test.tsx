@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatchController, type MatchView } from '../core/match/MatchController';
 import { defaultSettings } from '../core/settings/defaults';
-import { MatchOverlay } from './MatchOverlay';
+import { helpText, litLabels, MatchOverlay } from './MatchOverlay';
+import type { Target } from '../core/types';
 
 afterEach(cleanup);
 
@@ -93,5 +94,32 @@ describe('MatchOverlay number pad, speaker and fullscreen (T061 to T063)', () =>
     fireEvent.click(screen.getByRole('button', { name: 'Weiter' }));
     expect(resume).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+  });
+});
+
+describe('help line and lit labels of the row and column helper (FR-094, amendment 10)', () => {
+  const target: Target = { number: 46, hints: [36], directions: ['down'], level: 1, pattern: 'neighbors' };
+  const at = (helpStep: number) => ({ helpStep, target, min: 1, max: 100 });
+
+  it('names the hint and the row at step 1, adds the column at steps 2 and 3, and says the answer at step 4', () => {
+    expect(helpText(at(0))).toBe('');
+    expect(helpText(at(1))).toBe('Von 36 eine Reihe runter: +10. Die Zahl ist in der Reihe 40.');
+    expect(helpText(at(2))).toBe('Von 36 eine Reihe runter: +10. Die Zahl ist in der Reihe 40 und in der Spalte 6.');
+    expect(helpText(at(3))).toBe(helpText(at(2)));
+    expect(helpText(at(4))).toBe('Das ist 46. Schieß!');
+  });
+
+  it('names only the row and column when the target has no hint number', () => {
+    expect(helpText({ ...at(2), target: { ...target, hints: [] } })).toBe('Die Zahl ist in der Reihe 40 und in der Spalte 6.');
+  });
+
+  it('carries the lit row and column labels as data-help-row and data-help-col', () => {
+    expect(litLabels(at(0))).toEqual({ row: '', col: '' });
+    expect(litLabels(at(1))).toEqual({ row: '40', col: '' });
+    expect(litLabels(at(2))).toEqual({ row: '40', col: '6' });
+    render(<MatchOverlay state={{ ...running(), target, helpStep: 2 }} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+    const match = screen.getByTestId('match');
+    expect(match.getAttribute('data-help-row')).toBe('40');
+    expect(match.getAttribute('data-help-col')).toBe('6');
   });
 });

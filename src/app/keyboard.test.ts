@@ -93,12 +93,13 @@ describe('keyToAction: keys left to the browser', () => {
   });
 });
 
-describe('applyMatchAction: help chart open (help step 2)', () => {
+describe('applyMatchAction: help chart open (help step 3)', () => {
   function chartOpen(): MatchController {
     const target: Target = { number: 46, hints: [45], directions: ['right'], level: 1, pattern: 'neighbors' };
     const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target });
     c.start();
     c.typeKey({ digit: 4 });
+    c.askHelp();
     c.askHelp();
     c.askHelp();
     return c;
@@ -108,14 +109,14 @@ describe('applyMatchAction: help chart open (help step 2)', () => {
     it(`${k === ' ' ? 'Space' : k} closes the chart; it does not shoot or pause`, () => {
       const c = chartOpen();
       applyMatchAction(c, keyToAction(key(k), 'match', ALL)!);
-      expect(c.getState()).toMatchObject({ helpStep: 2, helpChartOpen: false, phase: 'aiming', paused: false, ball: null });
+      expect(c.getState()).toMatchObject({ helpStep: 3, helpChartOpen: false, phase: 'aiming', paused: false, ball: null });
     });
   }
 
-  it('H goes on to help step 3; digits and Backspace close it and type', () => {
+  it('H goes on to help step 4; digits and Backspace close it and type', () => {
     const c = chartOpen();
     applyMatchAction(c, keyToAction(key('h'), 'match', ALL)!);
-    expect(c.getState()).toMatchObject({ helpStep: 3, helpChartOpen: false });
+    expect(c.getState()).toMatchObject({ helpStep: 4, helpChartOpen: false });
     const d = chartOpen();
     applyMatchAction(d, keyToAction(key('5'), 'match', ALL)!);
     expect(d.getState()).toMatchObject({ helpChartOpen: false, entry: '45' });

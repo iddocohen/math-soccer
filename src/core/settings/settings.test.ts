@@ -22,7 +22,7 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
 
   it('has the listed values', () => {
     const s = defaultSettings();
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.range).toEqual({ preset: '1-100', min: 1, max: 100 });
     expect(s).not.toHaveProperty('modes');
     expect(s).not.toHaveProperty('lineLength');
@@ -43,6 +43,7 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
     expect(s.showRecords).toBe(true);
     expect(s.lockerRoom).toBe(true);
     expect(s.pointAfterFullHelp).toBe(true);
+    expect(s.rowColumnHelper).toBe(true);
   });
 
   it('returns a new object on every call', () => {
@@ -134,7 +135,8 @@ describe('settingsSchema', () => {
     void _dropped;
     expect(settingsSchema.safeParse(rest).success).toBe(false);
     expect(settingsSchema.safeParse({ ...defaultSettings(), version: 2 }).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 4 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 3 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), version: 5 }).success).toBe(false);
   });
 });
 
@@ -197,12 +199,12 @@ function storedV2(): Record<string, unknown> {
   };
 }
 
-describe('settings version 1 to version 3 (FR-070, amendment 09)', () => {
+describe('settings version 1 to version 4 (FR-070, amendment 09)', () => {
   it('drops modes, line length and line directions, sets levels 1 to 5, turns every shape on', () => {
     const s = parseSettings(storedV1());
     expect(s).not.toBeNull();
     for (const gone of ['modes', 'lineLength', 'lineDirections', 'directions', 'patterns']) expect(s).not.toHaveProperty(gone);
-    expect(s!.version).toBe(3);
+    expect(s!.version).toBe(4);
     expect(s!.levels).toEqual({ start: 1, hardest: 5 });
     expect(s!.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
     expect(s!.timeChallenge).toEqual({ allowed: true, minutes: 2 });
@@ -230,7 +232,7 @@ describe('settings version 1 to version 3 (FR-070, amendment 09)', () => {
   });
 });
 
-describe('settings version 2 to version 3 (amendment 09)', () => {
+describe('settings version 2 to version 4 (amendment 09)', () => {
   it('replaces "Richtungen" and "Hinweis-Muster" with levels 1 to 5, and keeps the hint display and the shape switches', () => {
     const s = parseSettings(storedV2())!;
     expect(s).not.toBeNull();
@@ -238,7 +240,7 @@ describe('settings version 2 to version 3 (amendment 09)', () => {
     expect(s).not.toHaveProperty('patterns');
     const { version: _v, directions: _d, patterns: _p, ...kept } = storedV2();
     void [_v, _d, _p];
-    expect(s).toEqual({ ...kept, version: 3, levels: { start: 1, hardest: 5 } });
+    expect(s).toEqual({ ...kept, version: 4, levels: { start: 1, hardest: 5 }, rowColumnHelper: true });
   });
 
   it('turns every shape off when the parent had turned the pattern "Formen" off, so levels 3 and 4 are skipped', () => {
@@ -252,8 +254,20 @@ describe('settings version 2 to version 3 (amendment 09)', () => {
     expect(parseSettings({ ...storedV2(), directions: none })).not.toBeNull();
   });
 
-  it('reads version 3 settings as they are', () => {
-    const v3 = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.levels = { start: 2, hardest: 4 })));
-    expect(parseSettings(JSON.parse(JSON.stringify(v3)))).toEqual(v3);
+  it('reads version 4 settings as they are', () => {
+    const v4 = withChanges((s) => ((s.timeChallenge = { allowed: false, minutes: 5 }), (s.levels = { start: 2, hardest: 4 }), (s.rowColumnHelper = false)));
+    expect(parseSettings(JSON.parse(JSON.stringify(v4)))).toEqual(v4);
+  });
+});
+
+describe('settings version 3 to version 4 (amendment 10)', () => {
+  it('adds "Zeilen- und Spaltenhilfe", on, and keeps every other field', () => {
+    const v3: Record<string, unknown> = { ...withChanges((s) => ((s.hintDisplay = 'onRequest'), (s.levels = { start: 2, hardest: 3 }))), version: 3 };
+    delete v3.rowColumnHelper;
+    expect(parseSettings(v3)).toEqual({ ...v3, version: 4, rowColumnHelper: true });
+  });
+
+  it('defaults to the helper on (FR-093)', () => {
+    expect(defaultSettings().rowColumnHelper).toBe(true);
   });
 });

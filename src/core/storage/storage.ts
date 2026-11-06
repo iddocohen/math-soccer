@@ -54,7 +54,7 @@ function schemaParser<T>(name: StoredKindName, schema: { safeParse(v: unknown): 
 export const SETTINGS: StoredKind<Settings> = {
   name: 'settings',
   key: SETTINGS_KEY,
-  version: 3,
+  version: 4,
   parse: parseSettings,
   empty: defaultSettings,
 };
@@ -62,7 +62,7 @@ export const SETTINGS: StoredKind<Settings> = {
 export const PROGRESS: StoredKind<Progress> = {
   name: 'progress',
   key: PROGRESS_KEY,
-  version: 3,
+  version: 4,
   parse: schemaParser('progress', progressSchema),
   empty: emptyProgress,
 };
@@ -90,7 +90,7 @@ export const LOCKER_ROOM: StoredKind<LockerRoom> = {
 export const ROUND: StoredKind<StoredRound | null> = {
   name: 'round',
   key: ROUND_KEY,
-  version: 3,
+  version: 4,
   parse: schemaParser('round', roundSchema),
   retired: isRemovedModeRound,
   empty: () => null,

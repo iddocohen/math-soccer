@@ -57,11 +57,13 @@ test('a round of two goals is played with taps on the number pad only', async ({
   await expect(page.getByTestId('round-end')).toBeVisible();
 });
 
-test('the full help chart (help step 2) fits on the screen', async ({ page }) => {
+test('the full help chart (help step 3) fits on the screen', async ({ page }) => {
   const match = await startPlay(page);
   const help = page.getByTestId('help-button');
   await help.tap();
   await expect(match).toHaveAttribute('data-help', '1');
+  await help.tap();
+  await expect(match).toHaveAttribute('data-help', '2');
   await help.tap();
   await expect(match).toHaveAttribute('data-help-chart', 'open');
   const chart = page.locator('.help-chart');

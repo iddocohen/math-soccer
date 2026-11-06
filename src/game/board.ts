@@ -5,12 +5,15 @@
  * The goal is open: a faint grid of the chart over the net, the hint numbers lit in the kit color with dark numbers,
  * and the empty target square outlined. In a shape with two empty squares, the one still to shoot after the target has
  * a faint dashed outline and no number, so the whole shape stays visible (FR-072). Hint numbers show when the parent chose "immer", or from help step 1 with
- * "auf Wunsch". At help steps 1 and 2 an arrow points from the closest hint number to the target (`hintFrom`, from
- * core/match/help.ts). Help step 3 writes the answer in the target square. The square of a missed number is warm
+ * "auf Wunsch". From help step 1 up to the help chart (step 3) an arrow points from the closest hint number to the target
+ * (`hintFrom`, from core/match/help.ts). The target's row lies under a soft band from help step 1 and its column from
+ * step 2 (amendment 10, `bands`); where they cross, the target square has a stronger wash. Help step 4 writes the
+ * answer in the target square. The square of a missed number is warm
  * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
  * number.
  */
 import { cellRect, cellRectAt, center, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
+import { ANSWER_STEP, HINT_STEP, rowColumnHelp } from '../core/match/help';
 import type { DeepReadonly, Rect, Target } from '../core/types';
 
 /** The inputs of the grid. GoalView redraws the cached grid texture only when `boardKey` of these changes. */
@@ -23,7 +26,7 @@ export interface BoardInput {
   helpStep: number;
   /** The missed number whose square shows, or null. */
   shown: number | null;
-  /** The hint number the help arrow starts at (help steps 1 and 2), or null for no arrow. */
+  /** The hint number the help arrow starts at (help steps 1 to 3), or null for no arrow. */
   hintFrom: number | null;
 }
 
@@ -48,6 +51,8 @@ export interface Square {
   lit: boolean;
   /** Filled warm orange: the shown square of a miss. */
   shown: boolean;
+  /** The target square where the row and column bands cross (help step 2 and later). */
+  crossing: boolean;
   label: { text: string; style: LabelStyle } | null;
 }
 
@@ -58,6 +63,8 @@ export interface Board {
   /** False when squares are too small for numbers (research R4): the labels then sit on a dark badge. */
   numbersFit: boolean;
   arrow: Arrow | null;
+  /** The soft bands over the target's row (help step 1 on) and column (help step 2 on), in world pixels. */
+  bands: { row: Rect | null; column: Rect | null };
 }
 
 /** Changes exactly when the drawn grid changes; GoalView compares it to skip redrawing (plan decision 9). */
@@ -70,6 +77,7 @@ export function boardKey(input: BoardInput): string {
 
 export function buildBoard(input: BoardInput): Board {
   const { layout, goal, target, hintsVisible, helpStep, shown } = input;
+  const { litRow, litColumn } = rowColumnHelp(layout, target, helpStep, false);
   const cellHeight = goal.height / layout.rows;
   const numbersFit = showNumbers(layout, goal);
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;
@@ -82,24 +90,30 @@ export function buildBoard(input: BoardInput): Board {
       const n = numberAt(layout, row, col);
       const rect = cellRectAt(layout, goal, row, col);
       if (n === null) {
-        squares.push({ n, rect, outlined: false, waiting: false, lit: false, shown: false, label: null });
+        squares.push({ n, rect, outlined: false, waiting: false, lit: false, shown: false, crossing: false, label: null });
         continue;
       }
       const isTarget = target?.number === n;
       const isShown = shown === n;
       let label: Square['label'] = null;
       if (hints.has(n)) label = { text: String(n), style: 'ink' };
-      if (isTarget && helpStep >= 3) label = { text: String(n), style: 'answer' };
+      if (isTarget && helpStep >= ANSWER_STEP) label = { text: String(n), style: 'answer' };
       if (isShown) label = { text: String(n), style: 'shown' };
       const isWaiting = !isTarget && waiting.has(n);
-      squares.push({ n, rect, outlined: isTarget, waiting: isWaiting, lit: hints.has(n), shown: isShown, label });
+      const crossing = isTarget && litRow !== null && litColumn !== null;
+      squares.push({ n, rect, outlined: isTarget, waiting: isWaiting, lit: hints.has(n), shown: isShown, crossing, label });
     }
   }
-  return { squares, fontSize, numbersFit, arrow: helpArrow(input) };
+  const cellWidth = goal.width / COLUMNS;
+  const bands = {
+    row: litRow === null ? null : { x: goal.x, y: goal.y + litRow * cellHeight, width: goal.width, height: cellHeight },
+    column: litColumn === null ? null : { x: goal.x + litColumn * cellWidth, y: goal.y, width: cellWidth, height: goal.height },
+  };
+  return { squares, fontSize, numbersFit, arrow: helpArrow(input), bands };
 }
 
 function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {
-  if (!target || hintFrom === null || helpStep < 1 || helpStep >= 3) return null;
+  if (!target || hintFrom === null || helpStep < HINT_STEP || helpStep >= ANSWER_STEP) return null;
   if (hintFrom < layout.min || hintFrom > layout.max || hintFrom === target.number) return null;
   return { from: center(cellRect(layout, goal, hintFrom)), to: center(cellRect(layout, goal, target.number)) };
 }

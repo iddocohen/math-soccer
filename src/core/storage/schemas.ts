@@ -33,10 +33,10 @@ export const attemptRecordSchema = z.object({
   hintDisplay: z.enum(['always', 'onRequest']),
   /** The difficulty level of the target, 1 to 5 (amendment 09); migrate.ts maps the ladder steps of older attempts. */
   level: z.literal(LEVELS),
-  /** Scored before help step 3 showed the answer. */
+  /** Scored before help step 4 showed the answer. */
   solved: z.boolean(),
-  /** The highest help step used on the target, 0 to 3. */
-  helpStep: z.number().int().min(0).max(3),
+  /** The highest help step used on the target, 0 to 4 (amendment 10; migrate.ts moves older attempts' steps). */
+  helpStep: z.number().int().min(0).max(4),
   misses: z.number().int().min(0),
   /** Play time from the target appearing to the scoring shot (or to the end of the round). */
   responseMs: z.number().min(0),
@@ -71,8 +71,8 @@ export type LevelCount = z.infer<typeof levelCountSchema>;
  * counting after old attempts drop out of the list, and the child's difficulty level (amendment 09).
  */
 export const progressSchema = z.object({
-  /** Version 3 (amendment 09): one current level instead of a ladder step per direction. */
-  version: z.literal(3),
+  /** Version 3 (amendment 09): one current level instead of a ladder step per direction. Version 4 (amendment 10): help steps 0 to 4. */
+  version: z.literal(4),
   attempts: z.array(attemptRecordSchema),
   directions: z.record(z.string(), directionStateSchema).default({}),
   /** The current level (FR-086); null before the first target and after a reset, so the start level applies. */
@@ -87,7 +87,7 @@ export const progressSchema = z.object({
 export type Progress = z.infer<typeof progressSchema>;
 
 export function emptyProgress(): Progress {
-  return { version: 3, attempts: [], directions: {}, level: null, levelRecent: [], levelWins: 0, levels: {} };
+  return { version: 4, attempts: [], directions: {}, level: null, levelRecent: [], levelWins: 0, levels: {} };
 }
 
 /** `mathsoccer.records.v1`: personal bests by `min-max|mode|roundType` (data-model "PersonalBest"). */
@@ -153,11 +153,12 @@ export const targetSchema = z.object({
  * round to continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules
  * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load. Version 1 had a mode and a
  * line; migrate.ts turns a goalkeeper round of version 1 into version 2, and storage.ts discards hole and line rounds
- * (FR-070). Version 3 (amendment 09) stores the target's level instead of its ladder step.
+ * (FR-070). Version 3 (amendment 09) stores the target's level instead of its ladder step. Version 4 (amendment 10)
+ * stores the help step of the four-step help, 0 to 4.
  */
 export const roundSchema = z
   .object({
-    version: z.literal(3),
+    version: z.literal(4),
     seed: z.number().int(),
     roundType: z.enum(ROUND_TYPES),
     /** The length of a time challenge in minutes (FR-076); null for the other round types. */
@@ -169,7 +170,7 @@ export const roundSchema = z
     goals: z.number().int().min(0),
     hearts: z.number().int().min(0).max(3),
     missesInRow: z.number().int().min(0),
-    helpStep: z.number().int().min(0).max(3),
+    helpStep: z.number().int().min(0).max(4),
     target: targetSchema.nullable(),
     /** How many targets the round has had; the seed of the next target derives from it. */
     targetCount: z.number().int().min(0),

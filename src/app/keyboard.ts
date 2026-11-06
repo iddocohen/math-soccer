@@ -8,7 +8,7 @@
  *   when it is allowed. Start keys work only on the start screen, so digits always type during a round (plan
  *   decision 7).
  * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause.
- * - Help chart open (help step 2): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
+ * - Help chart open (help step 3): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
  *   Space or Escape without shooting or pausing.
  * - Paused: Enter, Space or Escape resume. Round end: Enter or Space play again.
  *

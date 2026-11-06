@@ -92,7 +92,7 @@ export const de = {
     label: (level: number, name: string) => `Stufe ${level}: ${name}`,
   },
 
-  /** Help steps (spec US2): step 1 a hint, step 2 the full chart, step 3 the answer. */
+  /** Help steps (spec US2, amendment 10): step 1 the row with a hint, step 2 the column, step 3 the full chart, step 4 the answer. */
   help: {
     direction: {
       right: 'eins nach rechts: +1',
@@ -108,6 +108,10 @@ export const de = {
     fromNeighbor: (from: number, step: string) => `Von ${from} ${step}`,
     /** Help step 1 from a hint further away: "Von 26: +20". */
     fromHint: (from: number, offset: number) => `Von ${from}: ${offset < 0 ? '−' : '+'}${Math.abs(offset)}`,
+    /** Help step 1, the target's row by its tens label (FR-094): "Die Zahl ist in der Reihe 40". */
+    inRow: (row: number) => `Die Zahl ist in der Reihe ${row}`,
+    /** Help step 2 adds the column, 1 to 10: "Die Zahl ist in der Reihe 40 und in der Spalte 6". */
+    inRowAndColumn: (row: number, col: number) => `Die Zahl ist in der Reihe ${row} und in der Spalte ${col}`,
     chartTitle: 'Die Zahlentafel',
     chartTarget: 'Hier ist das Ziel',
     chartLast: 'Hier war dein Ball',
@@ -243,6 +247,8 @@ export const de = {
       showRecords: 'Rekorde zeigen',
       lockerRoom: 'Kabine und Sterne',
       pointAfterFullHelp: 'Punkt nach voller Hilfe',
+      /** The row scale beside the goal and the column scale above it (FR-093). */
+      rowColumnHelper: 'Zeilen- und Spaltenhilfe',
       timeChallengeAllowed: 'Zeit-Challenge erlauben',
       timeChallengeMinutes: 'Dauer',
     },
