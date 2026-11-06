@@ -128,6 +128,8 @@ export const targetSchema = z.object({
   directions: z.array(z.enum(DIRECTIONS)),
   difficultyStep: z.number().int().min(0).max(7),
   pattern: z.enum(PATTERNS),
+  /** Formen with two empty squares: the empty squares still to shoot after this one (FR-072). */
+  queue: z.array(z.object({ number: z.number().int(), directions: z.array(z.enum(DIRECTIONS)) })).optional(),
 });
 
 /**
@@ -167,9 +169,13 @@ export const roundSchema = z
 export type StoredRound = z.infer<typeof roundSchema>;
 
 /** Rules between the fields of a stored round: the range goes up, an aiming round has a target, and it lies in the range. */
-function roundRules(r: { phase: string; min: number; max: number; target: { number: number } | null }, ctx: z.RefinementCtx): void {
+function roundRules(
+  r: { phase: string; min: number; max: number; target: { number: number; queue?: Array<{ number: number }> } | null },
+  ctx: z.RefinementCtx,
+): void {
   const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
   if (r.min >= r.max) issue('min must be below max', 'max');
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
-  if (r.target && (r.target.number < r.min || r.target.number > r.max)) issue('target outside the range', 'target');
+  const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number)] : [];
+  if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

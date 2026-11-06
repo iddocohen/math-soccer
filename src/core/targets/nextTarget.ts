@@ -40,11 +40,29 @@ export function nextTarget(input: NextTargetInput): Target {
   const options = placements(layout, pick.choice, pick.direction);
   const fresh = options.filter((p) => p.number !== avoid);
   const placement = rng.pick(fresh.length > 0 ? fresh : options);
-  return {
+  const target: Target = {
     number: placement.number,
     hints: placement.hints,
     directions: placement.directions,
     difficultyStep: pick.step,
     pattern: pick.choice.pattern,
   };
+  return placement.queue && placement.queue.length > 0 ? { ...target, queue: placement.queue } : target;
+}
+
+/**
+ * The next empty square of the same shape after `target` was scored (FR-072), or null when no square is left. The
+ * scored square lights up as one more hint.
+ */
+export function nextInShape(target: Target): Target | null {
+  const [next, ...rest] = target.queue ?? [];
+  if (!next) return null;
+  const following: Target = {
+    number: next.number,
+    hints: [...target.hints, target.number],
+    directions: next.directions,
+    difficultyStep: target.difficultyStep,
+    pattern: target.pattern,
+  };
+  return rest.length > 0 ? { ...following, queue: rest } : following;
 }

@@ -8,9 +8,13 @@
  *   2. Mitte down
  *   3. Reihe down (and Reihe across: design call, so the across directions also meet a row)
  *   4. Mitte or Reihe diagonal
- *   5. Formen (amendment 06; until shapes exist the step falls back to the next lower step)
- *   6. Nachbarn two squares away
+ *   5. Formen with one empty square (amendment 06, FR-071)
+ *   6. Nachbarn two squares away, and Formen with two empty squares (FR-072)
  *   7. as step 6, with hints on request ("auf Wunsch") when the parent chose it
+ *
+ * Amendment 06 counts the steps from 1: one empty square at step 6 (index 5 here), two at step 7 and above (indexes 6
+ * and 7). So index 7 offers two-empty shapes and, when the parent chose "auf Wunsch", hints on request (design call,
+ * T091). Shapes train across and down only, so for a diagonal the Formen step falls back like any empty step.
  *
  * Everything stays within the parent's choices: the allowed patterns ("Hinweis-Muster"), the allowed hint distances for
  * Nachbarn and the allowed directions ("Richtungen"). A step that offers nothing for a direction under these choices
@@ -22,7 +26,8 @@
 import type { ChartLayout } from '../chart/layout';
 import type { Rng } from '../rng';
 import type { Settings } from '../settings/schema';
-import { placements, ROW_GIVEN, SHAPES_AVAILABLE, type Pattern, type PatternChoice } from '../targets/patterns';
+import { placements, ROW_GIVEN, type Pattern, type PatternChoice } from '../targets/patterns';
+import { SHAPE_DIRECTIONS, SHAPE_IDS, type ShapeEmpties } from '../targets/shapes';
 import { DIRECTIONS, type Direction, type HintDistance } from '../types';
 
 /** The highest step: hints on request (FR-067 step 8, counted from 0 here). */
@@ -65,6 +70,11 @@ function row(settings: Settings, direction: Direction, axis: readonly Direction[
   return settings.patterns.row && axis.includes(direction) ? ROW_GIVEN.map((given) => ({ pattern: 'row', direction, given })) : [];
 }
 
+function shapes(settings: Settings, direction: Direction, empties: ShapeEmpties): PatternChoice[] {
+  if (!settings.patterns.shape || !SHAPE_DIRECTIONS.includes(direction)) return [];
+  return SHAPE_IDS.filter((id) => settings.shapes[id]).map((shape) => ({ pattern: 'shape', shape, empties }));
+}
+
 /** What step `step` itself offers for `direction` under the parent's choices, without falling back. */
 export function stepChoices(step: number, direction: Direction, settings: Settings): PatternChoice[] {
   switch (step) {
@@ -79,11 +89,10 @@ export function stepChoices(step: number, direction: Direction, settings: Settin
     case 4:
       return [...middle(settings, direction, DIAGONAL), ...row(settings, direction, DIAGONAL)];
     case 5:
-      // Formen: amendment 06 fills this step; until then it offers nothing and falls back to step 4.
-      return [];
+      return shapes(settings, direction, 1);
     case 6:
     case 7:
-      return neighbors(settings, direction, ['far']);
+      return [...neighbors(settings, direction, ['far']), ...shapes(settings, direction, 2)];
     default:
       return [];
   }
@@ -204,16 +213,7 @@ function allChoices(direction: Direction, settings: Settings): PatternChoice[] {
   return out;
 }
 
-/**
- * The settings the generator works with. "Formen" without shapes counts as the next lower pattern, Reihe (FR-067
- * note in tasks.md). When the parent's choices leave nothing that fits the chart (for example only "down" on a chart of
- * one row), across with direct neighbors is used, which fits every range of at least 10 numbers.
- */
-function workingSettings(settings: Settings): Settings {
-  if (SHAPES_AVAILABLE || !settings.patterns.shape) return settings;
-  return { ...settings, patterns: { ...settings.patterns, row: true, shape: false } };
-}
-
+/** Used when the parent's choices leave nothing that fits the chart (for example only "down" on a chart of one row). */
 const FALLBACK: LadderPick = { direction: 'right', choice: { pattern: 'neighbors', distance: 'direct' }, step: 0 };
 
 /**
@@ -222,11 +222,10 @@ const FALLBACK: LadderPick = { direction: 'right', choice: { pattern: 'neighbors
  */
 export function adaptiveChoice(
   layout: ChartLayout,
-  parent: Settings,
+  settings: Settings,
   progress: { mastered: readonly Direction[]; steps: Partial<Record<Direction, number>> },
   rng: Rng,
 ): LadderPick {
-  const settings = workingSettings(parent);
   const usable = new Map<Direction, PatternChoice[]>();
   for (const direction of allowedDirections(settings)) {
     const ok = allChoices(direction, settings).filter((c) => fits(layout, c, direction));
@@ -249,8 +248,7 @@ export function adaptiveChoice(
  * The pick with adaptive difficulty off (FR-067): a pattern among the allowed ones with equal weight, then a direction
  * among the allowed ones that pattern can train on this chart, with equal weight, then one of its variants.
  */
-export function randomChoice(layout: ChartLayout, parent: Settings, rng: Rng): LadderPick {
-  const settings = workingSettings(parent);
+export function randomChoice(layout: ChartLayout, settings: Settings, rng: Rng): LadderPick {
   const byPattern = new Map<Pattern, Map<Direction, PatternChoice[]>>();
   for (const direction of allowedDirections(settings)) {
     for (const choice of allChoices(direction, settings)) {

@@ -686,3 +686,48 @@ describe('state rules checked in development builds (review H4, partial)', () =>
     expect(c.getState()).toMatchObject({ phase: 'roundOver', hearts: 0, shown: null });
   });
 });
+
+describe('shape targets with two empty squares (FR-072)', () => {
+  const shapeTarget: Target = {
+    number: 44,
+    hints: [34, 54],
+    directions: ['down', 'up'],
+    difficultyStep: 6,
+    pattern: 'shape',
+    queue: [{ number: 55, directions: ['right'] }],
+  };
+
+  function shapeController(store?: RoundStore) {
+    let next = 0;
+    const c = new MatchController({
+      settings: () => ({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 5 }),
+      newSeed: () => 7,
+      nextTarget: () => (next++ === 0 ? shapeTarget : target(12)),
+      store,
+    });
+    c.start();
+    return c;
+  }
+
+  it('after the first goal the second empty square is the target, the first lit; then a new target', () => {
+    const c = shapeController();
+    shootAndLand(c, 44);
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ goals: 1, target: { number: 55, hints: [34, 54, 44], directions: ['right'], pattern: 'shape' } });
+    expect(c.getState().target!.queue).toBeUndefined();
+    shootAndLand(c, 55);
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ goals: 2, target: { number: 12 } });
+  });
+
+  it('a refresh before the first goal keeps the second empty square waiting', () => {
+    const store = memoryStore();
+    shapeController(store);
+    expect(store.round?.target?.queue).toEqual([{ number: 55, directions: ['right'] }]);
+    const again = new MatchController({ settings: () => ({ ...defaultSettings(), roundType: 'goalCount' }), store });
+    expect(again.restore()).toBe(true);
+    shootAndLand(again, 44);
+    again.celebrationDone();
+    expect(again.getState().target).toMatchObject({ number: 55, hints: [34, 54, 44] });
+  });
+});

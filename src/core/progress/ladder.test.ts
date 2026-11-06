@@ -19,7 +19,11 @@ const onlyPatterns = (...on: Array<keyof Settings['patterns']>): Settings['patte
 const onlyDirections = (...on: Direction[]): Settings['directions'] =>
   Object.fromEntries(DIRECTIONS.map((d) => [d, on.includes(d)])) as Settings['directions'];
 const atStep = (step: number) => ({ mastered: [] as Direction[], steps: Object.fromEntries(DIRECTIONS.map((d) => [d, step])) });
-const label = (c: PatternChoice) => (c.pattern === 'neighbors' ? `neighbors ${c.distance}` : `${c.pattern} ${c.direction}`);
+const label = (c: PatternChoice) => {
+  if (c.pattern === 'neighbors') return `neighbors ${c.distance}`;
+  if (c.pattern === 'shape') return `shape ${c.empties}`;
+  return `${c.pattern} ${c.direction}`;
+};
 
 describe('the ladder order of FR-067', () => {
   it('has eight steps, from Nachbarn to hints on request', () => {
@@ -38,14 +42,18 @@ describe('the ladder order of FR-067', () => {
     expect(at(2, 'down')).toEqual(['middle down']);
     expect(at(3, 'down')).toEqual(['row down']);
     expect(at(4, 'downLeft')).toEqual(['middle downLeft', 'row downLeft']);
-    expect(at(5, 'right')).toEqual([]);
-    expect(at(6, 'up')).toEqual(['neighbors far']);
-    expect(at(7, 'up')).toEqual(['neighbors far']);
+    expect(at(5, 'right')).toEqual(['shape 1']);
+    expect(at(5, 'downRight')).toEqual([]);
+    // Amendment 06 counts from 1: two empty squares at its steps 7 and 8, here 6 and 7 (T091 design call).
+    expect(at(6, 'up')).toEqual(['neighbors far', 'shape 2']);
+    expect(at(7, 'up')).toEqual(['neighbors far', 'shape 2']);
+    expect(stepChoices(5, 'down', s)).toHaveLength(7);
   });
 
-  it('falls back to the next lower step: Formen (step 5) gives Reihe for down, Mitte or Reihe for a diagonal', () => {
+  it('falls back to the next lower step: Formen off gives Reihe for down; a diagonal gets Mitte or Reihe', () => {
     const s = settings();
-    expect(choicesForStep(5, 'down', s).map(label)).toEqual(['row down', 'row down']);
+    expect(choicesForStep(5, 'down', settings({ patterns: onlyPatterns('neighbors', 'middle', 'row') })).map(label)).toEqual(['row down', 'row down']);
+    expect([...new Set(choicesForStep(5, 'downRight', s).map(label))]).toEqual(['middle downRight', 'row downRight']);
     expect([...new Set(choicesForStep(5, 'downRight', s).map(label))]).toEqual(['middle downRight', 'row downRight']);
     // A diagonal has no Nachbarn two squares away: step 6 falls back to step 4 too.
     expect([...new Set(choicesForStep(6, 'downRight', s).map(label))]).toEqual(['middle downRight', 'row downRight']);
@@ -128,10 +136,16 @@ describe('randomChoice with adaptive off (FR-067)', () => {
     for (const n of Object.values(counts)) expect(Math.abs(n / runs - 1 / 4)).toBeLessThan(0.02);
   });
 
-  it('turns "Formen" into Reihe until shapes exist', () => {
-    const s = settings({ adaptive: false, patterns: onlyPatterns('shape') });
+  it('offers only the shapes the parent left on (FR-074)', () => {
+    const s = settings({ adaptive: false, patterns: onlyPatterns('shape'), shapes: { I: false, O: true, T: false, L: true, J: false, S: false, Z: false } });
     const rng = createRng(9);
-    for (let i = 0; i < 50; i++) expect(randomChoice(chart, s, rng).choice.pattern).toBe('row');
+    for (let i = 0; i < 50; i++) {
+      const c = randomChoice(chart, s, rng).choice;
+      expect(c.pattern).toBe('shape');
+      if (c.pattern === 'shape') expect(['O', 'L']).toContain(c.shape);
+    }
+    const none = settings({ patterns: onlyPatterns('shape'), shapes: { I: false, O: false, T: false, L: false, J: false, S: false, Z: false } });
+    expect(stepChoices(5, 'right', none)).toEqual([]);
   });
 });
 
@@ -142,7 +156,7 @@ describe('goalkeeper targets from the ladder (FR-065, FR-067)', () => {
       for (let step = 0; step <= MAX_STEP; step++) {
         for (let i = 0; i < 30; i++) {
           const t = nextTarget({ layout: chart, settings: settings({ adaptive }), progress: atStep(step), rng });
-          expect(['neighbors', 'middle', 'row']).toContain(t.pattern);
+          expect(['neighbors', 'middle', 'row', 'shape']).toContain(t.pattern);
           for (const n of [t.number, ...t.hints]) {
             expect(n).toBeGreaterThanOrEqual(1);
             expect(n).toBeLessThanOrEqual(100);

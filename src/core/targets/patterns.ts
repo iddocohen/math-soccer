@@ -6,7 +6,7 @@
  *   45 _ 47; down: 36 _ 56; diagonal: 35 _ 57.
  * - Reihe (`row`): two or three squares before the target in one direction, so the target continues the row. Down:
  *   16, 26, 36, then 46; diagonal down-right: 13, 24, 35, then 46. Backward directions run the other way.
- * - Formen (`shape`): amendment 06; not built yet (SHAPES_AVAILABLE), so the ladder uses the next lower pattern.
+ * - Formen (`shape`): one or two empty squares of a four-square shape; see shapes.ts (amendment 06).
  *
  * Placements step in row and column space on the chart layout, so a pattern never wraps across a row edge, and a
  * placement exists only when every hint square lies on the chart. The trained directions come from the hints, as
@@ -15,12 +15,10 @@
 import { cellOf, numberAt, type ChartLayout } from '../chart/layout';
 import type { Direction, HintDistance } from '../types';
 import { directionsOf, hintsFor, MOVE } from './hints';
+import { shapePlacements, type QueuedSquare, type ShapeEmpties, type ShapeId } from './shapes';
 
 export const PATTERNS = ['neighbors', 'middle', 'row', 'shape'] as const;
 export type Pattern = (typeof PATTERNS)[number];
-
-/** False until amendment 06 adds the shapes; until then a chosen "Formen" falls back to the next lower pattern. */
-export const SHAPES_AVAILABLE = false;
 
 /** How many squares of a row are printed before the target. */
 export const ROW_GIVEN = [2, 3] as const;
@@ -30,13 +28,19 @@ export type RowGiven = (typeof ROW_GIVEN)[number];
 export type PatternChoice =
   | { pattern: 'neighbors'; distance: HintDistance }
   | { pattern: 'middle'; direction: Direction }
-  | { pattern: 'row'; direction: Direction; given: RowGiven };
+  | { pattern: 'row'; direction: Direction; given: RowGiven }
+  | { pattern: 'shape'; shape: ShapeId; empties: ShapeEmpties };
+
+/** The choices whose placement depends only on the target square: every pattern but Formen. */
+export type LineChoice = Exclude<PatternChoice, { pattern: 'shape' }>;
 
 /** A choice placed on the chart: the target, its hint numbers and the directions it trains. */
 export interface Placement {
   number: number;
   hints: number[];
   directions: Direction[];
+  /** Formen with two empty squares: the empty square shot after this one (FR-072). */
+  queue?: QueuedSquare[];
 }
 
 /** The fewest hints a Nachbarn target has with this distance (two for direct neighbors, so the pattern still reads). */
@@ -52,7 +56,7 @@ function stepFrom(layout: ChartLayout, n: number, direction: Direction, k: numbe
 }
 
 /** The hint numbers of `choice` around the target `n`, or null when the pattern does not fit there. */
-export function patternHints(layout: ChartLayout, choice: PatternChoice, n: number): number[] | null {
+export function patternHints(layout: ChartLayout, choice: LineChoice, n: number): number[] | null {
   switch (choice.pattern) {
     case 'neighbors': {
       const hints = hintsFor(layout, n, choice.distance);
@@ -76,13 +80,18 @@ export function patternHints(layout: ChartLayout, choice: PatternChoice, n: numb
 }
 
 /** The placement of `choice` with the target `n`, or null when it does not fit. */
-export function placeAt(layout: ChartLayout, choice: PatternChoice, n: number): Placement | null {
+export function placeAt(layout: ChartLayout, choice: LineChoice, n: number): Placement | null {
   const hints = patternHints(layout, choice, n);
   return hints === null ? null : { number: n, hints, directions: directionsOf(n, hints) };
 }
 
 /** Every placement of `choice` on the chart, by target number; with `direction`, only those that train it. */
 export function placements(layout: ChartLayout, choice: PatternChoice, direction?: Direction): Placement[] {
+  if (choice.pattern === 'shape') {
+    return shapePlacements(layout, choice.shape, choice.empties, direction).map(({ number, hints, directions, queue }) =>
+      queue.length > 0 ? { number, hints, directions, queue } : { number, hints, directions },
+    );
+  }
   const out: Placement[] = [];
   for (let n = layout.min; n <= layout.max; n++) {
     const p = placeAt(layout, choice, n);

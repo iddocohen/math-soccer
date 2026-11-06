@@ -36,7 +36,7 @@ import { MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
-import { NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
+import { nextInShape, NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
 import type { DeepReadonly, Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
@@ -547,10 +547,15 @@ export class MatchController {
     return this.withNextTarget({ ...next, phase: 'aiming' });
   }
 
-  /** The state with the round's next target. */
+  /**
+   * The state with the round's next target: the next empty square of the same shape when one is left (FR-072), else a
+   * new target. A new target after changed settings (`withNewSettings`) clears the target first, so it never continues
+   * a shape.
+   */
   private withNextTarget(state: MatchState): MatchState {
     const fresh = { targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
-    const target = this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state);
+    const inShape = state.target ? nextInShape(state.target) : null;
+    const target = inShape ?? (this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state));
     return { ...state, ...fresh, target };
   }
 

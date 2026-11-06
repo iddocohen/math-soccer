@@ -5,8 +5,8 @@
  *
  * For the end-to-end tests, `data-testid="match"` carries the controller state: `data-target`, `data-phase`,
  * `data-help`, `data-help-chart`, `data-goals`, `data-hearts`, `data-pattern` (the target's hint pattern) and
- * `data-hints` (its hint numbers), plus `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for
- * example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
+ * `data-hints` (its hint numbers), `data-queue` (the empty squares of a shape still to shoot after it), plus
+ * `data-rows` (chart rows), `data-ball` (the ball design from the locker room, for example `ball.gold`), `data-ball-kind` (soccer, tennis or pingpong, from the chart size) and `data-keeper` (the
  * keeper's phase from the scene: `idle`, `diving`, `caught` or `beaten`).
  *
  * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
@@ -133,6 +133,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-ball-kind={ballKind(layout)}
       data-pattern={state.target?.pattern ?? ''}
       data-hints={state.target?.hints.join(',') ?? ''}
+      data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}
       data-keeper={keeper}
       data-number-pad={pad !== undefined}
     >

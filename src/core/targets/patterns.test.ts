@@ -51,7 +51,7 @@ describe('placements stay on the chart (FR-065)', () => {
             expect(h).toBeLessThanOrEqual(layout.max);
             expect(h).not.toBe(p.number);
           }
-          if (choice.pattern !== 'neighbors') {
+          if (choice.pattern === 'middle' || choice.pattern === 'row') {
             // Every hint is a whole number of steps along the direction, in row and column space.
             const t = cellOf(layout, p.number);
             const [dRow, dCol] = MOVE[choice.direction];

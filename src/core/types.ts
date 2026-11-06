@@ -43,6 +43,11 @@ export interface Target {
   difficultyStep: number;
   /** The hint pattern (FR-065). */
   pattern: Pattern;
+  /**
+   * Formen with two empty squares (FR-072): the empty squares of the same shape still to be shot after this one, in
+   * order, with the directions each trains. Missing or empty for every other target.
+   */
+  queue?: Array<{ number: number; directions: Direction[] }>;
 }
 
 /** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */

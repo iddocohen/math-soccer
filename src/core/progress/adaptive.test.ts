@@ -49,9 +49,9 @@ const A: Outcome = 'assisted';
 const U: Outcome = 'unsolved';
 
 describe('ladder steps per direction (FR-067), clamped to the settings', () => {
-  it('right climbs Nachbarn 0, Mitte across 1, Reihe 3, Nachbarn two away 6, and 7 only with "auf Wunsch"', () => {
+  it('right climbs Nachbarn 0, Mitte across 1, Reihe 3, Formen 5, Nachbarn two away and two-empty shapes 6, and 7 only with "auf Wunsch"', () => {
     const s = settings();
-    expect([stepUp('right', 0, s), stepUp('right', 1, s), stepUp('right', 3, s)]).toEqual([1, 3, 6]);
+    expect([stepUp('right', 0, s), stepUp('right', 1, s), stepUp('right', 3, s), stepUp('right', 5, s)]).toEqual([1, 3, 5, 6]);
     expect(topStep('right', s)).toBe(6);
     const onRequest = settings({ hintDisplay: 'onRequest' });
     expect(stepUp('right', 6, onRequest)).toBe(7);
