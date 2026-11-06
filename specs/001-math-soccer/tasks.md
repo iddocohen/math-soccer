@@ -180,6 +180,18 @@ description: "Task list for Math Soccer"
 
 ---
 
+## Phase 8c: Amendment 03 (free assets)
+
+**Goal**: real grass, a spinning ball, recorded crowd sounds and a rounded number font. See [amendment-03-free-assets.md](./amendment-03-free-assets.md).
+
+- [ ] T079 Add the asset files under `public/assets/` (grass `grass004_512.jpg`, ball `ball_rolling_grid.png`, sounds trimmed to `cheer.mp3`, `ohh.mp3`, `clap.mp3`, `kick.mp3`, font `Fredoka.ttf` plus `OFL.txt`), copied from the vetted downloads in the session scratchpad, and extend the PWA `globPatterns` in `vite.config.ts` with jpg, mp3 and ttf (FR-057 to FR-060)
+- [ ] T080 [US1] Pitch grass in `src/game/MatchScene.ts` (or a new `PitchView.ts`): tiled, darkened texture under the drawn chalk lines (FR-057)
+- [ ] T081 [US1] Classic ball sprite in `src/game/BallView.ts` / `ballArt.ts`: spin frames advanced with flight progress, frame 0 at rest; other designs and ball kinds stay drawn; unit test for the frame mapping (FR-058)
+- [ ] T082 [US1] Recorded sounds in `src/audio/sfx.ts`: decode the clips once after the first interaction, play them with the existing switches, fall back to the synthesized sounds when a clip is missing or fails; unit tests (FR-059)
+- [ ] T083 [US1] Fredoka via `@font-face` in `src/app/styles.css` and in the Phaser text and canvas board drawing (wait for the font to load before drawing the board texture); README asset table with author, license and link (FR-060, FR-061); keep `noExternalRequests`, `offline`, `holes` e2e green in Chromium
+
+---
+
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)

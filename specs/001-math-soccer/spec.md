@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) and [amendment 02](./amendment-02-visible-goal.md)
+**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) [amendment 02](./amendment-02-visible-goal.md) and [amendment 03](./amendment-03-free-assets.md)
 
 **Input**: User description: "Build the browser game described in docs/superpowers/specs/2026-11-06-math-soccer-design.md. Copy that document verbatim into the feature directory as source-prd.md and treat it as the full requirements. Follow math-tank (~/dev/private/math-tank) wherever the document says "as math-tank"." The design document is stored verbatim in [source-prd.md](./source-prd.md).
 
@@ -232,6 +232,10 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 **Amendment 02** (see [amendment-02-visible-goal.md](./amendment-02-visible-goal.md))
 
 - **FR-053** to **FR-056**: a visible goal (thick posts, crossbar, side nets, net mesh); the board is a panel inside the goal mouth with net showing around it; the keeper grid uses the same area; the player never covers a square.
+
+**Amendment 03** (see [amendment-03-free-assets.md](./amendment-03-free-assets.md))
+
+- **FR-057** to **FR-061**: CC0 grass texture, a spinning CC0 ball sprite for the classic ball, recorded CC0 crowd and kick sounds with the synthesized ones as fallback, the Fredoka font (OFL) bundled, and every asset listed with author, license and source in the README.
 
 **Devices, offline and publishing**
 
