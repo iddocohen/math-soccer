@@ -131,6 +131,9 @@ tests/e2e/                # Playwright specs
 5. **Drawn art and synthesized sound** (R2, R10): license-free, recolorable for the locker room, small offline bundle.
 6. **Copy, then adapt math-tank modules** for storage, transfer, parent gate, entry, number pad, speech, adaptive and mastery; the copied files keep a header comment naming their origin.
 7. **Mode keys only on the start screen** (R12): digits always type during a round.
+8. **One open hole per target** (critique P5): other holes are patched decoration.
+9. **Board cached as a texture** (critique E4): redrawn when the target, hints or help step change, not every frame.
+10. **Keeper always dives toward the ball** (parent feedback): `KeeperView` animates a jump to the landing square on a miss and a dive that falls short on a goal.
 
 ## Phasing (maps to spec priorities)
 

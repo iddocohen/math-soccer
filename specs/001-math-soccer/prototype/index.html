@@ -169,7 +169,7 @@ select { font: inherit; background: var(--ink); color: var(--chalk); border: 1px
     const p = pos(n);
     const hit = n === st.target;
     st.ball = { n, hit, t: 0, x0: KICK.x, y0: KICK.y, x1: p.x, y1: p.y };
-    if (st.mode === 'keeper') st.keeper.tx = hit ? (p.x < W / 2 ? p.x + 160 : p.x - 160) : p.x;
+    if (st.mode === 'keeper') { st.keeper.tx = hit ? (p.x < W / 2 ? p.x + 90 : p.x - 90) : p.x; st.keeper.ty = hit ? p.y + 40 : p.y; st.keeper.dive = hit ? (p.x < W / 2 ? -1 : 1) : 0; }
     st.entry = ''; drawEntry();
     audio.kick();
   }
@@ -257,12 +257,19 @@ select { font: inherit; background: var(--ink); color: var(--chalk); border: 1px
 
   function drawKeeper() {
     if (st.mode !== 'keeper') return;
-    st.keeper.x += (st.keeper.tx - st.keeper.x) * 0.12;
-    const x = st.keeper.x, y = GOAL.y + GOAL.h - 70;
+    const k = st.keeper, home = GOAL.y + GOAL.h - 70;
+    if (k.y === undefined) k.y = home;
+    const ty = k.ty === undefined ? home : k.ty - 24;
+    k.x += (k.tx - k.x) * 0.16; k.y += (ty - k.y) * 0.16;
+    const tilt = (k.dive || 0) * Math.min(1, Math.abs(k.tx - k.x) / 40 + (k.ty !== undefined ? 0.8 : 0));
+    g.save(); g.translate(k.x, k.y + 24); g.rotate(tilt * 0.9);
+    const x = 0, y = -24;
     g.fillStyle = '#3e6fb0'; g.fillRect(x - 22, y, 44, 48);
     g.fillStyle = '#12202c'; g.fillRect(x - 20, y + 48, 16, 22); g.fillRect(x + 4, y + 48, 16, 22);
     g.fillStyle = '#e9c4a0'; g.beginPath(); g.arc(x, y - 14, 14, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#e8b923'; g.fillRect(x - 46, y + 4, 22, 14); g.fillRect(x + 24, y + 4, 22, 14);
+    const reach = k.ty !== undefined ? -30 : 4;
+    g.fillStyle = '#e8b923'; g.fillRect(x - 46, y + reach, 22, 14); g.fillRect(x + 24, y + reach, 22, 14);
+    g.restore();
   }
 
   function drawPlayer() {
@@ -298,7 +305,7 @@ select { font: inherit; background: var(--ink); color: var(--chalk); border: 1px
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now; st.t += dt;
     st.cheer = Math.max(0, st.cheer - dt * 0.6); st.ohh = Math.max(0, st.ohh - dt * 0.8);
-    if (st.ball) { st.ball.t += dt * 1.6; if (st.ball.t >= 1.25) { const b = st.ball; st.ball = null; land(b); if (st.mode === 'keeper') st.keeper.tx = W / 2; } }
+    if (st.ball) { st.ball.t += dt * 1.6; if (st.ball.t >= 1.25) { const b = st.ball; st.ball = null; land(b); if (st.mode === 'keeper') setTimeout(() => { st.keeper.tx = W / 2; st.keeper.ty = undefined; st.keeper.dive = 0; }, 900); } }
     g.clearRect(0, 0, W, H);
     drawStands(); drawPitch(); drawGoal(); drawKeeper(); drawPlayer(); drawBall(); drawHud();
     requestAnimationFrame(frame);

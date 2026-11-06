@@ -20,7 +20,7 @@ Fans in the stands behind the goal cheer on a goal, clap on a correct square and
 
 ### User Story 1 - Score goals in hole mode on the hundred chart (Priority: P1)
 
-The child presses "Spielen" and picks hole mode. A board printed like the hundred chart covers the goal, with some squares cut out as holes. One hole is the current target and is marked. Neighbor numbers around the hole help the child work out its number. The child types the number (for example 46) and presses Enter. The player kicks, and the ball flies to the square of that number. If the number is the hole's number, the ball flies through the hole into the net: goal, and the fans cheer. If not, the ball hits the board on the square of the typed number, that square shows its number for a moment, the crowd makes a soft "ohhh" and claps, and the child tries again. The round ends as math-tank (section on rounds below), and the end screen shows goals and time.
+The child presses "Spielen" and picks hole mode. A board printed like the hundred chart covers the goal, with one square cut out as a hole: the current target. Neighbor numbers around the hole help the child work out its number. The child types the number (for example 46) and presses Enter. The player kicks, and the ball flies to the square of that number. If the number is the hole's number, the ball flies through the hole into the net: goal, and the fans cheer. If not, the ball hits the board on the square of the typed number, that square shows its number for a moment, the crowd makes a soft "ohhh" and claps, and the child tries again. The round ends as math-tank (section on rounds below), and the end screen shows goals and time.
 
 **Why this priority**: This is the smallest playable game that teaches the chart's structure: a number, its position, and its neighbors above, below and beside it. It alone is a viable first version.
 
@@ -102,8 +102,8 @@ The child picks goalkeeper mode. The goal is open, a goalkeeper stands in it, an
 **Acceptance Scenarios**:
 
 1. **Given** goalkeeper mode, **When** a target appears, **Then** the hint numbers chosen by the hint settings light up in the faint grid, and the target square is empty and marked.
-2. **Given** the target is 42, **When** the child shoots 42, **Then** the ball reaches the square of 42, the keeper dives and misses, a goal is scored and the fans cheer.
-3. **Given** the target is 42, **When** the child shoots 52, **Then** the ball flies to the square of 52, the keeper catches it, the square shows "52" for a moment, and the crowd makes the soft "ohhh" followed by clapping.
+2. **Given** the target is 42, **When** the child shoots 42, **Then** the ball reaches the square of 42, the keeper dives toward it and misses, a goal is scored and the fans cheer.
+3. **Given** the target is 42, **When** the child shoots 52, **Then** the ball flies to the square of 52, the keeper jumps there and catches it, the square shows "52" for a moment, and the crowd makes the soft "ohhh" followed by clapping.
 
 ---
 
@@ -160,7 +160,7 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 
 **Hole mode ("Löcher")**
 
-- **FR-011**: In hole mode, a board printed like the chart MUST cover the goal, with one or more squares cut out as holes; exactly one hole at a time MUST be marked as the target.
+- **FR-011**: In hole mode, a board printed like the chart MUST cover the goal, with exactly one open hole at a time: the target square, marked. Other squares MAY show patched holes (covered with a net patch) as decoration; a shot at a patched hole hits the patch like any printed square (critique P5).
 - **FR-012**: A correct number MUST send the ball through the target hole into the net and score a goal. A wrong number MUST send the ball onto the board at the square of that number.
 - **FR-013**: The parent MUST choose the hint display: "immer" (neighbor numbers always printed around the hole) or "auf Wunsch" (the board is mostly blank and hint numbers appear with help step 1).
 - **FR-014**: The parent MUST choose the hint distance, at least: direct neighbors across and above and below; only above and below; diagonal neighbors; numbers two or three squares away.
@@ -175,7 +175,7 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 **Goalkeeper mode ("Torwart")**
 
 - **FR-019**: In goalkeeper mode, the goal MUST be open with a goalkeeper in it and the chart grid drawn faintly over the goal. Hint numbers MUST light up around an empty, marked target square, using the same hint distance settings as hole mode.
-- **FR-020**: A correct number MUST send the ball to the target square out of the keeper's reach and score a goal. A wrong number MUST send the ball to the square of that number, where the keeper catches it.
+- **FR-020**: On every shot the goalkeeper MUST jump or dive toward the ball. A correct number MUST send the ball to the target square; the keeper dives toward it but does not reach it, and a goal is scored. A wrong number MUST send the ball to the square of that number; the keeper jumps there and catches it (parent feedback on the prototype).
 
 **Crowd and sound**
 
@@ -187,11 +187,13 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 
 - **FR-024**: Help MUST come in three steps, as math-tank: (1) a hint (neighbor numbers appear, or a direction arrow with a short text such as "+10"); (2) the full chart of the configured range opens with the target square and the child's last typed number marked; (3) the answer is shown on the target square and the child shoots it.
 - **FR-025**: The next help step MUST appear by itself after each miss on the same target, and MUST also appear with H or the help button at any time. Help MUST NOT cost hearts, stars or progress.
+- **FR-025a**: In help step 2 the target square MUST be marked with a thick outline and the last typed number with a filled warm square and a ball icon, so they differ by shape as well as color (critique P6).
+- **FR-025b**: A shot at the answer shown in help step 3 MUST score as usual (goal or correct square, celebration, stars), and the attempt MUST be recorded as unsolved for progress. By default it counts for the goal counter and personal best; a parent setting "Punkt nach voller Hilfe" turns that off, as math-tank (critique P2).
 
 **Rounds, hearts and bests**
 
 - **FR-026**: The parent MUST choose the round type, as math-tank: "until hearts are gone" or "fixed number of goals" (1 to 20). In line mode one goal is one finished line.
-- **FR-027**: With "until hearts are gone", the child MUST have 3 hearts, shown as 3 balls. A single miss MUST NOT cost a heart. A heart MUST be lost only after a number of misses in a row on the same target that depends on the difficulty: easy 5, normal 4, challenging 3. In line mode the target is one square; after a lost heart, that square MUST fill in and the line continues.
+- **FR-027**: With "until hearts are gone", the child MUST have 3 hearts, shown as 3 balls. A single miss MUST NOT cost a heart. A heart MUST be lost only after a number of misses in a row on the same target that depends on the difficulty: easy 5, normal 4, challenging 3. A lost heart MUST NOT remove the target: the answer is shown (help step 3) and the child shoots it before a new target follows (critique P7). In line mode the target is one square, and the line continues after it.
 - **FR-028**: The end screen MUST show the goals scored, the time played, an encouraging line, and the personal best for the same range, mode and round type. "Nochmal" or Enter MUST start a new round without a page reload.
 - **FR-029**: The round MUST measure time played, paused while the game or parent menu is paused or the tab is hidden, as math-tank. A clock during play MUST be off by default and available as a parent setting.
 
@@ -206,6 +208,7 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 
 - **FR-034**: Settings and the progress page MUST open only after holding the gear icon for 2 seconds; a short tap or any key MUST NOT open them, and opening them MUST pause the game, as math-tank.
 - **FR-035**: The settings MUST cover at least: range (presets 1 to 100, 0 to 1000, and custom minimum and maximum); which modes are offered; hint display and hint distance; line directions and line length; round type and goals per round; difficulty; adaptive difficulty; the crowd "ohhh"; sound effects, crowd sound and "Vorlesen"; number pad; clock; personal bests; locker room.
+- **FR-036a**: Settings changes MUST take effect at the next round. A stored round whose range or mode no longer matches the settings MUST be discarded on load (critique E2).
 - **FR-036**: Settings, progress records, personal bests and locker room data MUST be stored in the browser with a version number, kept across sessions, and migrated or reset on load when old or damaged, as math-tank.
 - **FR-037**: The game MUST record every target attempt with: mode, range, target number, the directions it trains, hint settings, whether it was solved, whether help was used and up to which step, the number of misses before the solve, and response time.
 - **FR-038**: A target MUST count toward each direction its hints point from (for example, the hint 36 above target 46 counts as +10; the hint 45 counts as +1). A line-mode target counts toward the line's direction. A target with no visible hints counts toward every direction offered by its hint distance setting.

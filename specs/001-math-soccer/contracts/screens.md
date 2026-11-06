@@ -18,9 +18,9 @@ World size 1600 by 1000, scaled to fit. Goal rectangle: x 300 to 1300, y 230 to 
 
 | Event | Scene | Sound | Message (German) |
 |-------|-------|-------|------------------|
-| Goal | ball into net (or past keeper), fans jump, wave scarves | cheer | "TOR!" |
+| Goal | ball into net; in goalkeeper mode the keeper dives toward the ball and falls short; fans jump, wave scarves | cheer | "TOR!" |
 | Correct square (line) | square lights up, fans clap | clapping | "Richtig!" |
-| Miss | ball hits the board or the keeper catches it; the square of the typed number shows its number in a warm orange for 1.5 s or more | soft "ohhh" then clapping (clapping only if "ohhh" is off) | "Hier ist 56. Nochmal!" |
+| Miss | ball hits the board, or the keeper jumps to the ball's square and catches it; the square of the typed number shows its number in a warm orange for 1.5 s or more | soft "ohhh" then clapping (clapping only if "ohhh" is off) | "Hier ist 56. Nochmal!" |
 | Out of range | no shot | none | "Zahlen von 1 bis 100" |
 | Heart lost | one ball icon fades | soft clapping | "Weiter geht's!" |
 

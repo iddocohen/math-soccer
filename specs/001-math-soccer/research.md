@@ -41,7 +41,7 @@ All decisions below resolve the open points of the Technical Context in [plan.md
 
 ## R8. Hearts
 
-- **Decision**: Misses in a row on the current target are counted. When they reach the difficulty's limit (easy 5, normal 4, challenging 3), one heart is lost and the counter resets. In hole and goalkeeper mode the target then changes to a new one after the answer is shown; in line mode the square fills in and the line continues. The first round on a new device starts on "easy".
+- **Decision**: Misses in a row on the current target are counted. When they reach the difficulty's limit (easy 5, normal 4, challenging 3), one heart is lost and the counter resets. The target stays: help step 3 shows the answer and the child shoots it, then a new target (or the next line square) follows (critique P7). The first round on a new device starts on "easy".
 - **Rationale**: FR-027; same spirit as math-tank amendment 13 (the enemy zeroes in on misses in a row).
 
 ## R9. Help, adaptive difficulty, mastery, guesses

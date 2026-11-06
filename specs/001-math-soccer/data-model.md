@@ -21,6 +21,7 @@ All stored entities are validated with Zod on load and carry a `version`. Damage
 | `showClock` | boolean | false | |
 | `showRecords` | boolean | true | |
 | `lockerRoom` | boolean | true | |
+| `pointAfterFullHelp` | boolean | true | a shot after help step 3 counts for goals and bests |
 
 Direction names map to steps: right +1, left −1, down +10, up −10, downRight +11, upLeft −11, downLeft +9, upRight −9.
 
@@ -43,7 +44,7 @@ Direction names map to steps: right +1, left −1, down +10, up −10, downRight
 | `mode` | `holes`, `lines`, `keeper` |
 | `number` | the answer |
 | `hints` | visible hint numbers |
-| `decoyHoles` | other holes on the board (hole mode only) |
+| `patchedHoles` | decorative patched holes on the board (hole mode only; a shot there hits the patch) |
 | `directions` | directions trained (from hint offsets or the line's direction) |
 | `difficultyStep` | 0 to 3, from the adaptive ladder |
 
