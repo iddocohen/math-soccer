@@ -10,7 +10,9 @@
  *
  * Parent screens (US3, FR-034): the gear on the start screen and in the match opens the parent menu after a 2-second
  * press. While the menu, the settings page or the progress page is open, a running round pauses (useAutoPause) and keys
- * do nothing in the game. Saved settings apply from the next round. Every finished target goes to the progress
+ * do nothing in the game. Settings saved during a round reach it once, when the settings page closes after one or more
+ * saves (amendment 01, FR-052, MatchController.applySettings); on the start screen, the locker room and the round end
+ * the next round uses them. Every finished target goes to the progress
  * (T043), and target selection reads the adaptive steps and mastered directions from it (FR-040).
  *
  * Transfer (FR-041, as math-tank): when the page opens with `#save=` in the address, the code is decoded and
@@ -21,8 +23,14 @@
  * locker room balance at once, so a refresh loses none; a restored round's stars were awarded before the refresh and
  * are not awarded again. The locker room opens from the start screen ("Kabine" or K) when the parent turned it on, and
  * the scene draws the chosen look.
+ *
+ * Locker room from the match (amendment 01, FR-049, as math-tank amendment 23): with the locker room on, a "Kabine" icon
+ * next to the gear opens the locker room over the match with one tap. The match stays loaded underneath; a running
+ * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
+ * round continues (a round the child paused stays paused) and the chosen look shows at once.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { MatchController, type MatchState, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
@@ -142,6 +150,9 @@ export function App() {
   const [record, setRecord] = useState<RoundRecord | null>(null);
   // The keeper's phase from the scene, shown as `data-keeper` in goalkeeper mode (T054).
   const [keeper, setKeeper] = useState<KeeperPhase>('idle');
+  // The locker room opened from the match, over the running round (FR-049).
+  const [lockerOpen, setLockerOpen] = useState(false);
+  const gameHandle = useRef<GameHandle | null>(null);
   const lastPhase = useRef(state.phase);
 
   // Sound starts after the first key or tap (spec edge case "Sound blocked by the browser").
@@ -154,12 +165,14 @@ export function App() {
     let left = false;
     loadGame().then(
       ({ createGame }) => {
-        if (!left) handle = createGame(parent, controller, {
-            sounds: sfx,
-            settings,
-            onKeeper: setKeeper,
-            look: () => lookOf(persistence.lockerRoom()),
-          });
+        if (left) return;
+        handle = createGame(parent, controller, {
+          sounds: sfx,
+          settings,
+          onKeeper: setKeeper,
+          look: () => lookOf(persistence.lockerRoom()),
+        });
+        gameHandle.current = handle;
       },
       // Without the game chunk no ball can fly, so the round could not go on: back to the start screen.
       () => {
@@ -169,6 +182,7 @@ export function App() {
     return () => {
       left = true;
       handle?.destroy();
+      gameHandle.current = null;
     };
   }, [screen, controller, sfx, settings, persistence]);
 
@@ -180,8 +194,11 @@ export function App() {
     setRecord(recordRound(persistence, controller.getState(), settings().showRecords));
   }, [state.phase, state.started, persistence, controller, settings]);
 
-  // A running round pauses while a parent screen or the transfer dialog is open (FR-034).
-  useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null));
+  const lockerOn = settings().lockerRoom;
+  const matchLocker = screen === 'match' && lockerOpen && lockerOn;
+
+  // A running round pauses while a parent screen, the transfer dialog or the locker room is open (FR-034, FR-049).
+  useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null || matchLocker));
 
   // A save link: decode the code once on load (FR-041).
   useEffect(() => {
@@ -241,9 +258,23 @@ export function App() {
     screen === 'start' ? 'start' : roundOver ? 'roundEnd' : state.paused ? 'paused' : state.helpChartOpen ? 'helpChart' : 'match';
   // While a parent screen or the transfer dialog is open, keys do nothing in the game (FR-034).
   // The locker room has its own keys (Escape back).
-  const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null && screen !== 'lockerRoom' ? gameScreen : null;
+  const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null && screen !== 'lockerRoom' && !matchLocker ? gameScreen : null;
 
-  const closeParent = useCallback(() => setParent('closed'), []);
+  // Amendment 01 (FR-052): the latest settings saved while the settings page is open; they reach the running round
+  // once, when the page closes. Several saves count as one change.
+  const savedSettings = useRef<Settings | null>(null);
+  const settingsSaved = useCallback((s: Settings) => {
+    savedSettings.current = s;
+    setDataVersion((n) => n + 1);
+  }, []);
+  const closeParent = useCallback(() => {
+    setParent('closed');
+    const saved = savedSettings.current;
+    savedSettings.current = null;
+    // The round is still paused by the settings page here; useAutoPause resumes it, and a round the child paused stays
+    // paused with the new target.
+    if (saved !== null && screen === 'match') controller.applySettings(saved);
+  }, [controller, screen]);
   const gear = (
     <ParentGate
       open={parent === 'menu'}
@@ -255,7 +286,7 @@ export function App() {
   );
   const parentScreens = (
     <>
-      {parent === 'settings' && <SettingsPage persistence={persistence} onSaved={() => setDataVersion((n) => n + 1)} onClose={closeParent} />}
+      {parent === 'settings' && <SettingsPage persistence={persistence} onSaved={settingsSaved} onClose={closeParent} />}
       {parent === 'progress' && <ProgressPage persistence={persistence} onClose={closeParent} />}
       {transfer !== null && transfer.kind !== 'reading' && (
         <TransferDialog state={transfer} onAccept={acceptTransfer} onCancel={transfer.kind === 'failed' ? () => setTransfer(null) : closeTransfer} />
@@ -271,17 +302,22 @@ export function App() {
   };
   useKeyboard({ screen: keyScreen, modes: offered, lockerRoom: settings().lockerRoom, enterMode: modeFromUrl(window.location.search), onAction });
 
-  const lockerOn = settings().lockerRoom;
   const locker = persistence.lockerRoom();
+  const saveLocker = (next: typeof locker) => {
+    persistence.saveLockerRoom(next);
+    setDataVersion((n) => n + 1);
+  };
+  const closeMatchLocker = () => {
+    setLockerOpen(false);
+    // The scene draws the look on every state change; a round the child paused has none, so it is shown here.
+    gameHandle.current?.showLook();
+  };
 
   if (screen === 'lockerRoom' && lockerOn) {
     return (
       <LockerRoom
         locker={locker}
-        onChange={(next) => {
-          persistence.saveLockerRoom(next);
-          setDataVersion((n) => n + 1);
-        }}
+        onChange={saveLocker}
         onBack={() => setScreen('start')}
       />
     );
@@ -308,8 +344,11 @@ export function App() {
         state={state}
         keeper={keeper}
         ball={locker.ball}
-        settings={settings()}
+        shirt={locker.shirtColor}
+        // Goals per round keep their round-start value (FR-052).
+        settings={{ ...settings(), goalsPerRound: controller.getRoundSettings().goalsPerRound }}
         gear={gear}
+        onLockerRoom={lockerOn ? () => setLockerOpen(true) : undefined}
         onHelp={() => controller.askHelp()}
         onPause={() => controller.pause()}
         onResume={() => controller.resume()}
@@ -334,6 +373,7 @@ export function App() {
           onBack={() => setScreen('start')}
         />
       )}
+      {matchLocker && <LockerRoom locker={locker} onChange={saveLocker} onBack={closeMatchLocker} />}
       {parentScreens}
     </main>
   );

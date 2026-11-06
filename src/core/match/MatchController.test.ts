@@ -597,3 +597,139 @@ describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
     expect(c.getState().target!.number).toBe(n);
   });
 });
+
+describe('applySettings: saved settings reach the running round (amendment 01, FR-052)', () => {
+  const RANGE_20 = { preset: 'custom', min: 1, max: 20 } as const;
+
+  function live(over: Partial<Settings> = {}, mode: 'holes' | 'lines' = 'holes') {
+    let settings: Settings = { ...defaultSettings(), ...over };
+    const records: AttemptRecord[] = [];
+    const store = memoryStore();
+    const c = new MatchController({ settings: () => settings, newSeed: () => 5, onAttempt: (r) => records.push(r), store });
+    c.start(mode);
+    const save = (next: Partial<Settings>) => {
+      settings = { ...settings, ...next };
+      return settings;
+    };
+    return { c, records, store, save };
+  }
+
+  /** Scores the current target and ends the celebration. */
+  function goal(c: MatchController) {
+    shootAndLand(c, c.getState().target!.number);
+    c.celebrationDone();
+  }
+
+  /** Shoots a number that is not the target and lands it. */
+  function miss(c: MatchController) {
+    const t = c.getState().target!.number;
+    shootAndLand(c, t === 1 ? 2 : t - 1);
+  }
+
+  it('a new range gives a new target on the new board and keeps goals, hearts, stars and time', () => {
+    const { c, records, store, save } = live();
+    goal(c);
+    miss(c);
+    c.tick(4000);
+    const before = c.getState();
+    const recordsBefore = records.length;
+    c.applySettings(save({ range: { ...RANGE_20 } }));
+    const s = c.getState();
+    expect(s.min).toBe(1);
+    expect(s.max).toBe(20);
+    expect(s.target!.number).toBeGreaterThanOrEqual(1);
+    expect(s.target!.number).toBeLessThanOrEqual(20);
+    expect(s.targetCount).toBe(before.targetCount + 1);
+    expect(s).toMatchObject({ goals: before.goals, hearts: before.hearts, starsThisRound: before.starsThisRound, elapsedMs: before.elapsedMs });
+    expect(s).toMatchObject({ helpStep: 0, missesInRow: 0, targetMisses: 0, shown: null, phase: 'aiming' });
+    // The dropped target records no attempt.
+    expect(records).toHaveLength(recordsBefore);
+    // The stored round has the new range, so a refresh keeps it.
+    expect(store.round).toMatchObject({ min: 1, max: 20, goals: before.goals });
+  });
+
+  it('round type and goals per round keep their round-start values', () => {
+    const { c, save } = live({ roundType: 'goalCount', goalsPerRound: 2 });
+    c.applySettings(save({ roundType: 'untilHearts', goalsPerRound: 5, range: { ...RANGE_20 } }));
+    expect(c.getState().roundType).toBe('goalCount');
+    expect(c.getRoundSettings().goalsPerRound).toBe(2);
+    goal(c);
+    goal(c);
+    expect(c.getState().phase).toBe('roundOver');
+  });
+
+  it('display-only changes keep the target', () => {
+    const { c, save } = live();
+    const before = c.getState();
+    c.applySettings(save({ showClock: true, numberPad: 'always', sound: { effects: false, crowd: false, ohh: false, speech: false }, lockerRoom: false }));
+    const s = c.getState();
+    expect(s).not.toBe(before);
+    expect(s.target).toEqual(before.target);
+    expect(s.targetCount).toBe(before.targetCount);
+  });
+
+  it('a new difficulty is a target-shaping change and also sets the misses per heart', () => {
+    const { c, save } = live({ difficulty: 'easy' });
+    const before = c.getState().targetCount;
+    c.applySettings(save({ difficulty: 'challenging' }));
+    expect(c.getState().targetCount).toBe(before + 1);
+    for (let i = 0; i < missesPerHeart('challenging'); i++) miss(c);
+    expect(c.getState().hearts).toBe(2);
+  });
+
+  it('a paused round stays paused with the new target', () => {
+    const { c, save } = live();
+    c.pause();
+    c.applySettings(save({ range: { ...RANGE_20 } }));
+    expect(c.getState()).toMatchObject({ paused: true, max: 20 });
+  });
+
+  it('while the ball flies, the new target waits until the ball has landed', () => {
+    const { c, save } = live();
+    const t = c.getState().target!.number;
+    type(c, String(t === 1 ? 2 : t - 1));
+    c.shoot();
+    c.applySettings(save({ range: { ...RANGE_20 } }));
+    expect(c.getState()).toMatchObject({ phase: 'ballInFlight', max: 100 });
+    c.ballLanded();
+    expect(c.getState()).toMatchObject({ phase: 'aiming', max: 20, shown: null });
+    expect(c.getState().target!.number).toBeLessThanOrEqual(20);
+  });
+
+  it('a goal scored during the change still counts, and the next target is on the new board', () => {
+    const { c, records, save } = live();
+    const t = c.getState().target!.number;
+    type(c, String(t));
+    c.shoot();
+    c.applySettings(save({ range: { ...RANGE_20 } }));
+    c.ballLanded();
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1 });
+    expect(records).toHaveLength(1);
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ phase: 'aiming', max: 20 });
+  });
+
+  it('in line mode a target-shaping change starts a new line on the new board', () => {
+    const { c, save } = live({}, 'lines');
+    const before = c.getState().line!;
+    c.applySettings(save({ range: { ...RANGE_20 } }));
+    const line = c.getState().line!;
+    expect(line).not.toEqual(before);
+    expect(line.squares.every((n) => n >= 1 && n <= 20)).toBe(true);
+    expect(c.getState().target!.number).toBe(line.squares[line.index]);
+  });
+
+  it('changes nothing before a round or after it ended', () => {
+    const settings = defaultSettings();
+    const c = new MatchController({ settings: () => settings, newSeed: () => 5 });
+    const idle = c.getState();
+    c.applySettings({ ...settings, range: { ...RANGE_20 } });
+    expect(c.getState()).toBe(idle);
+
+    const { c: ended, save } = live({ roundType: 'goalCount', goalsPerRound: 1 });
+    goal(ended);
+    const over = ended.getState();
+    ended.applySettings(save({ range: { ...RANGE_20 } }));
+    expect(ended.getState()).toBe(over);
+  });
+});

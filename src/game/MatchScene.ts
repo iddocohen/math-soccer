@@ -159,6 +159,18 @@ export class MatchScene extends Phaser.Scene {
     return this.options.look?.() ?? lookOf(emptyLockerRoom());
   }
 
+  /**
+   * Shows the current look at once, without a state change: after the locker room over the match closes on a round the
+   * child paused (FR-049).
+   */
+  showLook(): void {
+    if (!this.player) return;
+    const look = this.currentLook();
+    this.applyLook(look);
+    const s = this.controller.getState();
+    this.ball.setLook(ballKind(layoutChart(s.min, s.max)), look.ball);
+  }
+
   /** Redraws the shirt and recolors the scarves when the look changed. */
   private applyLook(look: Look): void {
     const key = lookKey(look);

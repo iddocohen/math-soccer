@@ -140,3 +140,41 @@ describe('data group (T046, FR-041)', () => {
     expect(screen.getByTestId('transfer-qr')).toBeTruthy();
   });
 });
+
+describe('SettingsPage: kept copies (amendment 01, FR-050)', () => {
+  const COPY = 'mathsoccer.lockerroom.v1.unreadable';
+
+  it('offers a readable kept copy, restores it and reloads', () => {
+    const kv = memoryKeyValue({ [COPY]: JSON.stringify({ ...emptyLockerRoom(), stars: 30, totalEarned: 30 }) });
+    const onRestored = vi.fn();
+    render(<SettingsPage persistence={createPersistence(kv)} onSaved={() => {}} onClose={() => {}} onRestored={onRestored} />);
+    expect(screen.getByTestId('backup-notice').textContent).toContain('Sterne und Kabine');
+    fireEvent.click(screen.getByRole('button', { name: t().parent.restoreBackup }));
+    expect(onRestored).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(kv.get('mathsoccer.lockerroom.v1')!)).toMatchObject({ stars: 30 });
+    expect(kv.get(COPY)).toBeNull();
+  });
+
+  it('shows a notice and changes nothing when the restore cannot be saved', () => {
+    const inner = memoryKeyValue({ [COPY]: JSON.stringify({ ...emptyLockerRoom(), stars: 30, totalEarned: 30 }) });
+    const kv = {
+      get: (k: string) => inner.get(k),
+      set: (k: string, v: string) => {
+        if (k === 'mathsoccer.lockerroom.v1') throw new DOMException('quota', 'QuotaExceededError');
+        inner.set(k, v);
+      },
+      remove: (k: string) => inner.remove(k),
+    };
+    const onRestored = vi.fn();
+    render(<SettingsPage persistence={createPersistence(kv)} onSaved={() => {}} onClose={() => {}} onRestored={onRestored} />);
+    fireEvent.click(screen.getByRole('button', { name: t().parent.restoreBackup }));
+    expect(onRestored).not.toHaveBeenCalled();
+    expect(screen.getByText(t().parent.restoreFailed)).toBeTruthy();
+    expect(inner.get(COPY)).not.toBeNull();
+  });
+
+  it('offers nothing without a readable copy', () => {
+    render(<SettingsPage persistence={createPersistence(memoryKeyValue({ [COPY]: '{"stars":' }))} onSaved={() => {}} onClose={() => {}} />);
+    expect(screen.queryByTestId('backup-notice')).toBeNull();
+  });
+});

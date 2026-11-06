@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import { memoryKeyValue } from '../core/storage/keyValue';
 import { emptyLockerRoom, emptyRecords, type AttemptRecord } from '../core/storage/schemas';
-import { loadLockerRoom, loadProgress, saveLockerRoom, saveRecords } from '../core/storage/storage';
+import { loadLockerRoom, loadProgress, loadRecords, saveLockerRoom, saveRecords } from '../core/storage/storage';
 import { t } from '../i18n';
 import { createPersistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
@@ -83,5 +83,26 @@ describe('ProgressPage (T045)', () => {
     expect(screen.getByText(P.resetDone)).toBeTruthy();
     expect(screen.getByText(P.empty)).toBeTruthy();
     expect(screen.getByTestId('progress-bests')).toBeTruthy();
+  });
+
+  it('"Alles zurücksetzen" asks first with a reminder to save, then clears progress, bests and stars; the settings stay', () => {
+    const { kv } = setup();
+    const settingsBefore = kv.get('mathsoccer.settings.v1');
+    fireEvent.click(screen.getByRole('button', { name: P.resetAll }));
+    const question = screen.getByRole('alertdialog').textContent!;
+    expect(question).toContain(P.resetAllConfirm);
+    expect(question).toContain('sichert ihn vorher');
+    fireEvent.click(screen.getByRole('button', { name: P.resetNo }));
+    expect(loadLockerRoom(kv).value.stars).toBe(12);
+
+    fireEvent.click(screen.getByRole('button', { name: P.resetAll }));
+    fireEvent.click(screen.getByRole('button', { name: P.resetAllYes }));
+    expect(loadProgress(kv).value.attempts).toHaveLength(0);
+    expect(loadLockerRoom(kv).value).toEqual(emptyLockerRoom());
+    expect(loadRecords(kv).value).toEqual(emptyRecords());
+    expect(kv.get('mathsoccer.settings.v1')).toBe(settingsBefore);
+    expect(screen.getByText(P.resetAllDone)).toBeTruthy();
+    expect(screen.getByText(P.empty)).toBeTruthy();
+    expect(screen.getByText(P.noBests)).toBeTruthy();
   });
 });

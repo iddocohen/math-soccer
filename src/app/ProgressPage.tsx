@@ -4,7 +4,9 @@
  * same gate as the settings. It shows per direction and mode the attempts, the targets solved alone and with help in
  * separate columns, the adaptive step (with how many more targets alone raise it) and whether the direction is
  * mastered; then the personal bests as a plain list. "Fortschritt zurücksetzen" asks first and then empties the
- * progress; the personal bests and the stars stay.
+ * progress; the personal bests and the stars stay. "Alles zurücksetzen" (amendment 01, FR-051, as math-tank amendment 24)
+ * asks first, reminding the parent to save the data before, then clears progress, personal bests, stars and the locker
+ * room together or not at all; the settings stay.
  */
 import { useMemo, useState } from 'react';
 import { summarize } from '../core/progress/summarize';
@@ -12,7 +14,7 @@ import { t } from '../i18n';
 import type { Persistence } from './persistence';
 
 interface Props {
-  persistence: Pick<Persistence, 'progress' | 'records' | 'settings' | 'resetProgress'>;
+  persistence: Pick<Persistence, 'progress' | 'records' | 'settings' | 'resetProgress' | 'resetAll'>;
   onClose: () => void;
 }
 
@@ -21,7 +23,8 @@ export function ProgressPage({ persistence, onClose }: Props) {
   const P = m.progressPage;
   const [progress, setProgress] = useState(() => persistence.progress());
   const [resetNote, setResetNote] = useState<'ok' | 'failed' | null>(null);
-  const records = persistence.records();
+  const [allNote, setAllNote] = useState<'ok' | 'failed' | null>(null);
+  const [records, setRecords] = useState(() => persistence.records());
   const settings = persistence.settings();
   const summary = useMemo(() => summarize(progress, records, settings), [progress, records, settings]);
 
@@ -29,6 +32,18 @@ export function ProgressPage({ persistence, onClose }: Props) {
     const ok = persistence.resetProgress().ok;
     setProgress(persistence.progress());
     setResetNote(ok ? 'ok' : 'failed');
+  };
+
+  const resetAll = () => {
+    const ok = persistence.resetAll().ok;
+    setProgress(persistence.progress());
+    setRecords(persistence.records());
+    setAllNote(ok ? 'ok' : 'failed');
+  };
+
+  const askedReset = () => {
+    setResetNote(null);
+    setAllNote(null);
   };
 
   return (
@@ -45,6 +60,8 @@ export function ProgressPage({ persistence, onClose }: Props) {
       <div className="settings-notices" role="status" aria-live="polite">
         {resetNote === 'ok' && <p className="notice ok">{P.resetDone}</p>}
         {resetNote === 'failed' && <p className="notice warn">{P.resetFailed}</p>}
+        {allNote === 'ok' && <p className="notice ok">{P.resetAllDone}</p>}
+        {allNote === 'failed' && <p className="notice warn">{P.resetAllFailed}</p>}
       </div>
 
       <section className="progress-section">
@@ -99,7 +116,8 @@ export function ProgressPage({ persistence, onClose }: Props) {
       </section>
 
       <section className="progress-section">
-        <ConfirmReset label={P.reset} question={P.resetConfirm} yes={P.resetYes} no={P.resetNo} onAsk={() => setResetNote(null)} onConfirm={reset} />
+        <ConfirmReset label={P.reset} question={P.resetConfirm} yes={P.resetYes} no={P.resetNo} onAsk={askedReset} onConfirm={reset} />
+        <ConfirmReset label={P.resetAll} question={P.resetAllConfirm} yes={P.resetAllYes} no={P.resetNo} onAsk={askedReset} onConfirm={resetAll} />
       </section>
     </div>
   );

@@ -48,6 +48,7 @@ export const de = {
     resume: 'Weiter',
     fullscreen: 'Vollbild',
     gear: 'Für Eltern',
+    lockerRoom: 'Kabine',
     goals: goalCount,
     goalsOf: (n: number, total: number) => `${n} von ${total} Toren`,
     hearts: (n: number) => `${n} Bälle übrig`,
@@ -158,6 +159,13 @@ export const de = {
     progress: 'Fortschritt',
     back: 'Zurück',
     close: 'Schließen',
+    /** Amendment 01 (FR-050): a kept copy of data that an earlier version could not read, and this version can. */
+    backupFound: (names: string) =>
+      `Im Browser liegt eine Kopie älterer Daten (${names}). Wiederherstellen ersetzt die aktuellen Daten durch diese Kopie.`,
+    restoreBackup: 'Kopie wiederherstellen',
+    restoreFailed: 'Die Kopie konnte nicht gespeichert werden. Es wurde nichts geändert.',
+    /** The four kinds of stored data, for the notice on the settings page. */
+    dataNames: { settings: 'Einstellungen', progress: 'Fortschritt', records: 'Rekorde', lockerRoom: 'Sterne und Kabine' },
     holdHint: 'Zahnrad 2 Sekunden gedrückt halten',
   },
 
@@ -289,6 +297,13 @@ export const de = {
     resetNo: 'Abbrechen',
     resetDone: 'Fortschritt zurückgesetzt. Die Sterne sind geblieben.',
     resetFailed: 'Zurücksetzen hat nicht geklappt.',
+    /** Amendment 01 (FR-051): clears progress, personal bests, stars and the locker room; the settings stay. */
+    resetAll: 'Alles zurücksetzen',
+    resetAllConfirm:
+      'Fortschritt, Rekorde, Sterne und Kabine löschen? Die Einstellungen bleiben. Wer den Spielstand behalten will, sichert ihn vorher in den Einstellungen.',
+    resetAllYes: 'Ja, alles löschen',
+    resetAllDone: 'Alles wurde zurückgesetzt.',
+    resetAllFailed: 'Zurücksetzen hat nicht geklappt. Es wurde nichts geändert.',
     close: 'Schließen',
     stepOf: (step: number, count: number) => `${step} von ${count}`,
     toRaise: (n: number) => (n === 1 ? 'noch 1 Treffer allein bis zur nächsten Stufe' : `noch ${n} Treffer allein bis zur nächsten Stufe`),

@@ -28,6 +28,12 @@
  * the grid around an empty target square and no patched holes. The rules are those of hole mode: the target number is
  * a goal worth GOAL_STARS, any other number is a miss whose square shows. The keeper's dive and catch are drawn by
  * KeeperView from this state; the controller does not track the keeper.
+ *
+ * Settings saved during a round (amendment 01, FR-052, after math-tank's `applySettingsNow`): `applySettings` takes them
+ * into the running round. Round type and goals per round keep their round-start values. When a target-shaping setting
+ * changed (TARGET_KEYS), the round gets a new target (or a new line) on the board of the new range; goals, hearts, stars,
+ * time and the paused state stay, and the dropped target records no attempt. While the ball flies or the goal is
+ * celebrated, the new target waits until the round is back in 'aiming'.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
@@ -142,7 +148,7 @@ export interface RoundStore {
 }
 
 export interface MatchControllerOptions {
-  /** Read on every `start()` and `restore()`, so changed settings apply from the next round. */
+  /** Read on every `start()` and `restore()`; settings saved during a round reach it through `applySettings`. */
   settings: () => Settings;
   /** A new round seed; defaults to the clock. */
   newSeed?: () => number;
@@ -204,6 +210,27 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
   };
 }
 
+/** The settings that shape targets: a change gives the running round a new target (FR-052). */
+export const TARGET_KEYS = [
+  'range',
+  'modes',
+  'hintDisplay',
+  'hintDistance',
+  'lineDirections',
+  'lineLength',
+  'difficulty',
+  'adaptive',
+  'pointAfterFullHelp',
+] as const satisfies ReadonlyArray<keyof Settings>;
+
+/** The settings that shape the whole round; they keep their round-start values until the next round (FR-052). */
+export const ROUND_KEYS = ['roundType', 'goalsPerRound'] as const satisfies ReadonlyArray<keyof Settings>;
+
+/** True when a target-shaping setting differs between `a` and `b`. */
+export function changesTargets(a: Settings, b: Settings): boolean {
+  return TARGET_KEYS.some((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key]));
+}
+
 /** The guess rule looks at misses within the last 5 seconds; this many are enough to keep (classify.ts). */
 const MISS_TIMES_KEPT = 5;
 
@@ -211,8 +238,10 @@ export class MatchController {
   private state: MatchState;
   private readonly listeners = new Set<() => void>();
   private readonly options: MatchControllerOptions;
-  /** The settings the running round started with; changes apply at the next round (FR-036a). */
+  /** The settings the running round uses: those of its start, updated by `applySettings` (FR-052). */
   private roundSettings: Settings;
+  /** True while saved target-shaping settings wait for the round to be back in 'aiming' (FR-052). */
+  private newTargetPending = false;
 
   constructor(options: MatchControllerOptions) {
     this.options = options;
@@ -224,6 +253,51 @@ export class MatchController {
     return this.state;
   }
 
+  /** The settings the running round uses; round type and goals per round are those of the round start (FR-052). */
+  getRoundSettings(): Settings {
+    return this.roundSettings;
+  }
+
+  /**
+   * Takes settings saved during the round into it (FR-052). Round type and goals per round keep their round-start
+   * values. A target-shaping change gives a new target, now or once the ball has landed or the celebration ended; other
+   * changes only give a new state object, so the views read the new settings. Before a round or after it ends nothing
+   * changes: the next `start()` reads the settings.
+   */
+  applySettings(settings: Settings): void {
+    const s = this.state;
+    if (!s.started || s.phase === 'roundOver') return;
+    const merged: Settings = structuredClone(settings);
+    for (const key of ROUND_KEYS) (merged as Record<string, unknown>)[key] = this.roundSettings[key];
+    const rebuild = changesTargets(this.roundSettings, merged);
+    this.roundSettings = merged;
+    if (rebuild) this.newTargetPending = true;
+    this.set(this.newTargetPending && s.phase === 'aiming' ? this.withNewSettings(s) : { ...s });
+  }
+
+  /**
+   * The round on the board of the round settings' range with a new target or line. Goals, hearts, stars, time and the
+   * paused state stay; the unfinished target is dropped without an attempt record.
+   */
+  private withNewSettings(s: MatchState): MatchState {
+    this.newTargetPending = false;
+    return this.withNextTarget({
+      ...s,
+      min: this.roundSettings.range.min,
+      max: this.roundSettings.range.max,
+      entry: '',
+      message: null,
+      ball: null,
+      target: null,
+      line: null,
+      shown: null,
+      missesInRow: 0,
+      helpStep: 0,
+      helpChartOpen: false,
+      lastGuess: null,
+    });
+  }
+
   /** Calls `fn` after every state change; returns a function that stops it. */
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -232,6 +306,7 @@ export class MatchController {
 
   /** Starts a new round in `mode` with the current settings. */
   start(mode: Mode): void {
+    this.newTargetPending = false;
     this.roundSettings = this.options.settings();
     const seed = (this.options.newSeed ?? (() => Date.now() % 2_147_483_647))();
     this.set(this.withNextTarget(freshState(this.roundSettings, mode, seed, true)));
@@ -250,6 +325,7 @@ export class MatchController {
       store.clear();
       return false;
     }
+    this.newTargetPending = false;
     this.roundSettings = s;
     const { phase, ...rest } = stored;
     const state: MatchState = { ...freshState(s, stored.mode, stored.seed, true), ...withoutVersion(rest) };
@@ -520,6 +596,14 @@ export class MatchController {
   }
 
   private set(next: MatchState, { save = true }: { save?: boolean } = {}): void {
+    // Settings saved while the ball flew or the goal was celebrated give their new target once the round aims again.
+    if (this.newTargetPending) {
+      if (next.phase === 'roundOver') this.newTargetPending = false;
+      else if (next.phase === 'aiming' && next.started) {
+        next = this.withNewSettings(next);
+        save = true;
+      }
+    }
     this.state = next;
     if (save) this.persist();
     for (const fn of this.listeners) fn();

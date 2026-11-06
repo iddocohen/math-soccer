@@ -12,6 +12,11 @@
  * Help (T040, FR-024): from help step 1 a line above the typed number (`data-testid="help-text"`) names the way from
  * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
  * The overlay lets taps through to the canvas except on its buttons.
+ *
+ * Locker room from the match (amendment 01, FR-049, as math-tank amendment 23): with `onLockerRoom` (the locker room is
+ * on) a shirt icon with the accessible name "Kabine" sits next to the gear, at the same size. One tap opens the locker
+ * room over the match. The icon never takes focus, so keys cannot press it, and it does not show on the round end.
+ * `data-shirt` carries the chosen shirt color id for tests.
  */
 import type { ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
@@ -64,14 +69,18 @@ interface Props {
   /** The chosen ball design id from the locker room (`data-ball`). */
   ball?: string;
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
+  /** The chosen shirt color id from the locker room (`data-shirt`). */
+  shirt?: string;
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
+  /** Opens the locker room over the match (FR-049); the icon shows only when this is given. */
+  onLockerRoom?: () => void;
   onHelp: () => void;
   onPause: () => void;
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, settings, gear, onHelp, onPause, onResume }: Props) {
+export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shirt = STARTER.shirt, settings, gear, onLockerRoom, onHelp, onPause, onResume }: Props) {
   const text = t();
   const layout = layoutChart(state.min, state.max);
   const help = helpText(state);
@@ -88,6 +97,7 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, sett
       data-hearts={state.hearts}
       data-rows={layout.rows}
       data-ball={ball}
+      data-shirt={shirt}
       data-ball-kind={ballKind(layout)}
       data-line={state.line?.squares.join(',') ?? ''}
       data-line-index={state.line?.index ?? ''}
@@ -124,6 +134,20 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, sett
               <span aria-hidden="true">❚❚</span>
             </button>
           )}
+          {onLockerRoom && state.phase !== 'roundOver' && (
+            <button
+              type="button"
+              className="icon-button locker-room-button"
+              data-testid="match-locker-room"
+              aria-label={text.match.lockerRoom}
+              title={text.match.lockerRoom}
+              tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onLockerRoom}
+            >
+              <ShirtIcon />
+            </button>
+          )}
           {gear}
         </div>
       </div>
@@ -141,5 +165,14 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, sett
         </p>
       </div>
     </div>
+  );
+}
+
+/** A plain shirt outline for the locker room button. */
+function ShirtIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M11 4 L4 8 L7 14 L10 12 L10 28 L22 28 L22 12 L25 14 L28 8 L21 4 Q16 9 11 4 Z" fill="currentColor" />
+    </svg>
   );
 }

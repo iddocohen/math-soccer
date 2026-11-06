@@ -29,6 +29,8 @@ interface Props {
   onSaved: (settings: Settings) => void;
   onClose: () => void;
   now?: () => Date;
+  /** After "Kopie wiederherstellen" (FR-050): the page reloads, so every screen uses the restored data. */
+  onRestored?: () => void;
 }
 
 type Notice = { kind: 'ok' | 'warn'; text: string } | null;
@@ -56,8 +58,15 @@ function today(d: Date): string {
 /** iOS Safari may cancel a download whose address is revoked at once; a minute is long enough to start it. */
 const REVOKE_AFTER_MS = 60_000;
 
-export function SettingsPage({ persistence, onSaved, onClose, now = () => new Date() }: Props) {
+export function SettingsPage({ persistence, onSaved, onClose, now = () => new Date(), onRestored = () => window.location.reload() }: Props) {
   const m = t();
+  // Amendment 01 (FR-050): data kept as a copy that this version can read again.
+  const [backups] = useState(() => persistence.backups());
+  const [restoreFailed, setRestoreFailed] = useState(false);
+  const restore = () => {
+    if (persistence.restoreBackups().ok) onRestored();
+    else setRestoreFailed(true);
+  };
   const S = m.settings;
   const L = S.labels;
   const O = S.options;
@@ -152,6 +161,15 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
       <div className="settings-notices" role="status" aria-live="polite">
         {!valid && <p className="notice warn">{S.checkFields}</p>}
         {notice && <p className={`notice ${notice.kind}`}>{notice.text}</p>}
+        {backups.length > 0 && (
+          <div className="notice" data-testid="backup-notice">
+            <p>{m.parent.backupFound(backups.map((kind) => m.parent.dataNames[kind]).join(', '))}</p>
+            <button type="button" className="secondary-button" onClick={restore}>
+              {m.parent.restoreBackup}
+            </button>
+          </div>
+        )}
+        {restoreFailed && <p className="notice warn">{m.parent.restoreFailed}</p>}
       </div>
 
       <div className="settings-groups">

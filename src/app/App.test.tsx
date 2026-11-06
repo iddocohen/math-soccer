@@ -10,15 +10,17 @@ import type { MatchController } from '../core/match/MatchController';
 import { emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
 import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { encodeTransfer } from '../core/transfer/transfer';
+import { MatchController as Controller } from '../core/match/MatchController';
+import { t } from '../i18n';
 import { App, modeFromUrl, seedFromUrl } from './App';
 
-const game = vi.hoisted(() => ({ created: 0, destroyed: 0, controller: null as MatchController | null }));
+const game = vi.hoisted(() => ({ created: 0, destroyed: 0, looks: 0, controller: null as MatchController | null }));
 
 vi.mock('../game/createGame', () => ({
   createGame: (_parent: HTMLElement, controller: MatchController) => {
     game.created++;
     game.controller = controller;
-    return { game: {}, destroy: () => void game.destroyed++ };
+    return { game: {}, showLook: () => void game.looks++, destroy: () => void game.destroyed++ };
   },
 }));
 
@@ -26,6 +28,7 @@ beforeEach(() => {
   localStorage.clear();
   game.created = 0;
   game.destroyed = 0;
+  game.looks = 0;
   game.controller = null;
 });
 
@@ -326,5 +329,183 @@ describe('App: stars and locker room (US6)', () => {
     scoreGoal();
     expect(screen.getByTestId('round-end')).toBeTruthy();
     expect(screen.queryByTestId('round-stars')).toBeNull();
+  });
+});
+
+/** Holds the gear for 2 seconds with fake timers. */
+function holdGearFor2s(): void {
+  vi.useFakeTimers();
+  fireEvent.pointerDown(screen.getByTestId('parent-gate'), { pointerId: 1, button: 0 });
+  act(() => {
+    vi.advanceTimersByTime(2100);
+  });
+  vi.useRealTimers();
+}
+
+describe('App: saved settings reach the running round when the settings page closes (amendment 01, FR-052)', () => {
+  const S = t().settings;
+  const openSettings = () => {
+    holdGearFor2s();
+    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }));
+  };
+  const range = (max: string) => {
+    fireEvent.change(screen.getByLabelText(S.labels.rangePreset), { target: { value: 'custom' } });
+    fireEvent.change(screen.getByLabelText(S.labels.rangeMin), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(S.labels.rangeMax), { target: { value: max } });
+  };
+  const save = () => fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+  const close = () => fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function startMatch(): Promise<HTMLElement> {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    return screen.getByTestId('match');
+  }
+
+  it('gives a new target on the new board when the page closes after a save; goals stay and the round continues', async () => {
+    const apply = vi.spyOn(Controller.prototype, 'applySettings');
+    const match = await startMatch();
+    scoreGoal();
+    openSettings();
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+    range('20');
+    save();
+    // Nothing changes while the page is open.
+    expect(apply).not.toHaveBeenCalled();
+    expect(match.getAttribute('data-rows')).toBe('10');
+    close();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(match.getAttribute('data-rows')).toBe('2');
+    expect(Number(match.getAttribute('data-target'))).toBeLessThanOrEqual(20);
+    expect(match.getAttribute('data-goals')).toBe('1');
+    expect(match.getAttribute('data-phase')).toBe('aiming');
+    expect(screen.getByTestId('message').textContent).toBe('');
+  });
+
+  it('applies several saves once, with the latest settings', async () => {
+    const apply = vi.spyOn(Controller.prototype, 'applySettings');
+    await startMatch();
+    openSettings();
+    range('50');
+    save();
+    range('20');
+    save();
+    close();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply.mock.calls[0]![0].range).toEqual({ preset: 'custom', min: 1, max: 20 });
+  });
+
+  it('changes nothing when the page closes without a save', async () => {
+    const apply = vi.spyOn(Controller.prototype, 'applySettings');
+    const match = await startMatch();
+    const target = match.getAttribute('data-target');
+    openSettings();
+    range('20');
+    close();
+    expect(apply).not.toHaveBeenCalled();
+    expect(match.getAttribute('data-target')).toBe(target);
+    expect(match.getAttribute('data-rows')).toBe('10');
+  });
+
+  it('keeps a round the child paused paused, with the new target', async () => {
+    const match = await startMatch();
+    fireEvent.click(screen.getByLabelText('Pause'));
+    openSettings();
+    range('20');
+    save();
+    close();
+    expect(match.getAttribute('data-rows')).toBe('2');
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+  });
+
+  it('goals per round keep their round-start value on the goal counter', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 3 }));
+    await startMatch();
+    openSettings();
+    fireEvent.change(screen.getByLabelText(S.labels.goalsPerRound), { target: { value: '8' } });
+    save();
+    close();
+    expect(screen.getByTestId('goal-count').textContent).toBe('0 von 3 Toren');
+  });
+
+  it('does not touch the start screen; the next round uses the saved settings', () => {
+    const apply = vi.spyOn(Controller.prototype, 'applySettings');
+    render(<App />);
+    openSettings();
+    range('20');
+    save();
+    close();
+    expect(apply).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: '1' });
+    expect(screen.getByTestId('match').getAttribute('data-rows')).toBe('2');
+  });
+});
+
+describe('App: locker room from the match (amendment 01, FR-049)', () => {
+  async function startMatch(): Promise<HTMLElement> {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    return screen.getByTestId('match');
+  }
+
+  it('one tap on "Kabine" opens the locker room over the match and pauses; keys do nothing in the match', async () => {
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    const match = await startMatch();
+    fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
+    expect(screen.getByTestId('locker-room')).toBeTruthy();
+    expect(screen.getByTestId('match')).toBe(match);
+    expect(game.controller!.getState().paused).toBe(true);
+    const elapsed = game.controller!.getState().elapsedMs;
+    act(() => game.controller!.tick(1000));
+    expect(game.controller!.getState().elapsedMs).toBe(elapsed);
+    fireEvent.keyDown(window, { key: '5' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(screen.getByTestId('entry').textContent).toBe('');
+    expect(game.controller!.getState().phase).toBe('aiming');
+  });
+
+  it('equipping a ball and "Zurück" closes the locker room; the round continues with the new ball at once', async () => {
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    const match = await startMatch();
+    fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
+    fireEvent.click(screen.getByTestId('item-ball.gold'));
+    fireEvent.click(screen.getByText('Ja'));
+    fireEvent.click(screen.getByTestId('item-shirt.white'));
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück' }));
+    expect(screen.queryByTestId('locker-room')).toBeNull();
+    expect(game.controller!.getState().paused).toBe(false);
+    expect(match.getAttribute('data-ball')).toBe('ball.gold');
+    expect(match.getAttribute('data-shirt')).toBe('shirt.white');
+    expect(game.looks).toBe(1);
+  });
+
+  it('Escape closes the locker room and the round continues', async () => {
+    await startMatch();
+    fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('locker-room')).toBeNull();
+    expect(game.controller!.getState().paused).toBe(false);
+    expect(screen.getByTestId('message').textContent).toBe('');
+  });
+
+  it('a round the child paused stays paused after the locker room closes', async () => {
+    await startMatch();
+    fireEvent.click(screen.getByLabelText('Pause'));
+    fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Zurück' }));
+    expect(game.controller!.getState().paused).toBe(true);
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+  });
+
+  it('with the locker room off, the match shows no "Kabine" icon', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), lockerRoom: false }));
+    await startMatch();
+    expect(screen.queryByRole('button', { name: 'Kabine' })).toBeNull();
   });
 });

@@ -725,6 +725,11 @@ button:focus-visible {
   touch-action: auto;
 }
 
+/* The locker room opened from the match lies over the match overlay and under the parent screens (FR-049). */
+.match .locker-room {
+  z-index: 100;
+}
+
 .locker-header {
   position: sticky;
   top: 0;

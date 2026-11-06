@@ -16,6 +16,8 @@ import { MatchScene, type MatchSceneOptions } from './MatchScene';
 
 export interface GameHandle {
   game: Phaser.Game;
+  /** Shows the look chosen in the locker room at once (FR-049). */
+  showLook(): void;
   destroy(): void;
 }
 
@@ -39,6 +41,7 @@ export function createGame(parent: HTMLElement, controller: MatchController, opt
   observer?.observe(parent);
   return {
     game,
+    showLook: () => scene.showLook(),
     destroy: () => {
       observer?.disconnect();
       game.destroy(true);
