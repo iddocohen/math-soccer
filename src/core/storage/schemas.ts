@@ -9,15 +9,64 @@ import { DIRECTIONS, MODES } from '../types';
 
 export const modeSchema = z.enum(MODES);
 
-/** `mathsoccer.progress.v1`: attempt records, capped at the last 2000 (data-model "AttemptRecord"). */
+/** How one finished target went for a direction: alone, with help or misses, or not solved (as math-tank). */
+export const outcomeSchema = z.enum(['independent', 'assisted', 'unsolved']);
+export type Outcome = z.infer<typeof outcomeSchema>;
+
+/** One finished target (data-model "AttemptRecord", FR-037). */
+export const attemptRecordSchema = z.object({
+  /** ISO 8601 time the target was finished. */
+  at: z.string(),
+  mode: modeSchema,
+  min: z.number().int(),
+  max: z.number().int(),
+  target: z.number().int(),
+  /** The directions the target counts toward (FR-038). */
+  directions: z.array(z.enum(DIRECTIONS)),
+  /** The hint distances the parent allowed. */
+  hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
+  /** How hints showed for this target: always, or on request (parent setting or adaptive step 3). */
+  hintDisplay: z.enum(['always', 'onRequest']),
+  difficultyStep: z.number().int().min(0).max(3),
+  /** Scored before help step 3 showed the answer. */
+  solved: z.boolean(),
+  /** The highest help step used on the target, 0 to 3. */
+  helpStep: z.number().int().min(0).max(3),
+  misses: z.number().int().min(0),
+  /** Play time from the target appearing to the scoring shot (or to the end of the round). */
+  responseMs: z.number().min(0),
+  guess: z.boolean(),
+});
+export type AttemptRecord = z.infer<typeof attemptRecordSchema>;
+
+/** The adaptive state of one direction in one mode (data-model "DirectionProgress", as math-tank's SkillProgress). */
+export const directionStateSchema = z.object({
+  /** Adaptive step, 0 to 3. */
+  step: z.number().int().min(0).max(3),
+  /** Newest last, at most 6; cleared on a step change. Guesses never enter it. */
+  recent: z.array(outcomeSchema),
+  /** Newest last, at most 10; kept across step changes. Guesses never enter it. */
+  masteryWindow: z.array(outcomeSchema),
+  attempts: z.number().int().min(0),
+  independent: z.number().int().min(0),
+  assisted: z.number().int().min(0),
+  guesses: z.number().int().min(0),
+});
+export type DirectionState = z.infer<typeof directionStateSchema>;
+
+/**
+ * `mathsoccer.progress.v1`: attempt records, capped at the last 2000, and the state per `mode|direction`, which keeps
+ * counting after old attempts drop out of the list.
+ */
 export const progressSchema = z.object({
   version: z.literal(1),
-  attempts: z.array(z.record(z.string(), z.unknown())),
+  attempts: z.array(attemptRecordSchema),
+  directions: z.record(z.string(), directionStateSchema).default({}),
 });
 export type Progress = z.infer<typeof progressSchema>;
 
 export function emptyProgress(): Progress {
-  return { version: 1, attempts: [] };
+  return { version: 1, attempts: [], directions: {} };
 }
 
 /** `mathsoccer.records.v1`: personal bests by `min-max|mode|roundType` (data-model "PersonalBest"). */
@@ -93,6 +142,12 @@ export const roundSchema = z.object({
   targetCount: z.number().int().min(0),
   starsThisRound: z.number().int().min(0),
   elapsedMs: z.number().min(0),
+  /** Play time when the current target appeared, for the attempt's response time (T043). */
+  targetStartMs: z.number().min(0).default(0),
+  /** All misses on the current target; `missesInRow` restarts after a lost heart, this does not. */
+  targetMisses: z.number().int().min(0).default(0),
+  /** Play times of the shots that missed the current target, for the guess rule (T043). */
+  missTimes: z.array(z.number().min(0)).default([]),
   phase: z.enum(['aiming', 'celebrating']),
 });
 export type StoredRound = z.infer<typeof roundSchema>;

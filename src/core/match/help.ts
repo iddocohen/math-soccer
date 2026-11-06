@@ -14,6 +14,8 @@ import type { Direction, Target } from '../types';
 export const HINT_STEP = 1;
 export const CHART_STEP = 2;
 export const ANSWER_STEP = 3;
+/** The adaptive step at which hints wait for a request (FR-040, the top of the ladder in core/targets/nextTarget.ts). */
+export const ON_REQUEST_STEP = 3;
 
 /** The way from a hint number to the target. `direction` is null when the hint is not a neighbor of the target. */
 export interface HelpHint {
@@ -38,6 +40,20 @@ const DIRECTION_STEPS: ReadonlyArray<readonly [Direction, number, number]> = [
 /** True when hint numbers show on the board: always with "immer", from help step 1 with "auf Wunsch" (FR-013). */
 export function hintsVisible(hintDisplay: Settings['hintDisplay'], helpStep: number): boolean {
   return hintDisplay === 'always' || helpStep >= HINT_STEP;
+}
+
+/**
+ * How the hints of `target` show (FR-013, FR-040). The parent's "auf Wunsch" is the hardest the game may go: with
+ * adaptive difficulty on, hints wait for a request only at adaptive step 3 and show always on the easier steps; with
+ * adaptive off, the parent's choice applies as it is.
+ */
+export function targetHintDisplay(
+  settings: Pick<Settings, 'hintDisplay' | 'adaptive'>,
+  target: Pick<Target, 'difficultyStep'> | null,
+): Settings['hintDisplay'] {
+  if (settings.hintDisplay === 'always') return 'always';
+  if (!settings.adaptive) return 'onRequest';
+  return target !== null && target.difficultyStep >= ON_REQUEST_STEP ? 'onRequest' : 'always';
 }
 
 /**

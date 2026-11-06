@@ -7,7 +7,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import type { MatchController } from '../core/match/MatchController';
-import { RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
+import { LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { encodeTransfer } from '../core/transfer/transfer';
 import { App, modeFromUrl, seedFromUrl } from './App';
 
 const game = vi.hoisted(() => ({ created: 0, destroyed: 0, controller: null as MatchController | null }));
@@ -161,5 +163,87 @@ describe('App', () => {
     expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
     fireEvent.click(screen.getByLabelText('Weiter'));
     expect(screen.getByTestId('message').textContent).toBe('');
+  });
+});
+
+describe('App parent screens (T041 to T046)', () => {
+  /** Holds the gear for 2 seconds with fake timers. */
+  function holdGear(): void {
+    vi.useFakeTimers();
+    fireEvent.pointerDown(screen.getByTestId('parent-gate'), { pointerId: 1, button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    vi.useRealTimers();
+  }
+
+  it('the gear held in the match opens the menu and pauses; keys do nothing; closing resumes', () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    holdGear();
+    expect(screen.getByRole('dialog', { name: 'Für Eltern' })).toBeTruthy();
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+    fireEvent.keyDown(window, { key: '5' });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByTestId('entry').textContent).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }));
+    expect(screen.getByTestId('settings-page')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
+    expect(screen.queryByTestId('settings-page')).toBeNull();
+    expect(screen.getByTestId('message').textContent).toBe('');
+  });
+
+  it('a short tap on the start screen gear does nothing; a hold opens "Fortschritt"', () => {
+    render(<App />);
+    fireEvent.pointerDown(screen.getByTestId('parent-gate'), { pointerId: 1, button: 0 });
+    fireEvent.pointerUp(screen.getByTestId('parent-gate'), { pointerId: 1 });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    holdGear();
+    fireEvent.click(screen.getByRole('button', { name: 'Fortschritt' }));
+    expect(screen.getByTestId('progress-page').textContent).toContain('Noch keine Versuche.');
+  });
+
+  it('saved settings change the offered modes on the start screen at once', () => {
+    render(<App />);
+    holdGear();
+    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }));
+    fireEvent.click(screen.getByLabelText('Torwart'));
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
+    const modes = Array.from(document.querySelectorAll('[data-mode]')).map((b) => b.getAttribute('data-mode'));
+    expect(modes).toEqual(['holes', 'lines']);
+  });
+
+  it('records an attempt per scored target in the progress (T043)', async () => {
+    render(<App />);
+    fireEvent.keyDown(window, { key: '1' });
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    scoreGoal();
+    const progress = JSON.parse(localStorage.getItem(PROGRESS_KEY)!) as { attempts: Array<{ mode: string; solved: boolean }> };
+    expect(progress.attempts).toHaveLength(1);
+    expect(progress.attempts[0]).toMatchObject({ mode: 'holes', solved: true });
+  });
+
+  it('a #save= link asks first; "Übernehmen" held for 2 s takes over the save and clears the address', async () => {
+    const data = {
+      settings: { ...defaultSettings(), showClock: true },
+      progress: emptyProgress(),
+      records: emptyRecords(),
+      lockerRoom: { ...emptyLockerRoom(), stars: 7 },
+    };
+    const { code } = await encodeTransfer(data, 'http://localhost/');
+    window.history.replaceState(null, '', `/#save=${code}`);
+    render(<App />);
+    const accept = await screen.findByRole('button', { name: 'Übernehmen' });
+    vi.useFakeTimers();
+    fireEvent.pointerDown(accept, { pointerId: 1, button: 0 });
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    vi.useRealTimers();
+    expect(screen.queryByTestId('transfer-dialog')).toBeNull();
+    expect((JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number }).stars).toBe(7);
+    expect((JSON.parse(localStorage.getItem(SETTINGS_KEY)!) as { showClock: boolean }).showClock).toBe(true);
+    expect(window.location.hash).toBe('');
   });
 });

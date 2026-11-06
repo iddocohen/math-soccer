@@ -10,6 +10,7 @@
  * the closest hint number to the target ("Von 36 eine Reihe runter: +10"); at step 3 it says the answer.
  * The overlay lets taps through to the canvas except on its buttons.
  */
+import type { ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/MatchController';
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
@@ -52,12 +53,14 @@ export function formatClock(ms: number): string {
 interface Props {
   state: MatchState;
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
+  /** The parent gate's gear (T041), at the end of the top buttons. */
+  gear?: ReactNode;
   onHelp: () => void;
   onPause: () => void;
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Props) {
+export function MatchOverlay({ state, settings, gear, onHelp, onPause, onResume }: Props) {
   const text = t();
   const layout = layoutChart(state.min, state.max);
   const help = helpText(state);
@@ -106,6 +109,7 @@ export function MatchOverlay({ state, settings, onHelp, onPause, onResume }: Pro
               <span aria-hidden="true">❚❚</span>
             </button>
           )}
+          {gear}
         </div>
       </div>
       <div className="overlay-bottom">

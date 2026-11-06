@@ -43,7 +43,7 @@ export const MAX_PATCHED_HOLES = 3;
 export const MAX_STEP = 3;
 
 /** The directions that hints of each distance train. */
-const DISTANCE_DIRECTIONS: Record<HintDistance, readonly Direction[]> = {
+export const DISTANCE_DIRECTIONS: Record<HintDistance, readonly Direction[]> = {
   direct: ['right', 'left', 'down', 'up'],
   vertical: ['down', 'up'],
   diagonal: ['downRight', 'upLeft', 'downLeft', 'upRight'],
@@ -51,7 +51,7 @@ const DISTANCE_DIRECTIONS: Record<HintDistance, readonly Direction[]> = {
 };
 
 /** The difficulty ladder (FR-040): the hint distances of each step, easiest first. Step 3 is step 2 with hints on request. */
-const LADDER: ReadonlyArray<readonly HintDistance[]> = [['direct'], ['vertical', 'diagonal'], ['far'], ['far']];
+export const LADDER: ReadonlyArray<readonly HintDistance[]> = [['direct'], ['vertical', 'diagonal'], ['far'], ['far']];
 
 /** The fewest hints a valid target has with this distance. */
 function minHints(distance: HintDistance): number {
@@ -92,7 +92,7 @@ function numbersFor(layout: ChartLayout, distance: HintDistance, direction: Dire
  * The hint distance for an adaptive step: the ladder's distances at that step that the parent allows and that train
  * `direction`. When none does, the nearest step below, then above, that has one.
  */
-function distancesForStep(step: number, allowed: readonly HintDistance[], direction: Direction): HintDistance[] {
+export function distancesForStep(step: number, allowed: readonly HintDistance[], direction: Direction): HintDistance[] {
   const fits = (s: number) => (LADDER[s] ?? []).filter((d) => allowed.includes(d) && DISTANCE_DIRECTIONS[d].includes(direction));
   for (let delta = 0; delta <= MAX_STEP; delta++) {
     for (const s of [step - delta, step + delta]) {

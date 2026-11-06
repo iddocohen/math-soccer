@@ -16,7 +16,7 @@
 import Phaser from 'phaser';
 import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
 import type { MatchController, MatchState } from '../core/match/MatchController';
-import { helpHint, HINT_STEP, hintsVisible } from '../core/match/help';
+import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
@@ -116,7 +116,7 @@ export class MatchScene extends Phaser.Scene {
     }
     this.ball.setKind(ballKind(layout));
 
-    const hintsShown = hintsVisible(this.options.settings().hintDisplay, s.helpStep);
+    const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
     this.goal.update({ layout, mode: s.mode, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom });
 

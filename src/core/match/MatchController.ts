@@ -20,7 +20,8 @@ import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
 import { MISSES_PER_HEART } from '../settings/defaults';
 import type { Difficulty, Settings } from '../settings/schema';
-import type { StoredRound } from '../storage/schemas';
+import { makeAttemptRecord } from '../progress/attempt';
+import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
 import type { Mode, Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
@@ -52,6 +53,8 @@ export type MatchMessage =
 export interface Ball {
   number: number;
   outcome: 'goal' | 'miss' | null;
+  /** Play time of the shot (`elapsedMs`), for the attempt record. */
+  atMs: number;
 }
 
 /** A missed square that shows its number until `remainingMs` of play time has passed (FR-004). */
@@ -61,7 +64,7 @@ export interface ShownSquare {
 }
 
 /**
- * The target the child just scored, for the attempt records (T043 adds the rest of data-model "AttemptRecord").
+ * The target the child just scored, for the round end; the full attempt record goes to `onAttempt` (T043).
  * `solved` is false when the goal came after help step 3, the answer (FR-025b).
  */
 export interface FinishedAttempt {
@@ -105,6 +108,12 @@ export interface MatchState {
   starsThisRound: number;
   /** Time played, not counted while paused or after the round. */
   elapsedMs: number;
+  /** Play time when the current target appeared (T043). */
+  targetStartMs: number;
+  /** All misses on the current target; `missesInRow` restarts after a lost heart, this does not (T043). */
+  targetMisses: number;
+  /** Play times of the newest misses on the current target, for the guess rule (T043). */
+  missTimes: number[];
 }
 
 /** Where the running round is kept (`mathsoccer.round.v1`); the app connects browser storage. */
@@ -125,6 +134,10 @@ export interface MatchControllerOptions {
   progress?: (mode: Mode) => TargetProgress;
   /** Saves the round so a refresh continues it; no saving without it. */
   store?: RoundStore;
+  /** Receives one record per finished target: scored, or left when the round ended (T043, FR-037). */
+  onAttempt?: (record: AttemptRecord) => void;
+  /** The wall clock for the records' `at`; defaults to now. */
+  now?: () => Date;
 }
 
 export const START_HEARTS = 3;
@@ -166,8 +179,14 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
     lastAttempt: null,
     starsThisRound: 0,
     elapsedMs: 0,
+    targetStartMs: 0,
+    targetMisses: 0,
+    missTimes: [],
   };
 }
+
+/** The guess rule looks at misses within the last 5 seconds; this many are enough to keep (classify.ts). */
+const MISS_TIMES_KEPT = 5;
 
 export class MatchController {
   private state: MatchState;
@@ -265,7 +284,7 @@ export class MatchController {
       this.set({ ...s, entry: '', message: { kind: 'outOfRange', min: s.min, max: s.max } }, { save: false });
       return;
     }
-    this.set({ ...s, entry: '', message: null, phase: 'ballInFlight', ball: { number: n, outcome: null } }, { save: false });
+    this.set({ ...s, entry: '', message: null, phase: 'ballInFlight', ball: { number: n, outcome: null, atMs: s.elapsedMs } }, { save: false });
   }
 
   /** Called by the scene when the ball arrives. Decides goal or miss from the ball's number and the target. */
@@ -287,6 +306,7 @@ export class MatchController {
         missesInRow: 0,
         message: { kind: 'goal' },
       });
+      this.recordAttempt(s, { solved: s.helpStep < MAX_HELP_STEP, endedAt: s.ball.atMs });
       return;
     }
 
@@ -294,12 +314,14 @@ export class MatchController {
     const misses = s.missesInRow + 1;
     const shown: ShownSquare = { number, remainingMs: SHOWN_MS };
     const ball: Ball = { ...s.ball, outcome: 'miss' };
+    const missed = { targetMisses: s.targetMisses + 1, missTimes: [...s.missTimes, s.ball.atMs].slice(-MISS_TIMES_KEPT) };
     const heartLost = s.roundType === 'untilHearts' && misses >= missesPerHeart(this.roundSettings.difficulty);
     if (heartLost) {
       // The target stays; help jumps to the answer and the child shoots it (FR-027, critique P7).
       const hearts = s.hearts - 1;
-      this.set({
+      const next: MatchState = {
         ...s,
+        ...missed,
         ball,
         shown,
         hearts,
@@ -309,11 +331,15 @@ export class MatchController {
         lastGuess: number,
         phase: hearts <= 0 ? 'roundOver' : 'aiming',
         message: { kind: 'heartLost', number },
-      });
+      };
+      this.set(next);
+      // The round ends on this target: it counts as not solved (FR-037).
+      if (next.phase === 'roundOver') this.recordAttempt(next, { solved: false, endedAt: next.elapsedMs });
       return;
     }
     this.set({
       ...s,
+      ...missed,
       ball,
       shown,
       phase: 'aiming',
@@ -392,7 +418,7 @@ export class MatchController {
   /** The state with the round's next target. */
   private withNextTarget(state: MatchState): MatchState {
     const target = this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state);
-    return { ...state, target, targetCount: state.targetCount + 1 };
+    return { ...state, target, targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
   }
 
   /** Hole and goalkeeper targets from core/targets; line mode follows in US4. */
@@ -406,6 +432,27 @@ export class MatchController {
       rng: createRng(deriveSeed(state.seed, state.targetCount)),
       avoid: state.target?.number,
     });
+  }
+
+  /** Hands the record of the finished current target of `s` to `onAttempt` (T043). */
+  private recordAttempt(s: MatchState, end: { solved: boolean; endedAt: number }): void {
+    if (!this.options.onAttempt || !s.target) return;
+    this.options.onAttempt(
+      makeAttemptRecord({
+        mode: s.mode,
+        min: s.min,
+        max: s.max,
+        target: s.target,
+        settings: this.roundSettings,
+        solved: end.solved,
+        helpStep: s.helpStep,
+        misses: s.targetMisses,
+        startedAt: s.targetStartMs,
+        endedAt: end.endedAt,
+        missTimes: s.missTimes,
+        now: (this.options.now ?? (() => new Date()))(),
+      }),
+    );
   }
 
   private set(next: MatchState, { save = true }: { save?: boolean } = {}): void {
@@ -440,6 +487,9 @@ export class MatchController {
       targetCount: s.targetCount,
       starsThisRound: s.starsThisRound,
       elapsedMs: s.elapsedMs,
+      targetStartMs: s.targetStartMs,
+      targetMisses: s.targetMisses,
+      missTimes: s.missTimes,
       phase: s.phase,
     });
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
-import type { StoredRound } from '../storage/schemas';
+import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import type { Target } from '../types';
 import { GOAL_STARS, MatchController, MAX_HELP_STEP, missesPerHeart, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
@@ -374,5 +374,70 @@ describe('saving the round (mathsoccer.round.v1)', () => {
 
   it('returns false without a stored round', () => {
     expect(new MatchController({ settings: defaultSettings, store: memoryStore() }).restore()).toBe(false);
+  });
+});
+
+describe('attempt records (T043, FR-037)', () => {
+  function recording(settings: () => Settings = defaultSettings) {
+    const records: AttemptRecord[] = [];
+    const c = new MatchController({
+      settings,
+      newSeed: () => 7,
+      nextTarget: () => target(46),
+      onAttempt: (r) => records.push(r),
+      now: () => new Date('2026-11-06T12:00:00.000Z'),
+    });
+    c.start('holes');
+    return { c, records };
+  }
+
+  function shot(c: MatchController, n: number, waitMs = 0) {
+    c.tick(waitMs);
+    type(c, String(n));
+    c.shoot();
+    c.ballLanded();
+  }
+
+  it('records one attempt per scored target with misses, help, response time and directions', () => {
+    const { c, records } = recording();
+    shot(c, 45, 2000);
+    shot(c, 46, 3000);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      mode: 'holes',
+      min: 1,
+      max: 100,
+      target: 46,
+      directions: ['right'],
+      solved: true,
+      helpStep: 1,
+      misses: 1,
+      responseMs: 5000,
+      guess: false,
+      at: '2026-11-06T12:00:00.000Z',
+    });
+    c.celebrationDone();
+    shot(c, 46, 4000);
+    expect(records).toHaveLength(2);
+    expect(records[1]).toMatchObject({ solved: true, helpStep: 0, misses: 0, responseMs: 4000 });
+  });
+
+  it('marks a goal under 1.5 s as a guess and a goal after the shown answer as not solved', () => {
+    const { c, records } = recording();
+    shot(c, 46, 1000);
+    expect(records[0]!.guess).toBe(true);
+    c.celebrationDone();
+    for (let i = 0; i < missesPerHeart('easy'); i++) shot(c, 45, 2000);
+    expect(c.getState().helpStep).toBe(MAX_HELP_STEP);
+    shot(c, 46, 2000);
+    expect(records[1]).toMatchObject({ solved: false, helpStep: MAX_HELP_STEP, misses: missesPerHeart('easy') });
+  });
+
+  it('records the target left when the round ends at 0 hearts as not solved', () => {
+    const { c, records } = recording(() => ({ ...defaultSettings(), difficulty: 'challenging' }));
+    for (let i = 0; i < 3 * missesPerHeart('challenging'); i++) shot(c, 45, 2000);
+    expect(c.getState().phase).toBe('roundOver');
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ solved: false, misses: 9 });
   });
 });

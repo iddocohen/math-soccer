@@ -10,7 +10,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { Target } from '../types';
 import type { Digit } from './entry';
-import { helpHint, hintsVisible } from './help';
+import { helpHint, hintsVisible, targetHintDisplay } from './help';
 import { GOAL_STARS, MatchController, MAX_HELP_STEP } from './MatchController';
 
 const layout = layoutChart(1, 100);
@@ -206,5 +206,20 @@ describe('help step 3: the answer (FR-025b)', () => {
     c.askHelp();
     shootNumber(c, 46);
     expect(c.getState().lastAttempt).toEqual({ number: 46, solved: true, helpStep: 1 });
+  });
+});
+
+describe('targetHintDisplay (FR-040: on request only at adaptive step 3)', () => {
+  it('shows hints always with "immer", whatever the step', () => {
+    expect(targetHintDisplay({ hintDisplay: 'always', adaptive: true }, { difficultyStep: 3 })).toBe('always');
+  });
+
+  it('with "auf Wunsch" and adaptive on, waits for a request only at step 3', () => {
+    const s = { hintDisplay: 'onRequest' as const, adaptive: true };
+    expect([0, 1, 2, 3].map((difficultyStep) => targetHintDisplay(s, { difficultyStep }))).toEqual(['always', 'always', 'always', 'onRequest']);
+  });
+
+  it('with "auf Wunsch" and adaptive off, applies the parent choice', () => {
+    expect(targetHintDisplay({ hintDisplay: 'onRequest', adaptive: false }, { difficultyStep: 0 })).toBe('onRequest');
   });
 });

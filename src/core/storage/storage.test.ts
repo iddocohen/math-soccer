@@ -43,6 +43,9 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     targetCount: 1,
     starsThisRound: 0,
     elapsedMs: 0,
+    targetStartMs: 0,
+    targetMisses: 0,
+    missTimes: [],
     phase: 'aiming',
     ...over,
   };
@@ -198,7 +201,7 @@ describe('requestPersistentStorage', () => {
 describe('export and import', () => {
   const data = () => ({
     settings: { ...defaultSettings(), goalsPerRound: 15 },
-    progress: { version: 1 as const, attempts: [{ target: 56, solved: true }] },
+    progress: { ...emptyProgress(), directions: { 'holes|down': { step: 1, recent: [], masteryWindow: ['independent' as const], attempts: 1, independent: 1, assisted: 0, guesses: 0 } } },
     records: emptyRecords(),
     lockerRoom: { ...emptyLockerRoom(), stars: 9 },
   });

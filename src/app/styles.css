@@ -405,3 +405,298 @@ button:focus-visible {
   width: 60%;
   height: 60%;
 }
+
+/* Parent screens (US3), adapted from math-tank src/app/styles.css with the stadium colors. */
+.primary-button {
+  min-height: 56px;
+  background: var(--kit);
+  border-color: var(--kit);
+  color: var(--ink);
+}
+
+.secondary-button {
+  min-height: 56px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+/* Parent gate (FR-034): the ring around the gear fills during the 2-second press. */
+.parent-gate {
+  position: relative;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.parent-gate-ring {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.parent-gate-ring circle,
+.hold-ring circle {
+  fill: none;
+  stroke: var(--kit);
+  stroke-width: 4;
+}
+
+.parent-gate-ring[data-progress='0'] circle,
+.hold-ring[data-progress='0'] circle {
+  stroke: transparent;
+}
+
+.parent-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 29 43 / 0.8);
+  pointer-events: auto;
+}
+
+.parent-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 280px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #1b3347;
+}
+
+.parent-menu h2 {
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+/* Settings and progress pages: parents only, so they may scroll and select text. */
+.settings-page {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  background: var(--night);
+  user-select: text;
+  touch-action: auto;
+  pointer-events: auto;
+}
+
+.settings-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  background: var(--night);
+}
+
+.settings-header h2 {
+  margin: 0;
+}
+
+.settings-actions,
+.data-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.settings-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 12px;
+}
+
+.settings-group legend {
+  padding: 0 8px;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.field > label {
+  flex: 1 1 160px;
+}
+
+.check-field > label {
+  flex: 1 1 auto;
+}
+
+.field-label {
+  margin: 4px 0 0;
+  font-weight: 700;
+}
+
+.field input[type='number'],
+.field select {
+  min-height: 44px;
+  min-width: 120px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.3);
+  font: inherit;
+  color: var(--ink);
+  background: var(--chalk);
+}
+
+.field input[type='checkbox'] {
+  width: 28px;
+  height: 28px;
+}
+
+.field-errors {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #ffb4a8;
+  font-weight: 700;
+}
+
+.notice {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.notice.ok {
+  background: rgb(60 160 90 / 0.35);
+}
+
+.notice.warn {
+  background: rgb(200 90 60 / 0.35);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.file-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 18px;
+  border: 2px solid var(--chalk);
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.build-version {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.progress-section {
+  margin: 16px 0;
+  overflow-x: auto;
+}
+
+.progress-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-table th,
+.progress-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgb(255 255 255 / 0.15);
+  white-space: nowrap;
+}
+
+.step-hint {
+  display: block;
+  font-size: 0.8rem;
+}
+
+/* "Spielstand übertragen" (FR-041). */
+.transfer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.transfer h3 {
+  margin: 8px 0 0;
+}
+
+.transfer-qr {
+  width: min(320px, 100%);
+  min-width: 240px;
+  height: auto;
+  aspect-ratio: 1;
+  background: #fff;
+}
+
+.transfer-link-text {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 14px;
+  user-select: all;
+}
+
+.transfer-dialog {
+  max-width: min(480px, calc(100vw - 32px));
+  text-align: center;
+}
+
+.hold-button {
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hold-ring {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%) rotate(-90deg);
+  pointer-events: none;
+}

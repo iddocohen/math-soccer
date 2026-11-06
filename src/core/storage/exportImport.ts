@@ -8,7 +8,15 @@ import { LOCKER_ROOM, PROGRESS, RECORDS, SETTINGS } from './storage';
 export const EXPORT_APP = 'math-soccer';
 
 /** Why an import was refused; the settings page maps each reason to a German message. */
-export type ImportFailure = 'notJson' | 'wrongApp' | 'invalidSettings' | 'invalidProgress' | 'invalidRecords' | 'invalidLockerRoom';
+export type ImportFailure =
+  | 'notJson'
+  | 'wrongApp'
+  | 'invalidSettings'
+  | 'invalidProgress'
+  | 'invalidRecords'
+  | 'invalidLockerRoom'
+  /** The file was fine, but the browser could not store it; nothing was changed. */
+  | 'storeFailed';
 
 export interface SaveData {
   settings: Settings;
