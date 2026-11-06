@@ -118,6 +118,6 @@ Five reviewers ran in parallel: code-reviewer, pr-test-analyzer, silent-failure-
 
 1. Run `/simplify` and `/code-review high --fix`, as the parent asked.
 2. Decide on amendment 03, the CC0 assets.
-3. Create the public repository `iddocohen/math-soccer`, merge to `main`, push, set Pages to GitHub Actions, and check https://iddocohen.github.io/math-soccer/.
+3. Done: public repository https://github.com/iddocohen/math-soccer, Pages from GitHub Actions; the first run (42250225321) passed lint, typecheck, unit tests and build, and https://iddocohen.github.io/math-soccer/ serves the game.
 4. Walk through the quickstart on a real iPad, including offline play.
 5. Optionally address the deferred low findings, especially the remaining test gaps.
