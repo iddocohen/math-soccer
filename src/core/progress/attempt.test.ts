@@ -58,7 +58,11 @@ describe('attemptDirections (FR-038)', () => {
   it('counts a target whose hints never showed toward every direction of its level (amendment 09)', () => {
     const s = { ...defaultSettings(), adaptive: false, hintDisplay: 'onRequest' as const };
     expect(attemptDirections(target, s, 0)).toEqual(['right', 'left', 'down', 'up']);
-    expect(attemptDirections({ ...target, level: 2 }, s, 0)).toEqual(['downRight', 'upLeft', 'downLeft', 'upRight']);
+    const diagonalMiddle: Target = { number: 46, hints: [35, 57], directions: ['downRight'], level: 2, pattern: 'middle' };
+    expect(attemptDirections(diagonalMiddle, s, 0)).toEqual(['downRight', 'upLeft', 'downLeft', 'upRight']);
+    // The big plus of level 2 trains straight directions, so it counts toward them (amendment 15, FR-122).
+    const bigPlus: Target = { number: 46, hints: [44, 48, 26, 66], directions: ['right', 'left', 'down', 'up'], level: 2, pattern: 'neighbors' };
+    expect(attemptDirections(bigPlus, s, 0)).toEqual(['right', 'left', 'down', 'up']);
     // After help step 1 the hints showed, so the target's own directions count.
     expect(attemptDirections(target, s, 1)).toEqual(['down', 'right']);
   });

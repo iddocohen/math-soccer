@@ -3,14 +3,16 @@
  * The difficulty levels of the goalkeeper game (amendment 09, FR-085 to FR-089), easiest first:
  *
  *   1. "Gerade Linien": Nachbarn, Mitte and Reihe across and down, forward and backward
- *   2. "Schräge Linien": Mitte and Reihe on the two diagonals, forward and backward
+ *   2. "Schräge Linien": Mitte and Reihe on the two diagonals, forward and backward, and the big plus
  *   3. "Formen": shapes with one empty square (amendment 06)
  *   4. "Formen mit 2 Lücken": shapes with two empty squares
  *   5. "X-Form": the diagonal cross (xshape.ts); two empty squares once the child has solved 2 targets alone at level 5
  *
- * Nachbarn follow the parent's hint distances: "direkt daneben", "darüber und darunter" and "weiter weg" train across
- * and down, so they belong to level 1; "schräg" trains the diagonals, so diagonal Nachbarn belong to level 2 (design
- * call, T094: the hint distance switches keep working).
+ * Nachbarn follow the parent's hint distances: "direkt daneben" (the small plus) and "darüber und darunter" train
+ * across and down, so they belong to level 1; "schräg" trains the diagonals, so diagonal Nachbarn belong to level 2
+ * (design call, T094: the hint distance switches keep working). "weiter weg" is the big plus (amendment 15, FR-122): it
+ * trains across and down too, but jumping two rows and two columns at once is harder, so it belongs to level 2. Level 2
+ * therefore picks among the straight directions too (`PICK_DIRECTIONS`); for them it offers only the big plus.
  *
  * The parent sets the start level and the hardest level. With every shape off, levels 3 and 4 are skipped. A level
  * whose patterns do not fit the chart (for example the diagonals on a chart of one row) falls back to the nearest lower
@@ -44,13 +46,22 @@ export const UNMASTERED_WEIGHT = 2;
 const STRAIGHT: readonly Direction[] = ['right', 'left', 'down', 'up'];
 const DIAGONAL: readonly Direction[] = X_DIRECTIONS;
 
-/** The directions each level trains. */
+/**
+ * The directions each level trains. A target whose hints stayed hidden counts toward these (attempt.ts); a big plus
+ * target of level 2 counts toward its own straight directions instead.
+ */
 export const LEVEL_DIRECTIONS: Record<Level, readonly Direction[]> = {
   1: STRAIGHT,
   2: DIAGONAL,
   3: STRAIGHT,
   4: STRAIGHT,
   5: DIAGONAL,
+};
+
+/** The directions each level picks from: its own, and for level 2 the straight ones of the big plus too (FR-122). */
+export const PICK_DIRECTIONS: Record<Level, readonly Direction[]> = {
+  ...LEVEL_DIRECTIONS,
+  2: [...DIAGONAL, ...STRAIGHT],
 };
 
 /** The directions that Nachbarn hints of each distance train. */
@@ -138,11 +149,13 @@ function shapes(settings: Settings, empties: 1 | 2): PatternChoice[] {
  * gives the X shape of level 5 its two empty squares.
  */
 export function levelChoices(level: Level, direction: Direction, settings: Settings, xTwoEmpties = false): PatternChoice[] {
-  if (!LEVEL_DIRECTIONS[level].includes(direction)) return [];
+  if (!PICK_DIRECTIONS[level].includes(direction)) return [];
   switch (level) {
     case 1:
-      return [...neighbors(settings, direction, ['direct', 'vertical', 'far']), ...lines(direction)];
+      return [...neighbors(settings, direction, ['direct', 'vertical']), ...lines(direction)];
     case 2:
+      // The straight directions of level 2 offer only the big plus; its lines belong to level 1.
+      if (!LEVEL_DIRECTIONS[2].includes(direction)) return neighbors(settings, direction, ['far']);
       return [...neighbors(settings, direction, ['diagonal']), ...lines(direction)];
     case 3:
       return shapes(settings, 1);
@@ -203,7 +216,7 @@ function fits(layout: ChartLayout, choice: PatternChoice, direction: Direction):
 /** The choices of `level` that fit the chart, by direction; empty when nothing of the level fits. */
 function fittingAt(layout: ChartLayout, level: Level, settings: Settings, xTwoEmpties: boolean): Map<Direction, PatternChoice[]> {
   const out = new Map<Direction, PatternChoice[]>();
-  for (const direction of LEVEL_DIRECTIONS[level]) {
+  for (const direction of PICK_DIRECTIONS[level]) {
     const ok = levelChoices(level, direction, settings, xTwoEmpties).filter((c) => fits(layout, c, direction));
     if (ok.length > 0) out.set(direction, ok);
   }

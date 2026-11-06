@@ -5,7 +5,11 @@
  *
  * - He has one size for the whole shot, half as tall as the goal mouth, and waits with his feet on the goal line
  *   (FR-062, FR-063). `keepClear()` hears the target, hint and waiting shape squares: he shuffles sideways to a spot that leaves them
- *   visible, or waits half transparent in the middle when no spot does (FR-064) (`idle`).
+ *   visible, or waits half transparent in the middle when no spot does (FR-064) (`idle`). A new target that comes
+ *   while he walks back after a shot turns him toward the new spot at once (FR-121).
+ * - While he waits he is drawn behind the grid, so the hint squares, their numbers, the target outline and the waiting
+ *   shape squares stay readable wherever he stands (FR-120). From the leap until he is back on his spot he is drawn in
+ *   front of the grid.
  * - On every shot he watches the ball for a moment, then leaps along a short arc (DIVE_MS, timed to end when the ball
  *   arrives): the body tilts toward the ball and the arms stretch over the head (`diving`).
  * - `catchBall()`: on a wrong number his gloves are on the ball; he holds it (`caught`), then walks back to his spot.
@@ -18,6 +22,7 @@
 import Phaser from 'phaser';
 import type { Rect } from '../core/types';
 import { FLIGHT_MS } from './BallView';
+import { BALL_IN_NET_DEPTH, BOARD_DEPTH } from './GoalView';
 import {
   diveEnd,
   FADED_ALPHA,
@@ -37,6 +42,8 @@ export type KeeperPhase = (typeof KEEPER_PHASES)[number];
 
 /** In front of the grid (board depth 4) and behind the posts (5), the player (6) and the flying ball (7). */
 export const KEEPER_DEPTH = 4.5;
+/** The waiting keeper: behind the grid (board depth 4), in front of a ball in the net (3), FR-120. */
+export const WAITING_DEPTH = (BALL_IN_NET_DEPTH + BOARD_DEPTH) / 2;
 /** The leap itself; before it the keeper waits FLIGHT_MS - DIVE_MS, so he arrives with the ball. */
 export const DIVE_MS = 500;
 /** How long he holds a caught ball, or lies on the grass, before he goes back. */
@@ -73,6 +80,8 @@ export class KeeperView {
   /** The squares last given to `keepClear`, as text, so the same squares do not move him again. */
   private squaresKey = '';
   private faded = false;
+  /** True while he walks back to his waiting spot after a shot. */
+  private returning = false;
 
   constructor(scene: Phaser.Scene, onPhase: (phase: KeeperPhase) => void = () => {}) {
     this.scene = scene;
@@ -107,10 +116,10 @@ export class KeeperView {
 
     this.shadow = scene.add
       .ellipse(HOME_POSE.x, GOAL_LINE, 70 * KEEPER_SCALE, 14 * KEEPER_SCALE, 0x000000, 0.28)
-      .setDepth(KEEPER_DEPTH - 0.01);
+      .setDepth(WAITING_DEPTH - 0.01);
     this.body = scene.add
       .container(0, 0, [this.leftArm, this.rightArm, legs, torso, head])
-      .setDepth(KEEPER_DEPTH)
+      .setDepth(WAITING_DEPTH)
       .setScale(KEEPER_SCALE);
     this.apply(HOME_POSE);
     // A new scene starts with a waiting keeper; tell the listener, which may still hold the last scene's phase.
@@ -131,6 +140,21 @@ export class KeeperView {
     return this.home;
   }
 
+  /** The depth he is drawn at now: behind the grid while he waits, in front of it otherwise (FR-120). */
+  get depth(): number {
+    return this.body.depth;
+  }
+
+  /** The opacity he is drawn with now: FADED_ALPHA while he waits without a free spot (FR-064). */
+  get alpha(): number {
+    return this.body.alpha;
+  }
+
+  /** Where he is drawn now. */
+  get currentPose(): KeeperPose {
+    return this.pose;
+  }
+
   /** Stops any motion: the keeper waits in the middle until he hears the next squares. */
   reset(): void {
     this.stop();
@@ -140,6 +164,7 @@ export class KeeperView {
     this.apply(HOME_POSE);
     this.setFaded(false);
     this.setPhase('idle');
+    this.setWaitingLayer(true);
   }
 
   /**
@@ -149,13 +174,22 @@ export class KeeperView {
   keepClear(squares: readonly Rect[]): void {
     const key = squares.map((r) => `${r.x},${r.y},${r.width},${r.height}`).join(';');
     if (key === this.squaresKey) return;
+    // The first squares of a round, or of a restored round, place him at once: no shuffle that a paused scene would hold.
+    const first = this.squaresKey === '';
     this.squaresKey = key;
     const spot = waitingSpot(squares);
     this.home = spot.pose;
     this.clear = spot.clear;
+    // Already on his way back after a shot: the walk was headed for the last target's spot, so he turns toward the new
+    // one now. Without this he ended on the old spot and covered the new hints (FR-121, keeper-blocks-bug.png).
+    if (this.returning) {
+      this.goHome();
+      return;
+    }
     if (this.current !== 'idle') return;
     this.setFaded(!spot.clear);
-    if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
+    if (first && this.tween === null) this.apply(spot.pose);
+    else if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
       this.moveTo(spot.pose, SHUFFLE_MS, () => {}, (k) => (1 - Math.cos(Math.PI * k)) / 2);
     }
   }
@@ -167,6 +201,7 @@ export class KeeperView {
   dive(square: Rect, outcome: 'catch' | 'beaten'): void {
     this.stop();
     this.setPhase('diving');
+    this.setWaitingLayer(false);
     // He is drawn fully again once the child shoots (FR-064).
     this.setFaded(false);
     const from = this.pose;
@@ -206,9 +241,12 @@ export class KeeperView {
 
   private goHome(): void {
     this.moveTo(this.home, RETURN_MS, () => {
+      this.returning = false;
       this.setFaded(!this.clear);
       this.setPhase('idle');
+      this.setWaitingLayer(true);
     }, (k) => (1 - Math.cos(Math.PI * k)) / 2);
+    this.returning = true;
   }
 
   private moveTo(to: KeeperPose, ms: number, onDone: () => void, easing: (k: number) => number = (k) => k): void {
@@ -230,6 +268,14 @@ export class KeeperView {
   private stop(): void {
     this.tween?.stop();
     this.tween = null;
+    this.returning = false;
+  }
+
+  /** Behind the grid while he waits, in front of it from the leap until he is back on his spot (FR-120). */
+  private setWaitingLayer(waiting: boolean): void {
+    const depth = waiting ? WAITING_DEPTH : KEEPER_DEPTH;
+    this.body.setDepth(depth);
+    this.shadow.setDepth(depth - 0.01);
   }
 
   private setPhase(phase: KeeperPhase): void {

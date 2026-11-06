@@ -1,7 +1,7 @@
 /**
  * Difficulty levels end to end (T095; amendment 09, FR-086 to FR-088): with "Stufe am Anfang" 1 and "Schwerste Stufe"
  * 2, three goals in a row scored alone show "Neue Stufe: Schräge Linien!", and the next target has diagonal hints at
- * level 2. Each goal waits 2 seconds of play time first, so it is not a guess (classify.ts). Keys drive the game;
+ * level 2, or the big plus of level 2 (amendment 15). Each goal waits 2 seconds of play time first, so it is not a guess (classify.ts). Keys drive the game;
  * waits are on data-* state and the shown clock, never fixed sleeps.
  */
 import type { Locator, Page } from '@playwright/test';
@@ -43,12 +43,16 @@ test('three goals alone at level 1 show "Neue Stufe: Schräge Linien!", then dia
     await expect(match).toHaveAttribute('data-goals', goals);
   }
 
-  // The next target is at level 2: every hint sits on a diagonal line with the target.
+  // The next target is at level 2: every hint sits on a diagonal line with the target, or it is the big plus with its
+  // four arms two squares away (amendment 15, FR-122).
   await expect(match).toHaveAttribute('data-level', '2');
   const target = await targetNumber(match);
   const hints = await hintsOf(match);
-  for (const h of hints) {
-    const diff = Math.abs(target - h);
-    expect(diff % 11 === 0 || diff % 9 === 0).toBe(true);
+  const offsets = hints.map((h) => h - target).sort((a, b) => a - b);
+  if (offsets.join(',') !== '-20,-2,2,20') {
+    for (const h of hints) {
+      const diff = Math.abs(target - h);
+      expect(diff % 11 === 0 || diff % 9 === 0).toBe(true);
+    }
   }
 });

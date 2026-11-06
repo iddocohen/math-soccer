@@ -6,7 +6,7 @@ import { defaultSettings, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { nextTarget } from '../targets/nextTarget';
 import type { Direction } from '../types';
-import { clampLevel, currentLevel, LEVEL_DIRECTIONS, levelChoices, levelDown, levelRange, levelUp, startLevel, topLevel } from './levels';
+import { clampLevel, currentLevel, LEVEL_DIRECTIONS, levelChoices, PICK_DIRECTIONS, levelDown, levelRange, levelUp, startLevel, topLevel } from './levels';
 
 const chart = layoutChart(1, 100);
 const NO_SHAPES = { I: false, O: false, T: false, L: false, J: false, S: false, Z: false };
@@ -33,15 +33,31 @@ describe('each level offers only its targets', () => {
     expect(new Set(targets.flatMap((t) => t.directions))).toEqual(new Set(STRAIGHT));
   });
 
-  it('level 2 "Schräge Linien": Mitte and Reihe on the diagonals (and diagonal Nachbarn when allowed)', () => {
+  it('level 2 "Schräge Linien": Mitte and Reihe on the diagonals, diagonal Nachbarn and the big plus when allowed', () => {
     const targets = targetsAt(2);
     for (const t of targets) {
       expect(['middle', 'row', 'neighbors']).toContain(t.pattern);
       expect(t.directions.length).toBeGreaterThan(0);
-      expect(t.directions.every((d) => DIAGONAL.includes(d))).toBe(true);
+      // Every target is either on the diagonals or a big plus with all four arms two squares away (FR-122).
+      if (!t.directions.every((d) => DIAGONAL.includes(d))) {
+        expect(t.pattern).toBe('neighbors');
+        expect(t.hints.map((h) => h - t.number).sort((a, b) => a - b)).toEqual([-20, -2, 2, 20]);
+      }
     }
-    const noDiagonalNeighbors = settings({ hintDistance: { direct: true, vertical: true, diagonal: false, far: true } });
+    expect(targets.some((t) => t.hints.includes(t.number - 20))).toBe(true);
+    const noDiagonalNeighbors = settings({ hintDistance: { direct: true, vertical: true, diagonal: false, far: false } });
     expect(new Set(targetsAt(2, noDiagonalNeighbors).map((t) => t.pattern))).toEqual(new Set(['middle', 'row']));
+    for (const t of targetsAt(2, noDiagonalNeighbors)) expect(t.directions.every((d) => DIAGONAL.includes(d))).toBe(true);
+  });
+
+  it('the small plus appears in level 1 and the big plus in level 2, never the other way round (FR-122)', () => {
+    const offsets = (t: { number: number; hints: number[] }) => t.hints.map((h) => h - t.number).sort((a, b) => a - b).join(',');
+    const level1 = targetsAt(1, settings(), false, 400).filter((t) => t.pattern === 'neighbors').map(offsets);
+    const level2 = targetsAt(2, settings(), false, 400).filter((t) => t.pattern === 'neighbors').map(offsets);
+    expect(level1).toContain('-10,-1,1,10');
+    expect(level1).not.toContain('-20,-2,2,20');
+    expect(level2).toContain('-20,-2,2,20');
+    expect(level2).not.toContain('-10,-1,1,10');
   });
 
   it('level 3 "Formen": shapes with one empty square; level 4: two empty squares', () => {
@@ -71,14 +87,17 @@ describe('each level offers only its targets', () => {
     }
   });
 
-  it('LEVEL_DIRECTIONS and levelChoices agree: no choices for a direction outside the level', () => {
+  it('PICK_DIRECTIONS and levelChoices agree: no choices for a direction the level does not pick', () => {
     const s = settings();
     for (const level of [1, 2, 3, 4, 5] as const) {
       for (const d of [...STRAIGHT, ...DIAGONAL]) {
         const has = levelChoices(level, d, s).length > 0;
-        expect(has).toBe(LEVEL_DIRECTIONS[level].includes(d));
+        expect(has).toBe(PICK_DIRECTIONS[level].includes(d));
       }
     }
+    // Level 2 picks the straight directions only for the big plus.
+    for (const d of STRAIGHT) expect(levelChoices(2, d, s)).toEqual([{ pattern: 'neighbors', distance: 'far' }]);
+    for (const level of [1, 3, 4, 5] as const) expect(PICK_DIRECTIONS[level]).toEqual(LEVEL_DIRECTIONS[level]);
   });
 });
 

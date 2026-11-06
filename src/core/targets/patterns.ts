@@ -1,7 +1,9 @@
 /**
  * Hint patterns of the goalkeeper game (amendment 05, FR-065): which numbers light up around an empty target square.
  *
- * - Nachbarn (`neighbors`): the squares around the target, as a hint distance chooses them (see `hintsFor`).
+ * - Nachbarn (`neighbors`): the squares around the target, as a hint distance chooses them (see `hintsFor`), placed
+ *   only where every one of them lies on the chart (amendment 15, FR-123). With `direct` it is the small plus ("kleines
+ *   Plus", one square away above, below, left and right); with `far` the big plus ("großes Plus", two squares away).
  * - Mitte (`middle`): the square on each side of the target in one direction, so the target is the middle. Across:
  *   45 _ 47; down: 36 _ 56; diagonal: 35 _ 57.
  * - Reihe (`row`): two or three squares before the target in one direction, so the target continues the row. Down:
@@ -15,7 +17,7 @@
  */
 import { cellOf, numberAt, type ChartLayout } from '../chart/layout';
 import type { Direction, HintDistance } from '../types';
-import { directionsOf, hintsFor, MOVE } from './hints';
+import { directionsOf, hintOffsets, hintsFor, MOVE } from './hints';
 import { shapePlacements, type QueuedSquare, type ShapeEmpties, type ShapeId } from './shapes';
 import { xPlacements, type XEmpties } from './xshape';
 
@@ -46,9 +48,9 @@ export interface Placement {
   queue?: QueuedSquare[];
 }
 
-/** The fewest hints a Nachbarn target has with this distance (two for direct neighbors, so the pattern still reads). */
-export function minNeighborHints(distance: HintDistance): number {
-  return distance === 'direct' ? 2 : 1;
+/** How many hints a Nachbarn target has with this distance: every arm of it, none may fall off the chart (FR-123). */
+export function neighborHintCount(distance: HintDistance): number {
+  return hintOffsets(distance).length;
 }
 
 /** The number `k` steps in `direction` from `n`, or null off the chart. */
@@ -63,7 +65,7 @@ export function patternHints(layout: ChartLayout, choice: LineChoice, n: number)
   switch (choice.pattern) {
     case 'neighbors': {
       const hints = hintsFor(layout, n, choice.distance);
-      return hints.length >= minNeighborHints(choice.distance) ? hints : null;
+      return hints.length === neighborHintCount(choice.distance) ? hints : null;
     }
     case 'middle': {
       const before = stepFrom(layout, n, choice.direction, -1);

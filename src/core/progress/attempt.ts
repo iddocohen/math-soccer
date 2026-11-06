@@ -3,7 +3,8 @@
  *
  * Directions (FR-038): a target counts toward each direction its hints point from, which `Target.directions` already
  * holds. A target whose hints never showed (hints on request and no help asked) counts toward every direction its
- * difficulty level trains (amendment 09). Every new record has the mode `keeper` (amendment 05).
+ * difficulty level trains (amendment 09), or toward its own directions when they lie outside the level, as for the big
+ * plus of level 2 (amendment 15). Every new record has the mode `keeper` (amendment 05).
  */
 import { hintsVisible, targetHintDisplay } from '../match/help';
 import type { Settings } from '../settings/schema';
@@ -36,7 +37,10 @@ export function attemptDirections(target: Target, settings: Settings, helpStep: 
   const display = targetHintDisplay(settings, target);
   const shown = hintsVisible(display, helpStep);
   if (shown && target.directions.length > 0) return [...target.directions];
-  return [...LEVEL_DIRECTIONS[target.level]];
+  const level = LEVEL_DIRECTIONS[target.level];
+  // A big plus of level 2 trains straight directions, not the level's diagonals (amendment 15, FR-122).
+  if (target.directions.length > 0 && !target.directions.every((d) => level.includes(d))) return [...target.directions];
+  return [...level];
 }
 
 export function makeAttemptRecord(f: FinishedTarget): AttemptRecord {

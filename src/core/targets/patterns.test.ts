@@ -91,8 +91,47 @@ describe('placements stay on the chart (FR-065)', () => {
     expect(placements(chart, { pattern: 'row', direction: 'downRight', given: 3 }).every((p) => p.number % 10 >= 4 || p.number % 10 === 0)).toBe(true);
   });
 
-  it('a Nachbarn target with direct neighbors keeps at least two hints; with a direction, every placement trains it', () => {
-    for (const p of placements(chart, { pattern: 'neighbors', distance: 'direct' })) expect(p.hints.length).toBeGreaterThanOrEqual(2);
+  it('a Nachbarn target with direct neighbors has all four; with a direction, every placement trains it', () => {
+    for (const p of placements(chart, { pattern: 'neighbors', distance: 'direct' })) expect(p.hints).toHaveLength(4);
     for (const p of placements(chart, { pattern: 'neighbors', distance: 'direct' }, 'up')) expect(p.directions).toContain('up');
+  });
+});
+
+describe('small and big plus (amendment 15, FR-122, FR-123)', () => {
+  const small = { pattern: 'neighbors', distance: 'direct' } as const;
+  const big = { pattern: 'neighbors', distance: 'far' } as const;
+
+  for (const layout of [chart, layoutChart(1, 20), layoutChart(37, 84), layoutChart(1, 1000)]) {
+    it(`always has four arms on ${layout.min} to ${layout.max}, one or two squares away in the same row and column`, () => {
+      for (const [choice, k] of [[small, 1], [big, 2]] as const) {
+        for (const p of placements(layout, choice)) {
+          const { row, col } = cellOf(layout, p.number);
+          expect(p.hints).toHaveLength(4);
+          const arms = p.hints.map((h) => cellOf(layout, h)).map((c) => `${c.row - row},${c.col - col}`).sort();
+          expect(arms).toEqual([`${-k},0`, `${k},0`, `0,${-k}`, `0,${k}`].sort());
+          expect(p.directions).toEqual(['right', 'left', 'down', 'up']);
+        }
+      }
+    });
+  }
+
+  it('a target in the top row or in column 1 never gets a plus; the big plus needs two squares on each side', () => {
+    const numbers = (choice: PatternChoice) => placements(chart, choice).map((p) => p.number);
+    for (const n of [...numbers(small), ...numbers(big)]) {
+      const { row, col } = cellOf(chart, n);
+      expect(row).toBeGreaterThan(0);
+      expect(col).toBeGreaterThan(0);
+    }
+    expect(numbers(small)).toHaveLength(8 * 8);
+    expect(numbers(big)).toHaveLength(6 * 6);
+  });
+
+  it('the screenshot case: 87 has no big plus on 1 to 100 (107 is off the chart), and no partial Nachbarn are left', () => {
+    expect(placeAt(chart, big, 87)).toBeNull();
+    expect(placeAt(chart, big, 77)).toEqual({ number: 77, hints: [75, 79, 57, 97], directions: ['right', 'left', 'down', 'up'] });
+    for (const distance of HINT_DISTANCES) {
+      const want = distance === 'vertical' ? 2 : 4;
+      for (const p of placements(chart, { pattern: 'neighbors', distance })) expect(p.hints).toHaveLength(want);
+    }
   });
 });
