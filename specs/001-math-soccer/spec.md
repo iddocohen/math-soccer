@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md)
+**Status**: Draft, changed by [amendment 01](./amendment-01-from-math-tank-23-25.md) and [amendment 02](./amendment-02-visible-goal.md)
 
 **Input**: User description: "Build the browser game described in docs/superpowers/specs/2026-11-06-math-soccer-design.md. Copy that document verbatim into the feature directory as source-prd.md and treat it as the full requirements. Follow math-tank (~/dev/private/math-tank) wherever the document says "as math-tank"." The design document is stored verbatim in [source-prd.md](./source-prd.md).
 
@@ -228,6 +228,10 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 - **FR-050**: The settings page MUST offer "Kopie wiederherstellen" for readable kept copies, all or none.
 - **FR-051**: The progress page MUST offer "Alles zurücksetzen" (progress, bests, stars, locker room; settings stay), after a question that reminds the parent to save first.
 - **FR-052**: Saved settings MUST apply to a running round when the settings page closes: a new target for target-shaping settings, round length unchanged, display-only settings at once.
+
+**Amendment 02** (see [amendment-02-visible-goal.md](./amendment-02-visible-goal.md))
+
+- **FR-053** to **FR-056**: a visible goal (thick posts, crossbar, side nets, net mesh); the board is a panel inside the goal mouth with net showing around it; the keeper grid uses the same area; the player never covers a square.
 
 **Devices, offline and publishing**
 
