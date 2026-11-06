@@ -23,12 +23,29 @@ The game never punishes a mistake. A wrong number still flies to its own square,
 3. Type the number with the keyboard or the number pad on the screen, then press Enter. The ball flies to the square of that number.
 4. The right number scores a goal. A wrong number lands on its own square; look where it landed and try again.
 5. Stuck? Press H or the help button. Help comes in steps: first a hint, then the full chart with the target and your last number marked, then the answer. Help costs nothing.
-6. Correct shots and goals earn stars. In the locker room ("Kabine") you spend stars on ball designs, a shirt color, your own shirt number and name, and the fans' scarf color. Stars never go down after a mistake.
+6. Need a break? Press Escape or the pause button. Escape, Enter or the play button goes on.
+7. Correct shots and goals earn stars. In the locker room ("Kabine") you spend stars on ball designs, a shirt color, your own shirt number and name, and the fans' scarf color. Stars never go down after a mistake.
+
+### Keys and buttons
+
+| Key | Button | What it does |
+|-----|--------|--------------|
+| 1, 2, 3 | Löcher, Reihen, Torwart | Start a mode on the start screen; Enter or Space starts the first one |
+| K | Kabine | Open the locker room from the start screen |
+| 0 to 9 | Number pad keys | Type the number |
+| Backspace | ⌫ | Delete the last digit |
+| Enter or Space | ⚽ | Shoot |
+| H | ? | Next help step |
+| Escape | Pause, Weiter | Pause and go on |
+| (none) | Vollbild | Fullscreen, where the browser allows it |
+| (none) | Vorlesen (speaker icon) | Read the task again, when "Vorlesen" is on |
+
+On an iPad the number pad shows by itself: at the bottom right when the iPad is held sideways, across the bottom when it is held upright.
 
 ## Tutorial for parents
 
 - **Open the parent area:** hold the gear icon for 2 seconds. A short tap or a key press does not open it, so a child does not open it by chance. The game pauses while it is open.
-- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), which modes the start screen offers, hint display ("immer" or "auf Wunsch") and hint distance, line directions and line length, round type, difficulty, adaptive difficulty, sound options and the locker room. Settings saved during a round apply when the settings page closes: a changed range, mode choice, hint, line, difficulty or adaptive setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type and goals per round apply from the next round.
+- **Settings:** the number range (for example 1 to 100, 200 to 300, or a custom range up to 0 to 1000), which modes the start screen offers, hint display ("immer" or "auf Wunsch") and hint distance, line directions and line length, round type, difficulty, adaptive difficulty, sound options (effects, crowd, the "ohhh", and "Vorlesen", which reads each task aloud with the browser's German voice), the number pad ("automatisch" shows it only on touch screens, "immer", "nie"), a clock during play, personal bests and the locker room. Settings saved during a round apply when the settings page closes: a changed range, mode choice, hint, line, difficulty or adaptive setting gives the round a new target on the new board, and the goals, hearts, stars and time stay. Round type and goals per round apply from the next round.
 - **Progress:** the progress page shows, per direction (+1, −1, +10, −10, +11, −11, +9, −9) and per mode, how many targets the child solved alone and how many with help, and which directions count as mastered.
 - **Backup and moving to another device:** "Daten sichern" downloads settings, progress, bests and locker room data to a file, and "Daten laden" loads that file. The QR transfer moves the same data to another browser by QR code or link.
 - **Start over:** the progress page has "Fortschritt zurücksetzen" (keeps the personal bests and the stars) and "Alles zurücksetzen" (progress, personal bests, stars and locker room; the settings stay). Each asks first. Save the data with "Daten sichern" before "Alles zurücksetzen" if you may want it back.
@@ -66,6 +83,8 @@ pnpm e2e          # browser tests in Chromium, Firefox and WebKit, on iPad sizes
 pnpm lint && pnpm typecheck
 ```
 
+`pnpm e2e` ends with a frame rate check in Chromium (`tests/e2e/performance.spec.ts`), which runs after every other browser has finished; `pnpm exec playwright test --project=performance --no-deps` runs it alone. Without a graphics card it is skipped.
+
 The browser tests build the game and serve it on port 4273, and a second build for GitHub Pages under `/math-soccer/` on port 4274. A server already running on one of these ports is used as it is, so stop it first to test fresh code.
 
 ## Deployment
@@ -74,6 +93,14 @@ Every push to `main` publishes the game to GitHub Pages with the workflow [.gith
 
 ## Assets and licenses
 
-All art and sound are drawn or synthesized in code. The stands, fans, goal, net, chart board, keeper, player, ball and icons are drawn with shapes; the kick, cheer, clap and "ohhh" sounds are made with the Web Audio API. The game loads no image, sound or font files from other sources, and uses no assets from other games.
+All art and sound are drawn or synthesized in code. The game loads no image, sound or font files, and uses no assets from other games, so there are no third-party asset licenses.
+
+- **Scene** (Phaser shapes): stands with fans and scarves, floodlights, pitch and lines, goal frame and net, chart board, keeper, player with shirt number and name, ball designs (soccer, tennis and ping-pong balls, and the locker room designs).
+- **Overlay** (HTML and CSS, inline SVG): buttons, hearts as balls, the shirt icon, the help chart, the number pad.
+- **App icon**: a hand-written SVG (`public/icons/icon.svg`, a goal on grass) with PNG copies at 192 and 512 pixels.
+- **Sounds** (Web Audio API, made while playing): kick, net, cheer, clapping, the soft "ohhh".
+- **Speech**: the browser's own German voice (speechSynthesis), only with "Vorlesen" on.
+
+Better art or sound may come later in a separate change.
 
 The project setup and several modules are copied from [math-tank](https://github.com/iddocohen/math-tank) by the same author.

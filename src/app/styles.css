@@ -860,3 +860,62 @@ button:focus-visible {
 .locker-fields input[data-testid='shirt-number'] {
   width: 5ch;
 }
+
+/*
+ * On-screen number pad (FR-031). Wider than high (iPad landscape): a phone-style block at the bottom right, beside
+ * the kick spot. Higher than wide (iPad portrait): two rows across the bottom, and the typed number and message move
+ * up above it. Keys are at least 48 by 48 CSS pixels.
+ */
+.number-pad {
+  --pad-key: 56px;
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, var(--pad-key));
+  grid-auto-rows: var(--pad-key);
+  grid-template-areas:
+    'd1 d2 d3'
+    'd4 d5 d6'
+    'd7 d8 d9'
+    'bs d0 sh';
+}
+
+.pad-key {
+  min-width: 48px;
+  min-height: 48px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: 12px;
+  background: var(--chalk);
+  color: var(--ink);
+  font-size: 1.75rem;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.pad-key-shoot {
+  background: var(--kit);
+}
+
+.pad-key:disabled {
+  opacity: 0.5;
+}
+
+@media (orientation: portrait) {
+  .number-pad {
+    --pad-key: 58px;
+    right: 50%;
+    transform: translateX(50%);
+    grid-template-columns: repeat(6, var(--pad-key));
+    grid-template-areas:
+      'd1 d2 d3 d4 d5 bs'
+      'd6 d7 d8 d9 d0 sh';
+  }
+
+  .overlay[data-number-pad='true'] .overlay-bottom {
+    margin-bottom: calc(2 * 58px + 8px + 12px);
+  }
+}

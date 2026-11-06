@@ -182,14 +182,14 @@ description: "Task list for Math Soccer"
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
-- [ ] T062 [P] Copy `src/audio/speaker.ts` from math-tank and read tasks aloud when "Vorlesen" is on, with a speaker icon in the overlay (FR-032)
-- [ ] T063 [P] Pause and resume (Escape and button), fullscreen button, optional clock (FR-029, FR-033)
-- [ ] T064 [P] `tests/e2e/offline.spec.ts`, `tests/e2e/noExternalRequests.spec.ts` and `tests/e2e/basePath.spec.ts` from math-tank (FR-046, FR-047)
-- [ ] T065 [P] `tests/e2e/devices.spec.ts` for the iPad projects: start, number pad shot, help chart fit on screen
-- [ ] T066 Performance check: a 1 to 200 round and a 0 to 1000 round keep a smooth frame rate in Chromium (`tests/e2e/performance.spec.ts`, runs alone, skipped without a graphics card, as math-tank)
-- [ ] T067 Update `README.md` with final play instructions and the asset list, and run all quickstart scenarios; record results in `specs/001-math-soccer/quickstart.md`
-- [ ] T068 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e`, and fix every failure
+- [X] T061 [P] Copy `src/app/NumberPad.tsx` and test from math-tank with the setting automatic, always, never; layout for iPad landscape and portrait (FR-031)
+- [X] T062 [P] Copy `src/audio/speaker.ts` from math-tank and read tasks aloud when "Vorlesen" is on, with a speaker icon in the overlay (FR-032)
+- [X] T063 [P] Pause and resume (Escape and button), fullscreen button, optional clock (FR-029, FR-033)
+- [X] T064 [P] `tests/e2e/offline.spec.ts`, `tests/e2e/noExternalRequests.spec.ts` and `tests/e2e/basePath.spec.ts` from math-tank (FR-046, FR-047)
+- [X] T065 [P] `tests/e2e/devices.spec.ts` for the iPad projects: start, number pad shot, help chart fit on screen
+- [X] T066 Performance check: a 1 to 200 round and a 0 to 1000 round keep a smooth frame rate in Chromium (`tests/e2e/performance.spec.ts`, runs alone, skipped without a graphics card, as math-tank)
+- [X] T067 Update `README.md` with final play instructions and the asset list, and run all quickstart scenarios; record results in `specs/001-math-soccer/quickstart.md`
+- [X] T068 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e`, and fix every failure
 
 ---
 

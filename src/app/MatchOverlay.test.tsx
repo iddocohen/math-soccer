@@ -41,3 +41,57 @@ describe('MatchOverlay locker room icon (FR-049)', () => {
     expect(match.getAttribute('data-shirt')).toBe('shirt.white');
   });
 });
+
+describe('MatchOverlay number pad, speaker and fullscreen (T061 to T063)', () => {
+  it('shows the number pad only with `pad`; its keys reach the handlers and are off while paused', () => {
+    const pad = { onDigit: vi.fn(), onBackspace: vi.fn(), onShoot: vi.fn() };
+    const { rerender } = render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+    expect(screen.queryByTestId('number-pad')).toBeNull();
+    expect(screen.getByTestId('match').getAttribute('data-number-pad')).toBe('false');
+    rerender(<MatchOverlay state={running()} settings={defaultSettings()} pad={pad} onHelp={noop} onPause={noop} onResume={noop} />);
+    expect(screen.getByTestId('match').getAttribute('data-number-pad')).toBe('true');
+    const key = (k: string) => screen.getByTestId('number-pad').querySelector(`[data-key="${k}"]`) as HTMLButtonElement;
+    fireEvent.click(key('7'));
+    fireEvent.click(key('backspace'));
+    fireEvent.click(key('shoot'));
+    expect(pad.onDigit).toHaveBeenCalledWith(7);
+    expect(pad.onBackspace).toHaveBeenCalledTimes(1);
+    expect(pad.onShoot).toHaveBeenCalledTimes(1);
+    rerender(<MatchOverlay state={{ ...running(), paused: true }} settings={defaultSettings()} pad={pad} onHelp={noop} onPause={noop} onResume={noop} />);
+    expect(key('7').disabled).toBe(true);
+  });
+
+  it('shows the speaker icon only with onSpeak; it never takes focus and reads the task again', () => {
+    const speak = vi.fn();
+    const { rerender } = render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
+    expect(screen.queryByRole('button', { name: 'Vorlesen' })).toBeNull();
+    rerender(<MatchOverlay state={running()} settings={defaultSettings()} onSpeak={speak} onHelp={noop} onPause={noop} onResume={noop} />);
+    const icon = screen.getByRole('button', { name: 'Vorlesen' });
+    expect(icon.getAttribute('tabindex')).toBe('-1');
+    fireEvent.click(icon);
+    expect(speak).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the fullscreen icon where the browser allows fullscreen, and the clock only when the parent turned it on', () => {
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true });
+    try {
+      render(<MatchOverlay state={{ ...running(), elapsedMs: 65_000 }} settings={{ ...defaultSettings(), showClock: true }} onHelp={noop} onPause={noop} onResume={noop} />);
+      expect(screen.getByRole('button', { name: 'Vollbild' }).getAttribute('tabindex')).toBe('-1');
+      expect(screen.getByTestId('clock').textContent).toBe('1:05');
+    } finally {
+      Object.defineProperty(document, 'fullscreenEnabled', { value: undefined, configurable: true });
+    }
+  });
+
+  it('the pause button pauses and, while paused, the resume button resumes', () => {
+    const pause = vi.fn();
+    const resume = vi.fn();
+    const { rerender } = render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={pause} onResume={resume} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(pause).toHaveBeenCalledTimes(1);
+    rerender(<MatchOverlay state={{ ...running(), paused: true }} settings={defaultSettings()} onHelp={noop} onPause={pause} onResume={resume} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Weiter' }));
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('message').textContent).toBe('Pause. Weiter mit Enter.');
+  });
+});

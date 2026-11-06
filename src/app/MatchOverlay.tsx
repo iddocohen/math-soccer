@@ -17,6 +17,11 @@
  * on) a shirt icon with the accessible name "Kabine" sits next to the gear, at the same size. One tap opens the locker
  * room over the match. The icon never takes focus, so keys cannot press it, and it does not show on the round end.
  * `data-shirt` carries the chosen shirt color id for tests.
+ *
+ * Polish (T061 to T063): with `pad` the on-screen number pad (NumberPad.tsx, FR-031) shows at the bottom and
+ * `data-number-pad` is true. With `onSpeak` ("Vorlesen" on and a German voice, FR-032) a speaker icon reads the task
+ * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
+ * these icons never take focus, so Enter and Space keep shooting.
  */
 import type { ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
@@ -24,8 +29,14 @@ import { START_HEARTS, type MatchMessage, type MatchState } from '../core/match/
 import { ANSWER_STEP, HINT_STEP, helpHint } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
+import type { Digit } from '../core/match/entry';
 import type { KeeperPhase } from '../game/KeeperView';
 import { t } from '../i18n';
+import { NumberPad } from './NumberPad';
+import { requestFullscreen } from './StartScreen';
+
+/** Props for a button that never takes focus, so keys keep going to the game. */
+const noFocus = { tabIndex: -1, onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() } as const;
 
 /** German text of a match message. */
 export function messageText(message: MatchMessage | null): string {
@@ -75,13 +86,18 @@ interface Props {
   gear?: ReactNode;
   /** Opens the locker room over the match (FR-049); the icon shows only when this is given. */
   onLockerRoom?: () => void;
+  /** The on-screen number pad's keys; the pad shows only when this is given (FR-031). */
+  pad?: { onDigit: (d: Digit) => void; onBackspace: () => void; onShoot: () => void };
+  /** Reads the task aloud again; the speaker icon shows only when this is given (FR-032). */
+  onSpeak?: () => void;
   onHelp: () => void;
   onPause: () => void;
   onResume: () => void;
 }
 
-export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shirt = STARTER.shirt, settings, gear, onLockerRoom, onHelp, onPause, onResume }: Props) {
+export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shirt = STARTER.shirt, settings, gear, onLockerRoom, pad, onSpeak, onHelp, onPause, onResume }: Props) {
   const text = t();
+  const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
   const help = helpText(state);
   const goals = state.roundType === 'goalCount' ? text.match.goalsOf(state.goals, settings.goalsPerRound) : text.match.goals(state.goals);
@@ -102,6 +118,7 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
       data-line={state.line?.squares.join(',') ?? ''}
       data-line-index={state.line?.index ?? ''}
       data-keeper={state.mode === 'keeper' ? keeper : undefined}
+      data-number-pad={pad !== undefined}
     >
       <div className="overlay-top">
         <div className="overlay-status">
@@ -134,6 +151,24 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
               <span aria-hidden="true">❚❚</span>
             </button>
           )}
+          {onSpeak && (
+            <button type="button" className="icon-button" data-testid="speaker-button" aria-label={text.match.speaker} title={text.match.speaker} {...noFocus} onClick={onSpeak}>
+              <span aria-hidden="true">🔊</span>
+            </button>
+          )}
+          {canFullscreen && (
+            <button
+              type="button"
+              className="icon-button"
+              data-testid="match-fullscreen"
+              aria-label={text.match.fullscreen}
+              title={text.match.fullscreen}
+              {...noFocus}
+              onClick={requestFullscreen}
+            >
+              <span aria-hidden="true">⛶</span>
+            </button>
+          )}
           {onLockerRoom && state.phase !== 'roundOver' && (
             <button
               type="button"
@@ -164,6 +199,7 @@ export function MatchOverlay({ state, keeper = 'idle', ball = STARTER.ball, shir
           {state.paused ? text.match.paused : messageText(state.message)}
         </p>
       </div>
+      {pad && <NumberPad disabled={state.paused || state.phase !== 'aiming'} onDigit={pad.onDigit} onBackspace={pad.onBackspace} onShoot={pad.onShoot} />}
     </div>
   );
 }

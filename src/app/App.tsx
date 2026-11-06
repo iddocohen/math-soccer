@@ -28,10 +28,16 @@
  * next to the gear opens the locker room over the match with one tap. The match stays loaded underneath; a running
  * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
  * round continues (a round the child paused stays paused) and the chosen look shows at once.
+ *
+ * Polish (T061, T062): the number pad shows by the parent's setting (automatic: only without a mouse or trackpad,
+ * FR-031). With "Vorlesen" on (FR-032), each new target reads a short task aloud that never says the number, and each
+ * new help line is read aloud; the speaker icon repeats the help line, or the task when there is none. The start tap
+ * speaks a short greeting, since tablet browsers speak only after a user tap.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
+import { createSpeaker } from '../audio/speaker';
 import { MatchController, type MatchState, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import { recordKey, submitResult } from '../core/records/records';
@@ -42,10 +48,12 @@ import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfe
 import { MODES, type Mode } from '../core/types';
 import type { GameHandle } from '../game/createGame';
 import type { KeeperPhase } from '../game/KeeperView';
+import { t } from '../i18n';
 import type { KeyAction, KeyScreen } from './keyboard';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
-import { MatchOverlay } from './MatchOverlay';
+import { helpText, MatchOverlay } from './MatchOverlay';
+import { numberPadShown, useFinePointer } from './NumberPad';
 import { ParentGate } from './ParentGate';
 import { createPersistence, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
@@ -110,6 +118,7 @@ function createApp() {
     onAttempt: (record) => void persistence.recordAttempt(record, settings()),
   });
   const sfx = createSfx({ sound: () => settings().sound });
+  const speaker = createSpeaker();
   // A round stored before a refresh continues (T029); one that no longer fits the settings is discarded (FR-036a).
   const restored = controller.restore();
   // Stars go to the locker room as soon as they are earned (FR-042). A restored round's stars were awarded before.
@@ -120,7 +129,7 @@ function createApp() {
     seenStars = current;
     if (earned > 0) persistence.awardStars(earned);
   });
-  return { persistence, controller, sfx, settings, restored };
+  return { persistence, controller, sfx, speaker, settings, restored };
 }
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
@@ -138,7 +147,7 @@ function clearSaveHash(): void {
 }
 
 export function App() {
-  const [{ persistence, controller, sfx, settings, restored }] = useState(createApp);
+  const [{ persistence, controller, sfx, speaker, settings, restored }] = useState(createApp);
   const [screen, setScreen] = useState<Screen>(restored ? 'match' : 'start');
   const [parent, setParent] = useState<ParentView>('closed');
   // Bumped after a save, an import or a transfer, so the start screen shows the new offered modes.
@@ -245,12 +254,34 @@ export function App() {
     return () => window.clearInterval(id);
   }, [screen, controller]);
 
+  // Spoken tasks (FR-032): a new target reads its task, a new help line reads the line.
+  const speech = settings().sound.speech;
+  const taskKey = screen === 'match' && state.target ? `${state.mode}:${state.target.number}:${state.line?.index ?? ''}` : null;
+  useEffect(() => {
+    if (!speech || taskKey === null) return;
+    speaker.speak(t().match.task[controller.getState().mode]);
+  }, [speech, taskKey, speaker, controller]);
+  const help = screen === 'match' ? helpText(state) : '';
+  useEffect(() => {
+    if (speech && help !== '') speaker.speak(help);
+  }, [speech, help, speaker]);
+  const speakTask = useCallback(() => {
+    const s = controller.getState();
+    const line = helpText(s);
+    speaker.speak(line !== '' ? line : t().match.task[s.mode]);
+  }, [controller, speaker]);
+
+  const finePointer = useFinePointer();
+  const showPad = numberPadShown(settings().numberPad, finePointer);
+
   const startMatch = useCallback(
     (mode: Mode) => {
+      // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
+      if (settings().sound.speech) speaker.prime();
       controller.start(mode);
       setScreen('match');
     },
-    [controller],
+    [controller, settings, speaker],
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
@@ -349,6 +380,12 @@ export function App() {
         settings={{ ...settings(), goalsPerRound: controller.getRoundSettings().goalsPerRound }}
         gear={gear}
         onLockerRoom={lockerOn ? () => setLockerOpen(true) : undefined}
+        pad={
+          showPad
+            ? { onDigit: (digit) => controller.typeKey({ digit }), onBackspace: () => controller.typeKey('backspace'), onShoot: () => controller.shoot() }
+            : undefined
+        }
+        onSpeak={speech && speaker.available ? speakTask : undefined}
         onHelp={() => controller.askHelp()}
         onPause={() => controller.pause()}
         onResume={() => controller.resume()}

@@ -34,6 +34,8 @@ export const de = {
     fullscreen: 'Vollbild',
     gear: 'Für Eltern',
     parentHint: 'Für Eltern: Zahnrad gedrückt halten',
+    /** Spoken once on the start tap, so tablet browsers allow speech later (FR-032). */
+    greeting: "Los geht's!",
     updateReady: 'Eine neue Version ist bereit.',
     saveFailed: 'Speichern klappt gerade nicht.',
   },
@@ -53,7 +55,9 @@ export const de = {
     goalsOf: (n: number, total: number) => `${n} von ${total} Toren`,
     hearts: (n: number) => `${n} Bälle übrig`,
     speaker: 'Vorlesen',
-    numberPad: { delete: 'Löschen', shoot: 'Schießen' },
+    numberPad: { label: 'Zahlenfeld', delete: 'Löschen', shoot: 'Schießen' },
+    /** The task read aloud for each new target with "Vorlesen" on (FR-032); it never says the number. */
+    task: { holes: 'Welche Zahl fehlt?', lines: 'Welche Zahl kommt hier?', keeper: 'Welche Zahl fehlt?' },
   },
 
   /** Feedback lines (contracts/screens.md "Feedback contract"). */
