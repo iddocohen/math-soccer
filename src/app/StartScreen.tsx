@@ -1,8 +1,8 @@
 // Structure adapted from math-tank src/app/StartScreen.tsx.
 /**
  * Start screen (contracts/screens.md "Start", FR-068, FR-075, FR-105): one big "Spielen" button (Enter or Space), a
- * "Zeit-Challenge" button (Z) when the parent allows it, and a "Pokal" button (P) that starts the next cup match. The
- * bracket screen comes with T102; until then the button names the next match and carries the cup state as `data-cup-*`. Each button shows its key in small muted text (FR-101). The keys, and `?start=` in tests, are handled by the app's keyboard
+ * "Zeit-Challenge" button (Z) when the parent allows it, and a "Pokal" button (P) that opens the cup's bracket screen
+ * (amendment 13, FR-105; CupBracket.tsx). The button carries the cup state as `data-cup-*`. Each button shows its key in small muted text (FR-101). The keys, and `?start=` in tests, are handled by the app's keyboard
  * listener (src/app/keyboard.ts).
  *
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a

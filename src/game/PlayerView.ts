@@ -4,6 +4,7 @@
  * the keeper because he is closer to the viewer, and the bottom edge of the screen cuts off his lower legs. Where he
  * stands and how large he is comes from src/game/playerPose.ts; his head stays below the chart (FR-056, FR-083).
  * `kick()` takes one short step toward the ball and back (FR-084).
+ * After a won cup final, `liftCup()` raises both arms with a gold cup over his head (amendment 13, FR-110).
  * Drawn with shapes in code (FR-048); the locker room (US6) changes the shirt color, the number and the name above it
  * with `setLook`.
  */
@@ -27,6 +28,10 @@ export class PlayerView {
   private readonly number: Phaser.GameObjects.Text;
   private readonly name: Phaser.GameObjects.Text;
   private readonly scene: Phaser.Scene;
+  /** Raised arms with the cup over the head, shown only after a won cup final (FR-110). */
+  private readonly trophy: Phaser.GameObjects.Graphics;
+  private shirtColor = 0xffffff;
+  private lifting = false;
 
   constructor(scene: Phaser.Scene, look: Look) {
     this.scene = scene;
@@ -65,8 +70,10 @@ export class PlayerView {
     head.fillStyle(COLOR.hair, 1);
     head.fillCircle(0, HEAD.y, HEAD.radius);
 
+    this.trophy = scene.add.graphics().setVisible(false);
+
     this.container = scene.add
-      .container(PLAYER_FEET.x, PLAYER_FEET.y, [legs, this.shirt, this.number, this.name, head])
+      .container(PLAYER_FEET.x, PLAYER_FEET.y, [legs, this.shirt, this.number, this.name, head, this.trophy])
       .setScale(PLAYER_SCALE)
       .setDepth(PLAYER_DEPTH);
     this.setLook(look);
@@ -74,6 +81,8 @@ export class PlayerView {
 
   setLook(look: Look): void {
     const { top, bottom, halfWidth } = SHIRT;
+    this.shirtColor = look.shirtColor;
+    if (this.lifting) this.drawTrophy();
     this.shirt.clear();
     this.shirt.fillStyle(look.shirtColor, 1);
     // Sleeves, then arms below them, then the body of the shirt over both.
@@ -107,6 +116,64 @@ export class PlayerView {
       yoyo: true,
       ease: 'Quad.easeOut',
     });
+  }
+
+  /** True while he holds the cup up. */
+  get isLifting(): boolean {
+    return this.lifting;
+  }
+
+  /**
+   * A won cup final (FR-110): he raises both arms with the cup over his head and bobs with joy until `lowerCup()` or a
+   * new round.
+   */
+  liftCup(): void {
+    if (this.lifting) return;
+    this.lifting = true;
+    this.drawTrophy();
+    this.trophy.setVisible(true);
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.setPosition(PLAYER_FEET.x, PLAYER_FEET.y).setRotation(0);
+    this.scene.tweens.add({ targets: this.container, y: PLAYER_FEET.y - 14, duration: 320, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  lowerCup(): void {
+    if (!this.lifting) return;
+    this.lifting = false;
+    this.trophy.setVisible(false);
+    this.scene.tweens.killTweensOf(this.container);
+    this.container.setPosition(PLAYER_FEET.x, PLAYER_FEET.y).setRotation(0);
+  }
+
+  /** Both arms up in the shirt's sleeves, the hands on a gold cup above the head. */
+  private drawTrophy(): void {
+    const g = this.trophy.clear();
+    const shoulderY = SHIRT.top + 14;
+    const handY = HEAD.y - HEAD.radius - 40;
+    for (const side of [-1, 1]) {
+      const sx = side * (SHIRT.halfWidth - 8);
+      const hx = side * 34;
+      g.fillStyle(this.shirtColor, 1);
+      g.fillTriangle(sx - 12, shoulderY, sx + 12, shoulderY, (sx + hx) / 2, (shoulderY + handY) / 2);
+      g.lineStyle(20, COLOR.skin, 1);
+      g.lineBetween((sx + hx) / 2, (shoulderY + handY) / 2, hx, handY);
+      g.fillStyle(COLOR.skin, 1);
+      g.fillCircle(hx, handY, 12);
+    }
+    // The cup: a bowl with two handles on a stem and a base.
+    const gold = 0xf2c230;
+    const shade = 0xc9971a;
+    const top = handY - 70;
+    g.lineStyle(8, gold, 1);
+    g.strokeCircle(-44, top + 26, 16);
+    g.strokeCircle(44, top + 26, 16);
+    g.fillStyle(gold, 1);
+    g.fillRoundedRect(-40, top, 80, 58, { tl: 6, tr: 6, bl: 36, br: 36 });
+    g.fillStyle(shade, 1);
+    g.fillRect(-9, top + 56, 18, 22);
+    g.fillRoundedRect(-30, top + 76, 60, 14, 4);
+    g.fillStyle(0xffffff, 0.45);
+    g.fillRoundedRect(-28, top + 8, 12, 34, 5);
   }
 
   destroy(): void {

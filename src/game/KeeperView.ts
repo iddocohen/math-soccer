@@ -17,6 +17,11 @@
  *   walks back to his spot.
  * - `onPhase` hears every change of `phase`; the app shows it as `data-keeper` for tests.
  *
+ * - Cup (amendment 13, FR-107): `setTeam()` dresses him in the opponent's colors with the keeper's quirk: tall hair,
+ *   a headband and a quicker shuffle (small and quick), a beard, a cap, a jump with the caught ball (celebrates saves),
+ *   or a glance to the left before each leap (looks left first). Quirks are looks only: his size, his waiting spot and
+ *   his leaps stay the same, and the waiting keeper stays behind the grid (FR-120).
+ *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the keeper.
  */
 import Phaser from 'phaser';
@@ -35,6 +40,7 @@ import {
   waitingSpot,
   type KeeperPose,
 } from './keeperDive';
+import type { Quirk } from '../core/cup/teams';
 import { COLOR } from './palette';
 
 export const KEEPER_PHASES = ['idle', 'diving', 'caught', 'beaten'] as const;
@@ -63,6 +69,19 @@ const GLOVE = COLOR.kit;
 const ARM_READY = 0.9;
 const ARM_UP = Math.PI + 0.3;
 const SHOULDER = { x: 18, y: -38 } as const;
+/** The small, quick keeper shuffles to a new spot in this time instead of SHUFFLE_MS (a look, not a reach). */
+export const QUICK_SHUFFLE_MS = 200;
+/** How far the eyes of the keeper who looks left first turn, in unscaled units. */
+const LOOK_LEFT_PX = 3;
+/** How high the keeper who celebrates saves jumps with the ball, in world pixels. */
+const CELEBRATE_JUMP = 30;
+
+/** What the keeper wears in a cup match: the opponent's colors (`#rrggbb`) and the keeper's quirk (FR-107). */
+export interface KeeperTeam {
+  color: string;
+  trim: string;
+  quirk: Quirk;
+}
 
 export class KeeperView {
   private readonly scene: Phaser.Scene;
@@ -71,6 +90,15 @@ export class KeeperView {
   private readonly rightArm: Phaser.GameObjects.Graphics;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly onPhase: (phase: KeeperPhase) => void;
+  private readonly legs: Phaser.GameObjects.Graphics;
+  private readonly torso: Phaser.GameObjects.Graphics;
+  private readonly head: Phaser.GameObjects.Graphics;
+  /** The quirk's beard, cap, hair or headband, over the head. */
+  private readonly extras: Phaser.GameObjects.Graphics;
+  /** The eyes, which the keeper who looks left first turns before a leap. */
+  private readonly eyes: Phaser.GameObjects.Graphics;
+  /** The cup opponent's colors and quirk; null outside the cup (the blue keeper). */
+  private team: KeeperTeam | null = null;
   private pose: KeeperPose = HOME_POSE;
   private tween: Phaser.Tweens.Tween | null = null;
   private current: KeeperPhase = 'idle';
@@ -87,38 +115,21 @@ export class KeeperView {
     this.scene = scene;
     this.onPhase = onPhase;
 
-    const legs = scene.add.graphics();
-    legs.fillStyle(COLOR.skin, 1);
-    legs.fillRect(-15, 12, 11, 14);
-    legs.fillRect(4, 12, 11, 14);
-    legs.fillStyle(JERSEY, 1);
-    legs.fillRect(-15, 22, 11, 8);
-    legs.fillRect(4, 22, 11, 8);
-    legs.fillStyle(COLOR.ink, 1);
-    legs.fillRect(-18, 0, 36, 13);
-    legs.fillRect(-17, 30, 14, 5);
-    legs.fillRect(3, 30, 14, 5);
+    this.legs = scene.add.graphics();
+    this.torso = scene.add.graphics();
+    this.head = scene.add.graphics();
+    this.extras = scene.add.graphics();
+    this.eyes = scene.add.graphics();
 
-    const torso = scene.add.graphics();
-    torso.fillStyle(JERSEY, 1);
-    torso.fillRoundedRect(-18, -42, 36, 44, 7);
-    torso.fillStyle(COLOR.chalk, 0.9);
-    torso.fillRect(-18, -12, 36, 4);
-
-    const head = scene.add.graphics();
-    head.fillStyle(COLOR.skin, 1);
-    head.fillCircle(0, -54, 13);
-    head.fillStyle(COLOR.hair, 1);
-    head.fillEllipse(0, -61, 26, 12);
-
-    this.leftArm = drawArm(scene).setPosition(-SHOULDER.x, SHOULDER.y);
-    this.rightArm = drawArm(scene).setPosition(SHOULDER.x, SHOULDER.y);
+    this.leftArm = scene.add.graphics().setPosition(-SHOULDER.x, SHOULDER.y);
+    this.rightArm = scene.add.graphics().setPosition(SHOULDER.x, SHOULDER.y);
+    this.paint();
 
     this.shadow = scene.add
       .ellipse(HOME_POSE.x, GOAL_LINE, 70 * KEEPER_SCALE, 14 * KEEPER_SCALE, 0x000000, 0.28)
       .setDepth(WAITING_DEPTH - 0.01);
     this.body = scene.add
-      .container(0, 0, [this.leftArm, this.rightArm, legs, torso, head])
+      .container(0, 0, [this.leftArm, this.rightArm, this.legs, this.torso, this.head, this.eyes, this.extras])
       .setDepth(WAITING_DEPTH)
       .setScale(KEEPER_SCALE);
     this.apply(HOME_POSE);
@@ -153,6 +164,24 @@ export class KeeperView {
   /** Where he is drawn now. */
   get currentPose(): KeeperPose {
     return this.pose;
+  }
+
+  /** The quirk he shows now; null outside the cup. */
+  get quirk(): Quirk | null {
+    return this.team?.quirk ?? null;
+  }
+
+  /**
+   * Dresses the keeper as the cup opponent (FR-107): the shirt in the team color with trim, and the quirk's look. Null
+   * gives the blue keeper back. Only the drawing changes: his size, his spots and his leaps stay the same (FR-062 to
+   * FR-064), and the faster shuffle of the small, quick keeper only moves him sooner to the same spot.
+   */
+  setTeam(team: KeeperTeam | null): void {
+    const key = team ? `${team.color}:${team.trim}:${team.quirk}` : '';
+    const now = this.team ? `${this.team.color}:${this.team.trim}:${this.team.quirk}` : '';
+    if (key === now) return;
+    this.team = team ? { ...team } : null;
+    this.paint();
   }
 
   /** Stops any motion: the keeper waits in the middle until he hears the next squares. */
@@ -190,7 +219,8 @@ export class KeeperView {
     this.setFaded(!spot.clear);
     if (first && this.tween === null) this.apply(spot.pose);
     else if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
-      this.moveTo(spot.pose, SHUFFLE_MS, () => {}, (k) => (1 - Math.cos(Math.PI * k)) / 2);
+      const ms = this.team?.quirk === 'small' ? QUICK_SHUFFLE_MS : SHUFFLE_MS;
+      this.moveTo(spot.pose, ms, () => {}, (k) => (1 - Math.cos(Math.PI * k)) / 2);
     }
   }
 
@@ -206,6 +236,7 @@ export class KeeperView {
     this.setFaded(false);
     const from = this.pose;
     const to = diveEnd(square, outcome, from);
+    this.lookLeftFirst();
     const arc = Math.min(ARC, Math.hypot(to.x - from.x, to.y - from.y) * 0.2);
     this.tween = this.scene.tweens.addCounter({
       from: 0,
@@ -222,14 +253,33 @@ export class KeeperView {
       },
       onComplete: () => {
         this.tween = null;
+        this.eyes.setPosition(0, 0);
         this.apply(to);
       },
     });
   }
 
-  /** The ball is in his gloves: he holds it, then goes back to his waiting spot. */
+  /** The keeper who looks left first glances left while the ball flies, then back to the ball (looks only). */
+  private lookLeftFirst(): void {
+    if (this.team?.quirk !== 'looksLeft') return;
+    this.eyes.setPosition(-LOOK_LEFT_PX, 0);
+  }
+
+  /**
+   * The ball is in his gloves: he holds it, then goes back to his waiting spot. The keeper who celebrates saves jumps
+   * with the ball over his head in the same hold time.
+   */
   catchBall(): void {
     this.setPhase('caught');
+    this.eyes.setPosition(0, 0);
+    if (this.team?.quirk === 'celebratesSaves') {
+      const held = this.pose;
+      const jump: KeeperPose = { ...held, y: held.y - CELEBRATE_JUMP, arms: 1, rotation: 0 };
+      this.moveTo(held, HOLD_MS / 2, () =>
+        this.moveTo(jump, HOLD_MS / 4, () => this.moveTo(held, HOLD_MS / 4, () => this.goHome()), (k) => 1 - (1 - k) * (1 - k)),
+      );
+      return;
+    }
     this.moveTo(this.pose, HOLD_MS, () => this.goHome());
   }
 
@@ -302,6 +352,84 @@ export class KeeperView {
     this.apply(this.pose);
   }
 
+  /** Draws the kit in the team colors (or the blue keeper's) and the quirk's look. */
+  private paint(): void {
+    const jersey = this.team ? hexColor(this.team.color) : JERSEY;
+    const trim = this.team ? hexColor(this.team.trim) : COLOR.chalk;
+    const legs = this.legs.clear();
+    legs.fillStyle(COLOR.skin, 1);
+    legs.fillRect(-15, 12, 11, 14);
+    legs.fillRect(4, 12, 11, 14);
+    legs.fillStyle(jersey, 1);
+    legs.fillRect(-15, 22, 11, 8);
+    legs.fillRect(4, 22, 11, 8);
+    legs.fillStyle(COLOR.ink, 1);
+    legs.fillRect(-18, 0, 36, 13);
+    legs.fillRect(-17, 30, 14, 5);
+    legs.fillRect(3, 30, 14, 5);
+
+    const torso = this.torso.clear();
+    torso.fillStyle(jersey, 1);
+    torso.fillRoundedRect(-18, -42, 36, 44, 7);
+    torso.fillStyle(trim, 0.9);
+    torso.fillRect(-18, -12, 36, 4);
+
+    const head = this.head.clear();
+    head.fillStyle(COLOR.skin, 1);
+    head.fillCircle(0, -54, 13);
+    const quirk = this.team?.quirk ?? null;
+    // The cap and the tall hair replace the usual hair.
+    if (quirk !== 'cap' && quirk !== 'tall') {
+      head.fillStyle(COLOR.hair, 1);
+      head.fillEllipse(0, -61, 26, 12);
+    }
+
+    const eyes = this.eyes.clear().setPosition(0, 0);
+    eyes.fillStyle(COLOR.ink, 1);
+    eyes.fillCircle(-4.5, -55, 1.8);
+    eyes.fillCircle(4.5, -55, 1.8);
+
+    const extras = this.extras.clear();
+    switch (quirk) {
+      case 'tall':
+        // A tall flat top, so he reads tall without being drawn larger (FR-062).
+        extras.fillStyle(COLOR.hair, 1);
+        extras.fillRoundedRect(-12, -78, 24, 18, 4);
+        break;
+      case 'small':
+        // A headband in the trim color; he is quick on his feet (QUICK_SHUFFLE_MS).
+        extras.fillStyle(COLOR.hair, 1);
+        extras.fillEllipse(0, -62, 24, 10);
+        extras.fillStyle(trim, 1);
+        extras.fillRect(-13, -62, 26, 4);
+        break;
+      case 'beard':
+        extras.fillStyle(COLOR.hair, 1);
+        extras.fillEllipse(0, -46, 24, 14);
+        extras.fillStyle(COLOR.skin, 1);
+        extras.fillEllipse(0, -49, 8, 3);
+        break;
+      case 'cap':
+        extras.fillStyle(jersey, 1);
+        extras.fillEllipse(0, -62, 28, 14);
+        extras.fillStyle(trim, 1);
+        extras.fillRoundedRect(-15, -60, 30, 5, 2);
+        break;
+      default:
+        break;
+    }
+
+    for (const arm of [this.leftArm, this.rightArm]) {
+      arm.clear();
+      arm.fillStyle(jersey, 1);
+      arm.fillRoundedRect(-5, -3, 10, 32, 4);
+      arm.fillStyle(GLOVE, 1);
+      arm.fillRoundedRect(-8, 28, 16, 16, 5);
+      arm.lineStyle(1.5, COLOR.ink, 0.5);
+      arm.strokeRoundedRect(-8, 28, 16, 16, 5);
+    }
+  }
+
   destroy(): void {
     this.stop();
     this.body.destroy();
@@ -309,14 +437,7 @@ export class KeeperView {
   }
 }
 
-/** One arm drawn hanging from the shoulder at (0, 0): the sleeve, then the glove whose middle is 36 below it. */
-function drawArm(scene: Phaser.Scene): Phaser.GameObjects.Graphics {
-  const g = scene.add.graphics();
-  g.fillStyle(JERSEY, 1);
-  g.fillRoundedRect(-5, -3, 10, 32, 4);
-  g.fillStyle(GLOVE, 1);
-  g.fillRoundedRect(-8, 28, 16, 16, 5);
-  g.lineStyle(1.5, COLOR.ink, 0.5);
-  g.strokeRoundedRect(-8, 28, 16, 16, 5);
-  return g;
+/** `#rrggbb` as a number for Phaser's fill colors. */
+export function hexColor(hex: string): number {
+  return Number.parseInt(hex.replace('#', ''), 16);
 }

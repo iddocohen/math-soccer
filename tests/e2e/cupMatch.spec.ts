@@ -1,7 +1,7 @@
 /**
  * Amendment 13, cup core (T101) end to end: "Pokal" (P) starts the cup's next match with "Tore pro Spiel", a win moves
  * the cup on with its bonus stars, a loss keeps the same match, and "Zum Start" leaves the cup as it was (FR-118). The
- * bracket screen and the team looks come with T102 (`cup.spec.ts`). Game state is read from data-* attributes; there are
+ * bracket screen and the team looks are tested in `cup.spec.ts` (T102). Game state is read from data-* attributes; there are
  * no fixed waits.
  */
 import type { Locator, Page } from '@playwright/test';
@@ -28,14 +28,18 @@ async function scoreGoals(page: Page, match: Locator, n: number): Promise<void> 
   }
 }
 
-test('P starts group game 1 at the start level; 3 goals win it and move the cup on with 5 bonus stars (FR-105, FR-108, FR-112)', async ({ page }) => {
+test('P and Enter start group game 1 at the start level; 3 goals win it and move the cup on with 5 bonus stars (FR-105, FR-108, FR-112)', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: cupSettings });
   await page.goto('/?seed=3');
   const cupButton = page.locator('[data-start="cup"]');
   await expect(cupButton).toHaveAttribute('data-cup-stage', '0');
   await expect(cupButton).toHaveText(/Pokal/);
 
-  const match = await startRound(page, 'p');
+  // P opens the bracket screen (T102); Enter there starts the highlighted match.
+  await page.keyboard.press('p');
+  await expect(page.getByTestId('cup-bracket')).toBeVisible();
+  await page.keyboard.press('Enter');
+  const match = page.getByTestId('match');
   await expect(match).toHaveAttribute('data-round-type', 'cup');
   await expect(match).toHaveAttribute('data-cup-level', '1');
   await expect(match).toHaveAttribute('data-level', '1');
@@ -51,7 +55,10 @@ test('P starts group game 1 at the start level; 3 goals win it and move the cup 
   await expect(page.getByTestId('record')).toHaveCount(0);
   expect(await storedCup(page)).toMatchObject({ cup: 1, stage: 1, tries: 0, scores: [{ goals: 3, against: 0 }] });
 
-  await page.getByRole('button', { name: text.roundEnd.back }).click();
+  // "Weiter" goes to the bracket, Escape from there to the start screen.
+  await page.getByRole('button', { name: text.cup.next }).click();
+  await expect(page.getByTestId('cup-bracket')).toHaveAttribute('data-cup-stage', '1');
+  await page.keyboard.press('Escape');
   await expect(cupButton).toHaveAttribute('data-cup-stage', '1');
   await expect(page.getByTestId('star-total')).toHaveText(text.start.stars(11));
 });

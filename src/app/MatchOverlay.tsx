@@ -103,6 +103,11 @@ interface Props {
   clock?: ClockSource;
   /** The keeper's phase from the scene; shown in goalkeeper mode only. */
   keeper?: KeeperPhase;
+  /**
+   * What the scene shows of the cup (amendment 13): the opponent keeper's quirk, the team and `match`, `final` or
+   * `won`, as `data-keeper-quirk`, `data-cup-team` and `data-cup-show` for tests.
+   */
+  cup?: { quirk: string; team: string; show: string };
   /** The chosen ball design id from the locker room (`data-ball`). */
   ball?: string;
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
@@ -127,6 +132,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   state,
   clock,
   keeper = 'idle',
+  cup,
   ball = STARTER.ball,
   shirt = STARTER.shirt,
   settings,
@@ -175,6 +181,9 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-cup-level={state.cupMatch?.level ?? ''}
       data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}
       data-keeper={keeper}
+      data-keeper-quirk={cup?.quirk ?? ''}
+      data-cup-team={cup?.team ?? ''}
+      data-cup-show={cup?.show ?? ''}
       data-number-pad={pad !== undefined}
     >
       <div className="overlay-top">

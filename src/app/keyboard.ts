@@ -4,9 +4,11 @@
  * for the current screen, or null when the key does nothing there.
  *
  * - Start screen (FR-068, FR-075): Enter or Space start "Spielen"; Z starts the "Zeit-Challenge" when the parent allows
- *   it; P starts the next cup match ("Pokal", amendment 13, FR-105); K opens the locker room when it is on.
+ *   it; P opens the cup's bracket screen ("Pokal", amendment 13, FR-105); K opens the locker room when it is on.
  *   `?start=time` in tests makes Enter and Space start the time challenge when it is allowed, `?start=cup` the next cup
- *   match. Start keys work only on the start screen, so digits always type during a round (plan
+ *   match without the bracket screen.
+ * - Bracket screen (FR-106): Enter or Space start the highlighted match, Escape goes back to the start screen.
+ * - Match intro card of a cup match: Enter or Space skip it; every other key works as in the match. Start keys work only on the start screen, so digits always type during a round (plan
  *   decision 7).
  * - Match: digits, Backspace, Enter or Space shoot, H help, Escape pause.
  * - Help chart open (help step 3): the keys map as in the match; MatchController.typeKey closes the chart on Enter,
@@ -31,11 +33,14 @@ export interface KeyLike {
   repeat: boolean;
 }
 
-export type KeyScreen = 'start' | 'match' | 'paused' | 'roundEnd';
+export type KeyScreen = 'start' | 'match' | 'paused' | 'roundEnd' | 'bracket' | 'intro';
 
 export type KeyAction =
   | { type: 'start'; kind: StartKind }
   | { type: 'lockerRoom' }
+  | { type: 'bracket' }
+  | { type: 'back' }
+  | { type: 'skipIntro' }
   | { type: 'digit'; digit: Digit }
   | { type: 'backspace' }
   | { type: 'shoot' }
@@ -66,12 +71,19 @@ export function keyToAction(event: KeyLike, screen: KeyScreen, context: KeyConte
         if (context.enterStart === 'cup') return { type: 'start', kind: 'cup' };
         return { type: 'start', kind: context.enterStart === 'time' && context.timeChallenge === true ? 'time' : 'play' };
       }
-      if (key === 'p' || key === 'P') return event.repeat ? null : { type: 'start', kind: 'cup' };
+      if (key === 'p' || key === 'P') return event.repeat ? null : { type: 'bracket' };
       if (key === 'z' || key === 'Z') {
         return !event.repeat && context.timeChallenge === true ? { type: 'start', kind: 'time' } : null;
       }
       return (key === 'k' || key === 'K') && context.lockerRoom === true ? { type: 'lockerRoom' } : null;
     }
+    case 'bracket':
+      if (isEnter || isSpace) return { type: 'start', kind: 'cup' };
+      return key === 'Escape' ? { type: 'back' } : null;
+    case 'intro':
+      // Enter or Space only skip the intro card; every other key works as in the match and also ends the card.
+      if (isEnter || isSpace) return { type: 'skipIntro' };
+      return keyToAction(event, 'match', context);
     case 'paused':
       return isEnter || isSpace || key === 'Escape' ? { type: 'resume' } : null;
     case 'roundEnd':

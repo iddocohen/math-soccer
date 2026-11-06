@@ -1,5 +1,6 @@
 // Adapted from math-tank src/audio/sfx.test.ts.
 import { describe, expect, it } from 'vitest';
+import { chantPattern } from '../core/cup/chant';
 import { createSfx, MAX_GAIN, OHH_CLIP_SECONDS, OHH_SECONDS, type AudioContextLike, type ClipName, type SoundSwitches } from './sfx';
 
 /** Minimal Web Audio stand-in that records started sources and gain values. */
@@ -127,6 +128,27 @@ describe('sfx', () => {
     sfx.clap();
     sfx.ohh();
     expect(Math.max(...f.gains)).toBeLessThanOrEqual(MAX_GAIN);
+  });
+
+  it('chant sings three voices per name tone and claps on its beats; fireworks pop; both stay below MAX_GAIN (FR-110)', async () => {
+    const { f, sfx } = setup();
+    await sfx.unlock();
+    sfx.chant('LEO');
+    const voices = chantPattern('LEO').filter((b) => b.kind === 'voice');
+    const claps = chantPattern('LEO').filter((b) => b.kind === 'clap');
+    expect(f.started.filter((s) => s.kind === 'osc')).toHaveLength(voices.length * 3);
+    expect(f.started.filter((s) => s.kind === 'noise').map((s) => s.at)).toEqual(claps.map((c) => c.at));
+    sfx.fireworks();
+    expect(f.started.filter((s) => s.kind === 'noise').length).toBeGreaterThan(claps.length);
+    expect(Math.max(...f.gains)).toBeLessThanOrEqual(MAX_GAIN);
+  });
+
+  it('sound.crowd off silences the chant and the fireworks', async () => {
+    const { f, sfx } = setup({ crowd: false });
+    await sfx.unlock();
+    sfx.chant('LEO');
+    sfx.fireworks();
+    expect(f.started).toEqual([]);
   });
 
   it('installUnlock resumes audio on the first key press and removes its listeners', async () => {

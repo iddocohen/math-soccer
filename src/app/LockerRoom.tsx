@@ -10,6 +10,9 @@
  * - The shirt number takes 1 to 99, the shirt name up to 10 letters; both save as the child types.
  * - Escape goes back (or answers "Nein" while the question shows); "Zurück" goes back.
  *
+ * The trophy shelf (amendment 13, FR-111) shows every won cup as "Pokal 1", "Pokal 2" and so on
+ * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
+ *
  * The app's game keys are off while the locker room shows; this screen has its own key listener for Escape.
  * For tests: `data-testid="locker-room"` with `data-stars`, every item `data-testid="item-<id>"` with `data-owned`,
  * `data-locked` and `data-chosen`.
@@ -32,12 +35,15 @@ import {
 } from '../core/rewards/lockerRoom';
 import type { LockerRoom as LockerData } from '../core/storage/schemas';
 import { t } from '../i18n';
+import { TrophyIcon } from './CupBracket';
 
 interface Props {
   locker: LockerData;
   /** A purchase, a choice, or a new number or name; the app stores it. */
   onChange: (locker: LockerData) => void;
   onBack: () => void;
+  /** The won cups for the trophy shelf (amendment 13, FR-111), oldest first. */
+  trophies?: ReadonlyArray<{ cup: number }>;
 }
 
 const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans'> = { ball: 'ball', shirt: 'shirt', scarf: 'fans' };
@@ -121,7 +127,7 @@ function ItemPicture({ item }: { item: LockerItem }): ReactElement {
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
-export function LockerRoom({ locker, onChange, onBack }: Props): ReactElement {
+export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): ReactElement {
   const L = t().lockerRoom;
   const [question, setQuestion] = useState<LockerItem | null>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
@@ -244,6 +250,18 @@ export function LockerRoom({ locker, onChange, onBack }: Props): ReactElement {
           <section className="locker-group" aria-label={L.groups.fans}>
             <h2>{L.groups.fans}</h2>
             {items('scarf')}
+          </section>
+          <section className="locker-group" aria-label={L.groups.trophies}>
+            <h2>{L.groups.trophies}</h2>
+            <ul className="trophy-shelf" data-testid="trophy-shelf" data-trophies={trophies.length}>
+              {trophies.length === 0 && <li className="trophy-empty">{L.emptyShelf}</li>}
+              {trophies.map((trophy) => (
+                <li key={trophy.cup} className="trophy" data-testid="trophy">
+                  <TrophyIcon size={56} />
+                  <span>{L.trophy(trophy.cup)}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       </div>

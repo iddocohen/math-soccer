@@ -14,6 +14,10 @@
  *   his gloves: he holds it, the ball fades, and the fans slump with a soft "ohhh" and then clap. The correct number
  *   goes past his gloves into the net and he lands on the grass. The keeper's phase goes to `onKeeper`.
  * - Sounds: a kick on every shot, a cheer on a goal, the "ohhh" with clapping on a miss.
+ * - Cup (amendment 13): when a cup round starts, the keeper and some scarves take the opponent's colors and the keeper
+ *   shows his quirk (FR-107). The final fills the stand, and the crowd chants the shirt name with clapping; a won final
+ *   brings confetti, fireworks over the stands, the player lifting the cup, a cheer and the chant again (FR-110).
+ *   `onCupShow` hears what shows (`data-keeper-quirk`, `data-cup-show` for tests).
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -22,7 +26,9 @@
  */
 import Phaser from 'phaser';
 import { ballKind, cellRect, center, layoutChart } from '../core/chart/layout';
-import { onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
+import { chantSeconds } from '../core/cup/chant';
+import type { CupTeam, Quirk } from '../core/cup/teams';
+import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -30,7 +36,8 @@ import { BallView } from './BallView';
 import { GoalView } from './GoalView';
 import { HelperView } from './HelperView';
 import { startsBulge } from './net';
-import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
+import { FinalShow } from './FinalShow';
+import { hexColor, HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
 import { emptyLockerRoom } from '../core/storage/schemas';
@@ -49,6 +56,27 @@ export interface MatchSounds {
   kick(): void;
   cheer(): void;
   ohh(): void;
+  /** The crowd's chant in the cup final (FR-110). */
+  chant?(shirtName: string): void;
+  /** Fireworks for a won cup (FR-110). */
+  fireworks?(): void;
+}
+
+/** The cup match the scene shows (amendment 13): the opponent, and whether it is the final. */
+export interface CupScene {
+  team: CupTeam;
+  final: boolean;
+}
+
+/** What the scene shows of the cup, for `data-*` attributes in tests. */
+export interface CupShow {
+  /** The opponent keeper's quirk; null outside the cup. */
+  quirk: Quirk | null;
+  team: string | null;
+  /** The full stand and the chant of the final. */
+  final: boolean;
+  /** Confetti, fireworks and the cup lift of a won final. */
+  won: boolean;
 }
 
 export interface MatchSceneOptions {
@@ -62,6 +90,10 @@ export interface MatchSceneOptions {
   look?: () => Look;
   /** Hears the keeper's phase in goalkeeper mode (`data-keeper` for tests). */
   onKeeper?: (phase: KeeperPhase) => void;
+  /** The cup match of the round, read when a round starts; null or missing outside the cup. */
+  cup?: () => CupScene | null;
+  /** Hears what the scene shows of the cup. */
+  onCupShow?: (show: CupShow) => void;
 }
 
 const BACKDROP_TEXTURE = 'stadium';
@@ -79,6 +111,9 @@ export class MatchScene extends Phaser.Scene {
   private keeper!: KeeperView;
   private player!: PlayerView;
   private ball!: BallView;
+  private finalShow!: FinalShow;
+  /** The cup match of the round; null outside the cup. */
+  private cupMatch: CupScene | null = null;
   private prev: MatchView | null = null;
   /** True from the kick until the scene has called `ballLanded()`. */
   private flying = false;
@@ -114,6 +149,8 @@ export class MatchScene extends Phaser.Scene {
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
     this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)), look.ball);
+    this.finalShow = new FinalShow(this);
+    this.cupMatch = null;
     this.prev = null;
     this.flying = false;
     this.ballInNet = false;
@@ -135,6 +172,7 @@ export class MatchScene extends Phaser.Scene {
     this.unsubscribe = null;
     this.celebration?.remove();
     this.celebration = null;
+    this.finalShow?.stop();
   }
 
   private draw(s: MatchView): void {
@@ -153,6 +191,7 @@ export class MatchScene extends Phaser.Scene {
       this.ball.reset();
       this.keeper.reset();
       this.stands.calm();
+      this.startCup(s);
     }
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
     if (s.target) {
@@ -169,12 +208,53 @@ export class MatchScene extends Phaser.Scene {
 
     this.setPaused(s.paused);
 
+    if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
+
     if (s.phase === 'ballInFlight' && s.ball && !this.flying) this.kick(s.ball.number);
     // After the celebration the next target shows and the ball waits at the kick spot again.
     if (s.phase === 'aiming' && s.ball === null && this.ballInNet) {
       this.ballInNet = false;
       this.ball.reset();
     }
+  }
+
+  /**
+   * A new round: the keeper and the scarves in the cup opponent's colors, or the usual ones outside the cup (FR-107).
+   * The final fills the stand and the crowd chants the shirt name (FR-110).
+   */
+  private startCup(s: MatchView): void {
+    this.finalShow.stop();
+    this.player.lowerCup();
+    const cup = s.roundType === 'cup' ? (this.options.cup?.() ?? null) : null;
+    this.cupMatch = cup;
+    this.keeper.setTeam(cup ? cup.team : null);
+    this.stands.setTeamColor(cup ? hexColor(cup.team.color) : null);
+    this.stands.setFinal(cup?.final === true);
+    if (cup?.final && s.phase !== 'roundOver') this.chant();
+    this.reportCup(false);
+  }
+
+  /** The crowd chants the shirt name, and the fans clap along. */
+  private chant(): void {
+    const name = this.currentLook().shirtName;
+    this.options.sounds?.chant?.(name);
+    this.stands.chant(chantSeconds(name) * 1000);
+  }
+
+  /** The won final: confetti, fireworks over the stands, the cup lift, a cheer and the chant (FR-110). */
+  private cupWon(): void {
+    this.finalShow.start();
+    this.player.liftCup();
+    this.stands.cheer();
+    this.options.sounds?.cheer();
+    this.options.sounds?.fireworks?.();
+    this.chant();
+    this.reportCup(true);
+  }
+
+  private reportCup(won: boolean): void {
+    const cup = this.cupMatch;
+    this.options.onCupShow?.({ quirk: cup?.team.quirk ?? null, team: cup?.team.id ?? null, final: cup?.final === true, won });
   }
 
   private currentLook(): Look {

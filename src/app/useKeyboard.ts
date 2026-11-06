@@ -62,6 +62,9 @@ export function applyMatchAction(controller: MatchController, action: KeyAction)
     case 'start':
     case 'again':
     case 'lockerRoom':
+    case 'bracket':
+    case 'back':
+    case 'skipIntro':
       return false;
   }
 }

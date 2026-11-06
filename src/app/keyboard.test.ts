@@ -29,12 +29,27 @@ describe('keyToAction: start screen', () => {
     expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'play' })).toEqual({ type: 'start', kind: 'play' });
   });
 
-  it('P starts the next cup match, and Enter does with ?start=cup (FR-105)', () => {
-    expect(keyToAction(key('p'), 'start', ALL)).toEqual({ type: 'start', kind: 'cup' });
-    expect(keyToAction(key('P'), 'start', {})).toEqual({ type: 'start', kind: 'cup' });
+  it('P opens the bracket screen, and Enter starts the next cup match with ?start=cup (FR-105)', () => {
+    expect(keyToAction(key('p'), 'start', ALL)).toEqual({ type: 'bracket' });
+    expect(keyToAction(key('P'), 'start', {})).toEqual({ type: 'bracket' });
     expect(keyToAction(key('p', { repeat: true }), 'start', ALL)).toBeNull();
     expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'cup' })).toEqual({ type: 'start', kind: 'cup' });
-    for (const screen of ['match', 'paused', 'roundEnd'] as const) expect(keyToAction(key('p'), screen, ALL)).toBeNull();
+    for (const screen of ['match', 'paused', 'roundEnd', 'bracket', 'intro'] as const) expect(keyToAction(key('p'), screen, ALL)).toBeNull();
+  });
+
+  it('on the bracket screen Enter or Space start the highlighted match and Escape goes back (FR-106)', () => {
+    expect(keyToAction(key('Enter'), 'bracket', ALL)).toEqual({ type: 'start', kind: 'cup' });
+    expect(keyToAction(key(' '), 'bracket', ALL)).toEqual({ type: 'start', kind: 'cup' });
+    expect(keyToAction(key('Enter', { repeat: true }), 'bracket', ALL)).toBeNull();
+    expect(keyToAction(key('Escape'), 'bracket', ALL)).toEqual({ type: 'back' });
+    expect(keyToAction(key('5'), 'bracket', ALL)).toBeNull();
+  });
+
+  it('during the match intro Enter or Space skip it and never shoot; digits type as in the match', () => {
+    expect(keyToAction(key('Enter'), 'intro', ALL)).toEqual({ type: 'skipIntro' });
+    expect(keyToAction(key(' '), 'intro', ALL)).toEqual({ type: 'skipIntro' });
+    expect(keyToAction(key('7'), 'intro', ALL)).toEqual({ type: 'digit', digit: 7 });
+    expect(keyToAction(key('Escape'), 'intro', ALL)).toEqual({ type: 'pause' });
   });
 
   it('K opens the locker room only when it is on', () => {

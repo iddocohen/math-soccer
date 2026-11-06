@@ -10,7 +10,8 @@ import type { Rect } from '../core/types';
 import { FLIGHT_MS } from './BallView';
 import { BOARD_DEPTH } from './GoalView';
 import { FADED_ALPHA, HOME_POSE, idleBounds, waitingSpot } from './keeperDive';
-import { HOLD_MS, KEEPER_DEPTH, KeeperView, WAITING_DEPTH } from './KeeperView';
+import { QUIRKS, type Quirk } from '../core/cup/teams';
+import { HOLD_MS, KEEPER_DEPTH, KeeperView, QUICK_SHUFFLE_MS, WAITING_DEPTH } from './KeeperView';
 
 vi.mock('phaser', () => ({ default: {} }));
 
@@ -30,7 +31,7 @@ function fakeScene() {
   const shape = () => {
     const o: Record<string, unknown> = { depth: 0, alpha: 1 };
     const chain = () => o;
-    for (const m of ['fillStyle', 'fillRect', 'fillRoundedRect', 'fillCircle', 'fillEllipse', 'lineStyle', 'strokeRoundedRect', 'setPosition', 'setRotation', 'setScale', 'destroy']) o[m] = chain;
+    for (const m of ['clear', 'fillTriangle', 'fillStyle', 'fillRect', 'fillRoundedRect', 'fillCircle', 'fillEllipse', 'lineStyle', 'strokeRoundedRect', 'setPosition', 'setRotation', 'setScale', 'destroy']) o[m] = chain;
     o.setDepth = (d: number) => ((o.depth = d), o);
     o.setAlpha = (a: number) => ((o.alpha = a), o);
     return o;
@@ -194,5 +195,69 @@ describe('the waiting keeper is drawn behind the numbers (FR-120)', () => {
     advance(2000);
     expect(k.phase).toBe('idle');
     expect(k.depth).toBe(WAITING_DEPTH);
+  });
+});
+
+describe('cup keeper quirks are looks only (amendment 13, FR-107)', () => {
+  /** Where the keeper is after each step of a shot sequence, with the given quirk (or the blue keeper). */
+  function trace(quirk: Quirk | null): Array<{ x: number; y: number; phase: string; depth: number; alpha: number }> {
+    const { k, advance } = keeper();
+    k.setTeam(quirk ? { color: '#d8382f', trim: '#ffffff', quirk } : null);
+    k.reset();
+    const out: Array<{ x: number; y: number; phase: string; depth: number; alpha: number }> = [];
+    const note = () => out.push({ x: k.currentPose.x, y: k.currentPose.y, phase: k.phase, depth: k.depth, alpha: k.alpha });
+    k.keepClear(TOP);
+    note();
+    k.keepClear(SCREENSHOT);
+    advance(1000);
+    note();
+    k.dive(squares(30)[0]!, 'catch');
+    advance(FLIGHT_MS);
+    note();
+    k.catchBall();
+    advance(HOLD_MS);
+    note();
+    advance(2000);
+    note();
+    k.dive(squares(87)[0]!, 'beaten');
+    advance(FLIGHT_MS);
+    note();
+    k.beaten();
+    advance(3000);
+    note();
+    return out;
+  }
+
+  const blue = trace(null);
+
+  for (const quirk of QUIRKS) {
+    it(`"${quirk}": the same spots, leaps, layers and opacity as the blue keeper`, () => {
+      const { k } = keeper();
+      k.setTeam({ color: '#2b6fd6', trim: '#cfe6ff', quirk });
+      expect(k.quirk).toBe(quirk);
+      expect(trace(quirk)).toEqual(blue);
+    });
+  }
+
+  it('the small, quick keeper reaches a new waiting spot sooner, at the same spot', () => {
+    const run = (quirk: Quirk | null) => {
+      const { k, advance } = keeper();
+      k.setTeam(quirk ? { color: '#f2c230', trim: '#1d2a5c', quirk } : null);
+      k.reset();
+      k.keepClear(TOP);
+      k.keepClear(SCREENSHOT);
+      advance(QUICK_SHUFFLE_MS);
+      return k.currentPose.x;
+    };
+    const target = waitingSpot(SCREENSHOT).pose.x;
+    expect(run('small')).toBe(target);
+    expect(run(null)).not.toBe(target);
+  });
+
+  it('setTeam(null) gives the blue keeper back', () => {
+    const { k } = keeper();
+    k.setTeam({ color: '#2b6fd6', trim: '#cfe6ff', quirk: 'cap' });
+    k.setTeam(null);
+    expect(k.quirk).toBeNull();
   });
 });

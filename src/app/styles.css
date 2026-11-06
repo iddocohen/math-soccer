@@ -1025,3 +1025,219 @@ button:focus-visible {
     bottom: calc(max(12px, env(safe-area-inset-bottom, 0px)) + 2 * 58px + 8px + 12px);
   }
 }
+
+/* Cup bracket screen (amendment 13, FR-106) */
+.cup-bracket {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+  overflow-y: auto;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+  background: var(--night);
+  touch-action: auto;
+}
+
+.cup-bracket-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cup-bracket-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 0 0;
+  color: var(--kit);
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+}
+
+.bracket {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bracket-match {
+  position: relative;
+  flex: 1 1 0;
+  max-width: 220px;
+}
+
+/* A line from each match to the next, left to right. */
+.bracket-match + .bracket-match::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  width: 12px;
+  border-top: 3px solid rgb(255 255 255 / 30%);
+}
+
+.bracket-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 150px;
+  padding: 14px 10px;
+  border: 2px solid rgb(255 255 255 / 25%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 5%);
+  font-weight: 800;
+  text-align: center;
+}
+
+.bracket-final .bracket-card {
+  min-height: 190px;
+  border-color: rgb(242 194 48 / 60%);
+}
+
+.bracket-next .bracket-card {
+  border: 3px solid var(--kit);
+  background: rgb(232 185 35 / 18%);
+  box-shadow: 0 0 0 4px rgb(232 185 35 / 25%);
+}
+
+.bracket-later .bracket-card {
+  opacity: 0.6;
+}
+
+.bracket-stage {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.bracket-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.15rem;
+}
+
+.bracket-colors {
+  display: inline-block;
+  width: 34px;
+  height: 22px;
+  border: 4px solid;
+  border-radius: 6px;
+}
+
+.bracket-colors.big {
+  width: 64px;
+  height: 40px;
+  border-width: 7px;
+}
+
+.bracket-score {
+  font-size: 1.4rem;
+  color: #7ddc8a;
+}
+
+.bracket-play {
+  font-size: 1.4rem;
+  color: var(--kit);
+}
+
+@media (max-width: 760px) {
+  .bracket {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bracket-match {
+    max-width: none;
+  }
+
+  .bracket-match + .bracket-match::before {
+    display: none;
+  }
+
+  .bracket-card,
+  .bracket-final .bracket-card {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 0;
+  }
+}
+
+/* The intro card before a cup match */
+.cup-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 29 43 / 45%);
+}
+
+.cup-intro-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 40px;
+  border: 4px solid;
+  border-radius: 18px;
+  background: var(--night);
+  font-size: clamp(1.4rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+}
+
+.cup-intro-card p {
+  margin: 0;
+}
+
+/*
+ * A won cup final: the round end is a card at the lower right, so the confetti, the fireworks and the player lifting
+ * the cup (lower left of the ball) stay in view (FR-110).
+ */
+.round-end.cup-final-won {
+  inset: auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto;
+  width: min(360px, calc(100% - 32px));
+  gap: 10px;
+  padding: 20px;
+  border: 3px solid var(--kit);
+  border-radius: 18px;
+  background: rgb(15 29 43 / 90%);
+}
+
+.round-end.cup-final-won h2 {
+  font-size: 1.8rem;
+}
+
+.round-end.cup-final-won p {
+  font-size: 1.2rem;
+}
+
+/* Trophy shelf in the locker room (FR-111) */
+.trophy-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 8px 0;
+  border-bottom: 8px solid #8a5a32;
+  list-style: none;
+}
+
+.trophy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 800;
+}
+
+.trophy-empty {
+  padding-bottom: 8px;
+  color: var(--muted);
+}

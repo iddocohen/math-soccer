@@ -10,12 +10,15 @@
  *   noise swells), clapping (short noise bursts) and the "ohhh" (three low triangle tones gliding down).
  *
  * - `kick` plays while `sound.effects` is on.
+ * - The cup final (amendment 13, FR-110): `chant` sings the crowd's chant (core/cup/chant.ts) with clapping, and
+ *   `fireworks` pops and crackles for a won cup. Both are synthesized and are crowd sounds.
  * - `cheer`, `clap` and `ohh` are crowd sounds and play while `sound.crowd` is on.
  * - With `sound.ohh` off, `ohh` plays the clapping alone (data-model "Settings").
  * - Browsers start audio suspended; the context is created and resumed on the first key or tap (installUnlock). Until
  *   then every sound is skipped silently.
  * - Every voice peaks at MAX_GAIN or lower. Clapping is scheduled on the audio clock, not with timers.
  */
+import { chantPattern } from '../core/cup/chant';
 
 /** The part of AudioContext this module uses; tests pass a stand-in. */
 export type AudioContextLike = Pick<
@@ -64,6 +67,10 @@ export interface SfxOptions {
 
 export interface Sfx {
   kick(): void;
+  /** The crowd's chant in the cup final, built from the shirt name's length (FR-110); a crowd sound. */
+  chant(shirtName: string): void;
+  /** A few firework pops with crackle over the stands, for a won cup (FR-110); a crowd sound. */
+  fireworks(): void;
   cheer(): void;
   clap(): void;
   /** The soft "ohhh", then clapping; clapping alone when `sound.ohh` is off. */
@@ -190,6 +197,24 @@ export function createSfx(options: SfxOptions): Sfx {
     await loadClips(ctx);
   };
 
+  /** A crowd singing one tone: three slightly detuned voices that swell in and fade out. */
+  const voice = (c: AudioContextLike, pitch: number, length: number, delay: number) => {
+    const t = c.currentTime + delay;
+    for (const detune of [0.985, 1, 1.02]) {
+      const g = c.createGain();
+      g.gain.setValueAtTime(SILENT, t);
+      g.gain.linearRampToValueAtTime(0.05, t + length * 0.2);
+      g.gain.linearRampToValueAtTime(SILENT, t + length);
+      g.connect(c.destination);
+      const o = c.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(pitch * detune, t);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + length + 0.05);
+    }
+  };
+
   const clapSound = (c: AudioContextLike, delay = 0) => {
     if (!playClip(c, 'clap', delay)) clapping(c, 5, 0.12, 0.2, delay);
   };
@@ -198,6 +223,23 @@ export function createSfx(options: SfxOptions): Sfx {
     kick() {
       const c = options.sound().effects ? running() : null;
       if (c && !playClip(c, 'kick')) glide(c, 160, 60, 0.12, 0.3);
+    },
+    chant(shirtName: string) {
+      const c = crowd();
+      if (!c) return;
+      for (const beat of chantPattern(shirtName)) {
+        if (beat.kind === 'voice') voice(c, beat.pitch, beat.length, beat.at);
+        else noiseBurst(c, 0.08, 2200, 0.25, beat.at);
+      }
+    },
+    fireworks() {
+      const c = crowd();
+      if (!c) return;
+      for (const [i, at] of [0, 0.45, 0.8, 1.3].entries()) {
+        // A low pop, then a short crackle.
+        noiseBurst(c, 0.18, 300 + i * 60, 0.3, at);
+        noiseBurst(c, 0.5, 4200, 0.08, at + 0.12);
+      }
     },
     cheer() {
       const c = crowd();

@@ -37,7 +37,14 @@
  * "Tore pro Spiel" (core/cup `nextMatch`, MatchController.startCup). Its attempts count without moving the child's level
  * (FR-109). When the match ends, its result goes to the cup with the bonus stars (`settleCup`), and the round end says
  * "Gewonnen! …" or "Knapp! Noch mal gegen …?"; "Nochmal" starts the next match. "Zum Start" leaves the cup unchanged
- * (FR-118). The bracket screen and the team looks come with T102.
+ * (FR-118).
+ *
+ * Cup screens (T102): "Pokal" (P) opens the bracket screen (CupBracket.tsx); Enter, Space or a tap there starts the
+ * highlighted match, Escape goes back. `?start=cup` still makes Enter on the start screen start the match at once
+ * (tests). A cup match opens with a short card "Gruppenspiel 1 gegen FC Blitz" (CUP_INTRO_MS; Enter, Space, a tap or
+ * the first typed digit ends it; the round clock waits for it). After a win the round end's "Weiter" goes to the bracket;
+ * after a loss "Nochmal" replays the match and "Zurück" goes to the bracket. The scene reads the opponent and whether
+ * it is the final from `cupScene` (team colors, keeper quirk, the final's full stand, chant and celebration).
  *
  * Pause and home (amendment 14, FR-116 to FR-118): while the child paused the round, PauseScreen offers "Weiter" and
  * "Zum Start"; the home button pauses and asks "Runde beenden?" with the same two buttons. "Zum Start" goes through
@@ -58,7 +65,8 @@ import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
-import { CUP_STAGES, nextMatch, recordMatch } from '../core/cup/cup';
+import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf } from '../core/cup/cup';
+import type { CupTeam } from '../core/cup/teams';
 import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
@@ -70,9 +78,11 @@ import { clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import type { Digit } from '../core/match/entry';
 import type { GameHandle } from '../game/createGame';
+import type { CupScene, CupShow } from '../game/MatchScene';
 import type { KeeperPhase } from '../game/KeeperView';
 import { resetMessage, t } from '../i18n';
 import { START_KINDS, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
+import { CupBracket, CupIntro } from './CupBracket';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
 import { MatchOverlay } from './MatchOverlay';
@@ -90,7 +100,16 @@ import { useAutoPause } from './useAutoPause';
 import { useMatchState, type ClockSource } from './useController';
 import { applyMatchAction, useKeyboard } from './useKeyboard';
 
-type Screen = 'start' | 'match' | 'lockerRoom';
+type Screen = 'start' | 'match' | 'lockerRoom' | 'cup';
+
+/** How long the match intro card of a cup match shows, in milliseconds (Enter or a tap skips it). */
+const CUP_INTRO_MS = 1500;
+
+/** The cup match the scene shows: the opponent and whether it is the final (stage 4). */
+function cupSceneOf(persistence: Persistence): CupScene {
+  const cup = persistence.cup();
+  return { team: teamOf(cup.cup, cup.stage), final: cup.stage === CUP_MATCHES - 1 };
+}
 
 /** The parent screens over the game: the parent menu, the settings page and the progress page. */
 type ParentView = 'closed' | 'menu' | 'settings' | 'progress';
@@ -254,14 +273,16 @@ function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): Cu
     : update.cupWon
       ? text.cupWon(before.cup)
       : text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
-  return { won, line, bonus: update.stars };
+  return { won, line, bonus: update.stars, cupWon: update.cupWon };
 }
 
 /** Which keys the game takes on `screen`. */
-function keyScreenOf(screen: Screen, roundOver: boolean, paused: boolean): KeyScreen {
+function keyScreenOf(screen: Screen, roundOver: boolean, paused: boolean, intro: boolean): KeyScreen {
   if (screen === 'start') return 'start';
+  if (screen === 'cup') return 'bracket';
   if (roundOver) return 'roundEnd';
-  return paused ? 'paused' : 'match';
+  if (paused) return 'paused';
+  return intro ? 'intro' : 'match';
 }
 
 /** Removes `#save=` from the address without a reload or a new history entry. */
@@ -293,6 +314,14 @@ export function App() {
   // A restored round has no phase before it: one restored straight into 'roundOver' (a refresh during the final goal's
   // celebration) still goes to the personal bests (review M2).
   const lastPhase = useRef<Phase | null>(restored ? null : state.phase);
+  // The cup match the scene shows (FR-107, FR-110); a restored cup match is the cup's next match.
+  const cupScene = useRef<CupScene | null>(controller.getState().roundType === 'cup' ? cupSceneOf(persistence) : null);
+  // What the scene shows of the cup, as `data-*` attributes for tests.
+  const [cupShow, setCupShow] = useState<CupShow | null>(null);
+  // The match intro card of a cup match: "Gruppenspiel 1 gegen FC Blitz" (T102).
+  const [intro, setIntro] = useState<{ stage: number; team: CupTeam } | null>(null);
+  const introShown = useRef(false);
+  introShown.current = intro !== null;
 
   // Sound starts after the first key or tap (spec edge case "Sound blocked by the browser").
   useEffect(() => sfx.installUnlock(document), [sfx]);
@@ -310,6 +339,8 @@ export function App() {
           settings,
           onKeeper: setKeeper,
           look: () => lookOf(persistence.lockerRoom()),
+          cup: () => cupScene.current,
+          onCupShow: setCupShow,
         });
         gameHandle.current = handle;
       },
@@ -399,7 +430,8 @@ export function App() {
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      if (!document.hidden && gameHandle.current !== null) controller.tick((now - last) * playSpeed(fromUrl));
+      // The intro card of a cup match costs no time of the round.
+      if (!document.hidden && gameHandle.current !== null && !introShown.current) controller.tick((now - last) * playSpeed(fromUrl));
       last = now;
     }, TICK_MS);
     return () => window.clearInterval(id);
@@ -427,10 +459,15 @@ export function App() {
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
       if (speech) speaker.prime();
       if (kind === 'cup') {
-        // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109).
+        // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109). The scene reads the
+        // opponent when the round starts, so it is set first.
         const match = nextMatch(persistence.cup(), settings());
+        cupScene.current = cupSceneOf(persistence);
+        setIntro({ stage: match.stage, team: match.team });
         controller.startCup({ level: match.level, goals: match.goals });
       } else {
+        cupScene.current = null;
+        setIntro(null);
         controller.start(kind);
       }
       setScreen('match');
@@ -439,7 +476,18 @@ export function App() {
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
-  const gameScreen = keyScreenOf(screen, roundOver, state.paused);
+  const gameScreen = keyScreenOf(screen, roundOver, state.paused, intro !== null);
+
+  // The intro card shows about 1.5 s; it goes earlier with Enter, Space, a tap or the first typed digit.
+  useEffect(() => {
+    if (intro === null) return;
+    const id = window.setTimeout(() => setIntro(null), CUP_INTRO_MS);
+    return () => window.clearTimeout(id);
+  }, [intro]);
+  // A round that ends, pauses or leaves the match takes the card with it.
+  useEffect(() => {
+    if (screen !== 'match' || roundOver) setIntro(null);
+  }, [screen, roundOver]);
   // While a parent screen or the transfer dialog is open, keys do nothing in the game (FR-034).
   // The locker room has its own keys (Escape back).
   const keyScreen: KeyScreen | null = parent === 'closed' && transfer === null && screen !== 'lockerRoom' && !matchLocker ? gameScreen : null;
@@ -489,6 +537,11 @@ export function App() {
 
   // "Nochmal" starts the same kind of round again; a time challenge the parent no longer allows becomes "Spielen".
   const playAgain = () => {
+    // A won cup match goes on to the bracket (FR-108), where the next match waits.
+    if (lastStart.current === 'cup' && cupResult?.won) {
+      setScreen('cup');
+      return;
+    }
     const kind = lastStart.current === 'time' && !timeChallenge ? 'play' : lastStart.current;
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round.
     if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
@@ -504,7 +557,14 @@ export function App() {
     if (action.type === 'start') startMatch(action.kind);
     else if (action.type === 'again') playAgain();
     else if (action.type === 'lockerRoom') setScreen('lockerRoom');
-    else applyMatchAction(controller, action);
+    else if (action.type === 'bracket') setScreen('cup');
+    else if (action.type === 'back') setScreen('start');
+    else if (action.type === 'skipIntro') setIntro(null);
+    else {
+      // The first key of the match also ends the intro card.
+      setIntro(null);
+      applyMatchAction(controller, action);
+    }
   };
   useKeyboard({ screen: keyScreen, timeChallenge, lockerRoom: lockerOn, enterStart: startFromUrl(window.location.search), onAction });
 
@@ -556,6 +616,13 @@ export function App() {
     setQuitAsked(false);
     setScreen('start');
   }, [controller]);
+  const cupAttributes = useMemo(
+    () =>
+      cupShow === null || cupShow.team === null
+        ? undefined
+        : { quirk: cupShow.quirk ?? '', team: cupShow.team, show: cupShow.won ? 'won' : cupShow.final ? 'final' : 'match' },
+    [cupShow],
+  );
   const closeHelpChart = useCallback(() => controller.closeHelpChart(), [controller]);
 
   if (screen === 'lockerRoom' && lockerOn) {
@@ -564,7 +631,17 @@ export function App() {
         locker={locker}
         onChange={saveLocker}
         onBack={() => setScreen('start')}
+        trophies={persistence.cup().trophies}
       />
+    );
+  }
+
+  if (screen === 'cup') {
+    return (
+      <>
+        <CupBracket cup={persistence.cup()} onPlay={() => startMatch('cup')} onBack={() => setScreen('start')} />
+        {parentScreens}
+      </>
     );
   }
 
@@ -573,7 +650,7 @@ export function App() {
       <>
         <StartScreen
           timeChallenge={timeChallenge}
-          onPlay={startMatch}
+          onPlay={(kind) => (kind === 'cup' ? setScreen('cup') : startMatch(kind))}
           gear={gear}
           cup={persistence.cup()}
           lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}
@@ -594,6 +671,7 @@ export function App() {
         state={state}
         clock={clock}
         keeper={keeper}
+        cup={cupAttributes}
         ball={locker.ball}
         shirt={locker.shirtColor}
         settings={overlaySettings}
@@ -630,10 +708,11 @@ export function App() {
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
           onAgain={playAgain}
-          onBack={() => setScreen('start')}
+          onBack={() => setScreen(state.roundType === 'cup' ? 'cup' : 'start')}
         />
       )}
-      {matchLocker && <LockerRoom locker={locker} onChange={saveLocker} onBack={closeMatchLocker} />}
+      {intro !== null && !roundOver && !state.paused && <CupIntro stage={intro.stage} team={intro.team} onSkip={() => setIntro(null)} />}
+      {matchLocker && <LockerRoom locker={locker} onChange={saveLocker} onBack={closeMatchLocker} trophies={persistence.cup().trophies} />}
       {parentScreens}
     </main>
   );

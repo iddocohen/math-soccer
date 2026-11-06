@@ -10,7 +10,10 @@
  * A time challenge (amendment 07, FR-080) shows "2 Tore in 1 Minute" and its record by goals ("Dein Rekord: 9"), per
  * range and challenge time.
  * A cup match (amendment 13, FR-108) shows its outcome instead of a record (`data-testid="cup-result"`, `data-cup-won`):
- * "Gewonnen! Weiter ins Halbfinale", or "Knapp! Noch mal gegen Adler 09?". "Nochmal" starts the cup's next match.
+ * "Gewonnen! Weiter ins Halbfinale", or "Knapp! Noch mal gegen Adler 09?" (T102). After a win the one button "Weiter"
+ * (Enter or Space) goes back to the bracket; after a loss "Nochmal" replays the match and "Zurück" goes to the bracket
+ * (App.tsx passes the bracket as `onBack`). A won final sits low on the screen (`cup-final-won`), so the confetti,
+ * the fireworks and the cup lift stay in view.
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
  * Amendment 12 (FR-103): when a new version waits, a short neutral line "Neue Version, startet gleich" shows
  * (`data-testid="update-note"`); "Zurück" and "Nochmal" then apply it (App.tsx, swUpdate.ts).
@@ -23,6 +26,8 @@ import type { RoundType } from '../core/types';
 export interface CupRoundResult {
   won: boolean;
   line: string;
+  /** The match won the final, and with it the cup (FR-110, FR-111). */
+  cupWon?: boolean;
 }
 
 export interface RoundRecord {
@@ -51,7 +56,13 @@ interface Props {
 export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, onAgain, onBack }: Props) {
   const text = t().roundEnd;
   return (
-    <div className="round-end" data-testid="round-end" role="dialog" aria-modal="true" aria-label={text.cheer}>
+    <div
+      className={cup?.cupWon ? 'round-end cup-final-won' : 'round-end'}
+      data-testid="round-end"
+      role="dialog"
+      aria-modal="true"
+      aria-label={text.cheer}
+    >
       <h2>{text.cheer}</h2>
       <p className="round-result" data-testid="round-result">
         {challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs)}
@@ -81,12 +92,21 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
         </p>
       )}
       <div className="round-end-buttons">
-        <button type="button" className="primary" onClick={onAgain}>
-          {text.again}
-        </button>
-        <button type="button" onClick={onBack}>
-          {text.back}
-        </button>
+        {cup?.won ? (
+          // A won cup match goes on to the bracket (Enter or Space as well).
+          <button type="button" className="primary" onClick={onBack}>
+            {t().cup.next}
+          </button>
+        ) : (
+          <>
+            <button type="button" className="primary" onClick={onAgain}>
+              {text.again}
+            </button>
+            <button type="button" onClick={onBack}>
+              {text.back}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

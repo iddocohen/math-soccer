@@ -144,6 +144,18 @@ export const de = {
     lost: (team: string) => `Knapp! Noch mal gegen ${team}?`,
     /** "3:1", the child's goals first. */
     score: (goals: number, against: number) => `${goals}:${against}`,
+    /** The bracket screen (FR-106): its title names the cup, "Pokal 2". */
+    title: (n: number) => `Pokal ${n}`,
+    /** The highlighted match's button. */
+    play: 'Los!',
+    back: 'Zurück',
+    /** Accessible label of a won match: "Gewonnen 3:1". */
+    wonLabel: (score: string) => `Gewonnen ${score}`,
+    nextLabel: 'Nächstes Spiel',
+    /** The match intro card: "Gruppenspiel 1 gegen FC Blitz". */
+    intro: (stage: string, team: string) => `${stage} gegen ${team}`,
+    /** The round end's button after a won match: back to the bracket. */
+    next: 'Weiter',
   },
 
   /** Locker room (contracts/screens.md "Locker room"). */
@@ -151,7 +163,10 @@ export const de = {
     title: 'Kabine',
     back: 'Zurück',
     preview: 'Dein Spieler',
-    groups: { ball: 'Ball', shirt: 'Trikot', numberName: 'Nummer und Name', fans: 'Fans' },
+    groups: { ball: 'Ball', shirt: 'Trikot', numberName: 'Nummer und Name', fans: 'Fans', trophies: 'Pokale' },
+    /** The trophy shelf (amendment 13, FR-111). */
+    trophy: (n: number) => `Pokal ${n}`,
+    emptyShelf: 'Hier stehen deine Pokale.',
     shirtNumber: 'Nummer',
     shirtName: 'Name',
     stillNeeded: (n: number) => `noch ${starCount(n)}`,
