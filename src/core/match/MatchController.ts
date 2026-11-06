@@ -44,7 +44,7 @@ import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
 import { starsFor } from '../rewards/lockerRoom';
 import { MISSES_PER_HEART } from '../settings/defaults';
-import type { Difficulty, Settings } from '../settings/schema';
+import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { makeLine, type Line } from '../targets/lines';
@@ -53,8 +53,7 @@ import { DIRECTIONS, type DeepReadonly, type Mode, type Target } from '../types'
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
-export const PHASES = ['aiming', 'ballInFlight', 'celebrating', 'roundOver'] as const;
-export type Phase = (typeof PHASES)[number];
+export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 
 /** The highest help step: step 3 shows the answer. */
 export const MAX_HELP_STEP = ANSWER_STEP;
@@ -62,11 +61,8 @@ export const MAX_HELP_STEP = ANSWER_STEP;
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
 
-/** Stars per goal, per correct line square and per finished line live with the locker room (FR-042). */
-export { GOAL_STARS, LINE_STARS, SQUARE_STARS } from '../rewards/lockerRoom';
-
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
-export const SAVE_TIME_EVERY_MS = 1000;
+const SAVE_TIME_EVERY_MS = 1000;
 
 /** What the message line says; the app turns it into German text. */
 export type MatchMessage =
@@ -193,17 +189,41 @@ export interface MatchControllerOptions {
 
 export const START_HEARTS = 3;
 
-/** Misses in a row on one target before a heart is lost: easy 5, normal 4, challenging 3 (FR-027). */
-export function missesPerHeart(difficulty: Difficulty): 3 | 4 | 5 {
-  return MISSES_PER_HEART[difficulty];
+/** The match state fields a stored round keeps; `phase` and `goalsPerRound` are saved and restored on their own. */
+const STORED_KEYS = [
+  'seed',
+  'mode',
+  'roundType',
+  'min',
+  'max',
+  'goals',
+  'hearts',
+  'missesInRow',
+  'helpStep',
+  'target',
+  'line',
+  'targetCount',
+  'starsThisRound',
+  'elapsedMs',
+  'targetStartMs',
+  'targetMisses',
+  'missTimes',
+] as const satisfies ReadonlyArray<keyof MatchState & keyof StoredRound>;
+
+type StoredFields = Pick<MatchState, (typeof STORED_KEYS)[number]>;
+
+function storedFields(from: StoredFields): StoredFields {
+  return Object.fromEntries(STORED_KEYS.map((key) => [key, from[key]])) as unknown as StoredFields;
 }
 
-/** A stored round's fields without its storage version, which the match state does not carry. */
-function withoutVersion<T extends { version: number }>(stored: T): Omit<T, 'version'> {
-  const copy: Partial<T> = { ...stored };
-  delete copy.version;
-  return copy as Omit<T, 'version'>;
-}
+/** The fields every new target starts from: no misses in a row, no help, no shown square. */
+const TARGET_RESET = {
+  missesInRow: 0,
+  helpStep: 0,
+  helpChartOpen: false,
+  lastGuess: null,
+  shown: null,
+} as const satisfies Partial<MatchState>;
 
 function freshState(s: Settings, mode: Mode, seed: number, started: boolean): MatchState {
   return {
@@ -238,7 +258,7 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
 }
 
 /** The settings that shape targets: a change gives the running round a new target (FR-052). */
-export const TARGET_KEYS = [
+const TARGET_KEYS = [
   'range',
   'modes',
   'hintDisplay',
@@ -251,10 +271,10 @@ export const TARGET_KEYS = [
 ] as const satisfies ReadonlyArray<keyof Settings>;
 
 /** The settings that shape the whole round; they keep their round-start values until the next round (FR-052). */
-export const ROUND_KEYS = ['roundType', 'goalsPerRound'] as const satisfies ReadonlyArray<keyof Settings>;
+const ROUND_KEYS = ['roundType', 'goalsPerRound'] as const satisfies ReadonlyArray<keyof Settings>;
 
 /** True when a target-shaping setting differs between `a` and `b`. */
-export function changesTargets(a: Settings, b: Settings): boolean {
+function changesTargets(a: Settings, b: Settings): boolean {
   return TARGET_KEYS.some((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key]));
 }
 
@@ -313,6 +333,7 @@ export class MatchController {
     this.newTargetPending = false;
     return this.withNextTarget({
       ...s,
+      ...TARGET_RESET,
       min: this.roundSettings.range.min,
       max: this.roundSettings.range.max,
       entry: '',
@@ -320,11 +341,6 @@ export class MatchController {
       ball: null,
       target: null,
       line: null,
-      shown: null,
-      missesInRow: 0,
-      helpStep: 0,
-      helpChartOpen: false,
-      lastGuess: null,
     });
   }
 
@@ -339,7 +355,7 @@ export class MatchController {
     this.newTargetPending = false;
     this.feedbackMs = 0;
     this.roundSettings = this.options.settings();
-    const seed = (this.options.newSeed ?? (() => Date.now() % 2_147_483_647))();
+    const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
     this.set(this.withNextTarget(freshState(this.roundSettings, mode, seed, true)));
   }
 
@@ -360,11 +376,10 @@ export class MatchController {
     this.feedbackMs = 0;
     // Round type and goals per round keep their round-start values across a refresh (FR-052); a round stored before
     // they were kept uses the current goals per round.
-    const { phase, goalsPerRound, ...rest } = stored;
-    this.roundSettings = { ...s, roundType: stored.roundType, goalsPerRound: goalsPerRound ?? s.goalsPerRound };
-    const state: MatchState = { ...freshState(this.roundSettings, stored.mode, stored.seed, true), ...withoutVersion(rest) };
+    this.roundSettings = { ...s, roundType: stored.roundType, goalsPerRound: stored.goalsPerRound ?? s.goalsPerRound };
+    const state: MatchState = { ...freshState(this.roundSettings, stored.mode, stored.seed, true), ...storedFields(stored) };
     // A round saved during the celebration goes on as if the celebration had ended.
-    if (phase === 'celebrating') this.set(this.afterCelebration({ ...state, phase: 'celebrating' }));
+    if (stored.phase === 'celebrating') this.set(this.afterCelebration(state));
     else this.set(state);
     return true;
   }
@@ -435,75 +450,74 @@ export class MatchController {
         ...s,
         line: s.line ? { ...s.line, index: s.line.squares.length } : null,
         ball: { ...s.ball, outcome: 'goal' },
-        lastAttempt: { number: s.ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
+        lastAttempt: this.scored(s, s.ball),
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
         starsThisRound: s.starsThisRound + lineStars,
         missesInRow: 0,
         message: { kind: 'goal' },
       });
-      this.recordAttempt(s, { solved: s.helpStep < MAX_HELP_STEP, endedAt: s.ball.atMs });
       return;
     }
 
     const number = s.ball.number;
     const misses = s.missesInRow + 1;
     const shown: ShownSquare = { number, remainingMs: SHOWN_MS };
-    const ball: Ball = { ...s.ball, outcome: 'miss' };
-    const missed = { targetMisses: s.targetMisses + 1, missTimes: [...s.missTimes, s.ball.atMs].slice(-MISS_TIMES_KEPT) };
-    const heartLost = s.roundType === 'untilHearts' && misses >= missesPerHeart(this.roundSettings.difficulty);
+    const missed = {
+      ...s,
+      ball: { ...s.ball, outcome: 'miss' as const },
+      targetMisses: s.targetMisses + 1,
+      missTimes: [...s.missTimes, s.ball.atMs].slice(-MISS_TIMES_KEPT),
+      lastGuess: number,
+    };
+    this.feedbackMs = SHOWN_MS;
+    const heartLost = s.roundType === 'untilHearts' && misses >= MISSES_PER_HEART[this.roundSettings.difficulty];
     if (heartLost) {
       // The target stays; help jumps to the answer and the child shoots it (FR-027, critique P7).
       const hearts = s.hearts - 1;
       const next: MatchState = {
-        ...s,
         ...missed,
-        ball,
         // After the last heart the round ends; no square shows under the round end.
         shown: hearts <= 0 ? null : shown,
         hearts,
         missesInRow: 0,
         helpStep: MAX_HELP_STEP,
         helpChartOpen: false,
-        lastGuess: number,
         phase: hearts <= 0 ? 'roundOver' : 'aiming',
         message: { kind: 'heartLost', number },
       };
-      this.feedbackMs = SHOWN_MS;
       this.set(next);
       // The round ends on this target: it counts as not solved (FR-037).
       if (next.phase === 'roundOver') this.recordAttempt(next, { solved: false, endedAt: next.elapsedMs });
       return;
     }
-    this.feedbackMs = SHOWN_MS;
     this.set({
-      ...s,
       ...missed,
-      ball,
       shown,
       phase: 'aiming',
       missesInRow: misses,
       ...this.helpRaised(s.helpStep),
-      lastGuess: number,
       message: { kind: 'miss', number },
     });
+  }
+
+  /** Records the attempt at the target of `s` that `ball` just scored or lit, and returns it for `lastAttempt`. */
+  private scored(s: MatchState, ball: Ball): FinishedAttempt {
+    const solved = s.helpStep < MAX_HELP_STEP;
+    this.recordAttempt(s, { solved, endedAt: ball.atMs });
+    return { number: ball.number, solved, helpStep: s.helpStep };
   }
 
   /** A correct square of the line that is not its last: it lights, and the next square becomes the target (FR-016). */
   private squareLit(s: MatchState, line: Line): void {
     const ball = s.ball!;
-    this.recordAttempt(s, { solved: s.helpStep < MAX_HELP_STEP, endedAt: ball.atMs });
     const next: MatchState = {
       ...s,
+      ...TARGET_RESET,
       ball: { ...ball, outcome: 'square' },
       line: { ...line, index: line.index + 1 },
-      lastAttempt: { number: ball.number, solved: s.helpStep < MAX_HELP_STEP, helpStep: s.helpStep },
+      lastAttempt: this.scored(s, ball),
       starsThisRound: s.starsThisRound + starsFor('square', s.mode),
-      missesInRow: 0,
-      helpStep: 0,
-      helpChartOpen: false,
-      lastGuess: null,
-      shown: null,
       message: { kind: 'correctSquare' },
       phase: 'aiming',
     };
@@ -563,16 +577,7 @@ export class MatchController {
   }
 
   private afterCelebration(s: MatchState): MatchState {
-    const next: MatchState = {
-      ...s,
-      ball: null,
-      helpStep: 0,
-      helpChartOpen: false,
-      lastGuess: null,
-      missesInRow: 0,
-      shown: null,
-      message: null,
-    };
+    const next: MatchState = { ...s, ...TARGET_RESET, ball: null, message: null };
     if (s.roundType === 'goalCount' && s.goals >= this.roundSettings.goalsPerRound) return { ...next, phase: 'roundOver' };
     return this.withNextTarget({ ...next, phase: 'aiming' });
   }
@@ -629,7 +634,7 @@ export class MatchController {
         startedAt: s.targetStartMs,
         endedAt: end.endedAt,
         missTimes: s.missTimes,
-        now: (this.options.now ?? (() => new Date()))(),
+        now: this.options.now?.() ?? new Date(),
       }),
     );
   }
@@ -664,28 +669,7 @@ export class MatchController {
     }
     // While the ball flies the round is saved as it was before the shot; the shot is lost on a refresh.
     if (s.phase !== 'aiming' && s.phase !== 'celebrating') return;
-    store.save({
-      version: 1,
-      seed: s.seed,
-      mode: s.mode,
-      roundType: s.roundType,
-      goalsPerRound: this.roundSettings.goalsPerRound,
-      min: s.min,
-      max: s.max,
-      goals: s.goals,
-      hearts: s.hearts,
-      missesInRow: s.missesInRow,
-      helpStep: s.helpStep,
-      target: s.target,
-      line: s.line,
-      targetCount: s.targetCount,
-      starsThisRound: s.starsThisRound,
-      elapsedMs: s.elapsedMs,
-      targetStartMs: s.targetStartMs,
-      targetMisses: s.targetMisses,
-      missTimes: s.missTimes,
-      phase: s.phase,
-    });
+    store.save({ version: 1, ...storedFields(s), goalsPerRound: this.roundSettings.goalsPerRound, phase: s.phase });
   }
 }
 

@@ -11,7 +11,8 @@ import type { Settings } from '../settings/schema';
 import type { Target } from '../types';
 import type { Digit } from './entry';
 import { helpHint, hintsVisible, targetHintDisplay } from './help';
-import { GOAL_STARS, MatchController, MAX_HELP_STEP } from './MatchController';
+import { GOAL_STARS } from '../rewards/lockerRoom';
+import { MatchController, MAX_HELP_STEP } from './MatchController';
 
 const layout = layoutChart(1, 100);
 

@@ -1,18 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSettings } from '../settings/defaults';
+import { defaultSettings, MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import type { Target } from '../types';
+import { GOAL_STARS, LINE_STARS, SQUARE_STARS } from '../rewards/lockerRoom';
 import {
-  GOAL_STARS,
-  LINE_STARS,
   MatchController,
   matchInvariantErrors,
   MAX_HELP_STEP,
-  missesPerHeart,
-  PHASES,
   SHOWN_MS,
-  SQUARE_STARS,
   type MatchState,
   type RoundStore,
 } from './MatchController';
@@ -211,7 +207,7 @@ describe('hole mode: goals and misses (US1)', () => {
 
 describe('hearts (FR-027)', () => {
   it('misses per heart are 5, 4, 3 by difficulty', () => {
-    expect([missesPerHeart('easy'), missesPerHeart('normal'), missesPerHeart('challenging')]).toEqual([5, 4, 3]);
+    expect([MISSES_PER_HEART.easy, MISSES_PER_HEART.normal, MISSES_PER_HEART.challenging]).toEqual([5, 4, 3]);
   });
 
   for (const [difficulty, limit] of [['easy', 5], ['normal', 4], ['challenging', 3]] as const) {
@@ -483,15 +479,15 @@ describe('attempt records (T043, FR-037)', () => {
     shot(c, 46, 1000);
     expect(records[0]!.guess).toBe(true);
     c.celebrationDone();
-    for (let i = 0; i < missesPerHeart('easy'); i++) shot(c, 45, 2000);
+    for (let i = 0; i < MISSES_PER_HEART.easy; i++) shot(c, 45, 2000);
     expect(c.getState().helpStep).toBe(MAX_HELP_STEP);
     shot(c, 46, 2000);
-    expect(records[1]).toMatchObject({ solved: false, helpStep: MAX_HELP_STEP, misses: missesPerHeart('easy') });
+    expect(records[1]).toMatchObject({ solved: false, helpStep: MAX_HELP_STEP, misses: MISSES_PER_HEART.easy });
   });
 
   it('records the target left when the round ends at 0 hearts as not solved', () => {
     const { c, records } = recording(() => ({ ...defaultSettings(), difficulty: 'challenging' }));
-    for (let i = 0; i < 3 * missesPerHeart('challenging'); i++) shot(c, 45, 2000);
+    for (let i = 0; i < 3 * MISSES_PER_HEART.challenging; i++) shot(c, 45, 2000);
     expect(c.getState().phase).toBe('roundOver');
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ solved: false, misses: 9 });
@@ -729,7 +725,7 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
     const before = c.getState().targetCount;
     c.applySettings(save({ difficulty: 'challenging' }));
     expect(c.getState().targetCount).toBe(before + 1);
-    for (let i = 0; i < missesPerHeart('challenging'); i++) miss(c);
+    for (let i = 0; i < MISSES_PER_HEART.challenging; i++) miss(c);
     expect(c.getState().hearts).toBe(2);
   });
 
@@ -818,10 +814,6 @@ describe('state rules checked in development builds (review H4, partial)', () =>
     return structuredClone(makeController().getState()) as MatchState;
   }
 
-  it('the phases are aiming, ballInFlight, celebrating and roundOver; there is no landed phase (H2)', () => {
-    expect([...PHASES]).toEqual(['aiming', 'ballInFlight', 'celebrating', 'roundOver']);
-  });
-
   it('a running round has no broken rule', () => {
     expect(matchInvariantErrors(aiming())).toEqual([]);
   });
@@ -848,7 +840,7 @@ describe('state rules checked in development builds (review H4, partial)', () =>
 
   it('losing the last heart ends the round without a shown square', () => {
     const c = holes({ roundType: 'untilHearts', difficulty: 'normal' });
-    for (let heart = 0; heart < 3; heart++) for (let i = 0; i < missesPerHeart('normal'); i++) shootAndLand(c, 1);
+    for (let heart = 0; heart < 3; heart++) for (let i = 0; i < MISSES_PER_HEART.normal; i++) shootAndLand(c, 1);
     expect(c.getState()).toMatchObject({ phase: 'roundOver', hearts: 0, shown: null });
   });
 });
