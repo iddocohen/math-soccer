@@ -3,13 +3,14 @@
  * specs/001-math-soccer/prototype/index.html). Drawn with shapes in code (FR-048): a blue jersey, dark shorts, yellow
  * gloves on arms that swing from the shoulders. Where he goes comes from keeperDive.ts.
  *
- * - He waits small and low in the middle of the goal, in front of the grid but below its squares (`idle`).
+ * - He has one size for the whole shot, half as tall as the goal mouth, and waits with his feet on the goal line
+ *   (FR-062, FR-063). `keepClear()` hears the target and hint squares: he shuffles sideways to a spot that leaves them
+ *   visible, or waits half transparent in the middle when no spot does (FR-064) (`idle`).
  * - On every shot he watches the ball for a moment, then leaps along a short arc (DIVE_MS, timed to end when the ball
- *   arrives): the body tilts toward the ball, the arms stretch over the head and he grows as he comes off the line
- *   (`diving`).
- * - `catchBall()`: on a wrong number his gloves are on the ball; he holds it (`caught`), then walks back to the middle.
+ *   arrives): the body tilts toward the ball and the arms stretch over the head (`diving`).
+ * - `catchBall()`: on a wrong number his gloves are on the ball; he holds it (`caught`), then walks back to his spot.
  * - `beaten()`: on the correct number his gloves stop short of the ball; he lands on the grass (`beaten`), gets up and
- *   walks back to the middle.
+ *   walks back to his spot.
  * - `onPhase` hears every change of `phase`; the app shows it as `data-keeper` for tests.
  *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the keeper.
@@ -17,7 +18,18 @@
 import Phaser from 'phaser';
 import type { Rect } from '../core/types';
 import { FLIGHT_MS } from './BallView';
-import { diveEnd, fallenPose, HOME_POSE, mixPose, type KeeperPose } from './keeperDive';
+import {
+  diveEnd,
+  FADED_ALPHA,
+  fallenPose,
+  FEET_BELOW_HIPS,
+  GOAL_LINE,
+  HOME_POSE,
+  KEEPER_SCALE,
+  mixPose,
+  waitingSpot,
+  type KeeperPose,
+} from './keeperDive';
 import { COLOR } from './palette';
 
 export const KEEPER_PHASES = ['idle', 'diving', 'caught', 'beaten'] as const;
@@ -31,8 +43,10 @@ export const DIVE_MS = 500;
 export const HOLD_MS = 700;
 /** Falling onto the grass after a beaten dive. */
 const FALL_MS = 300;
-/** Walking back to the middle. */
+/** Walking back to his waiting spot. */
 const RETURN_MS = 450;
+/** Shuffling sideways to a new waiting spot for a new target. */
+const SHUFFLE_MS = 350;
 /** How high the leap's arc rises above the straight path, at most, in world pixels. */
 const ARC = 60;
 
@@ -53,6 +67,12 @@ export class KeeperView {
   private pose: KeeperPose = HOME_POSE;
   private tween: Phaser.Tweens.Tween | null = null;
   private current: KeeperPhase = 'idle';
+  /** Where he waits for the next shot, and whether he covers none of the target and hint squares there. */
+  private home: KeeperPose = HOME_POSE;
+  private clear = true;
+  /** The squares last given to `keepClear`, as text, so the same squares do not move him again. */
+  private squaresKey = '';
+  private faded = false;
 
   constructor(scene: Phaser.Scene, onPhase: (phase: KeeperPhase) => void = () => {}) {
     this.scene = scene;
@@ -85,8 +105,13 @@ export class KeeperView {
     this.leftArm = drawArm(scene).setPosition(-SHOULDER.x, SHOULDER.y);
     this.rightArm = drawArm(scene).setPosition(SHOULDER.x, SHOULDER.y);
 
-    this.shadow = scene.add.ellipse(HOME_POSE.x, 0, 70, 14, 0x000000, 0.28).setDepth(KEEPER_DEPTH - 0.01);
-    this.body = scene.add.container(0, 0, [this.leftArm, this.rightArm, legs, torso, head]).setDepth(KEEPER_DEPTH);
+    this.shadow = scene.add
+      .ellipse(HOME_POSE.x, GOAL_LINE, 70 * KEEPER_SCALE, 14 * KEEPER_SCALE, 0x000000, 0.28)
+      .setDepth(KEEPER_DEPTH - 0.01);
+    this.body = scene.add
+      .container(0, 0, [this.leftArm, this.rightArm, legs, torso, head])
+      .setDepth(KEEPER_DEPTH)
+      .setScale(KEEPER_SCALE);
     this.apply(HOME_POSE);
     // A new scene starts with a waiting keeper; tell the listener, which may still hold the last scene's phase.
     this.onPhase('idle');
@@ -101,11 +126,43 @@ export class KeeperView {
     this.shadow.setVisible(visible);
   }
 
-  /** Stops any motion: the keeper waits in the middle. */
+  /** True when the waiting keeper covers none of the target and hint squares; false while he waits faded. */
+  get isClear(): boolean {
+    return this.clear;
+  }
+
+  /** Where he waits for the next shot. */
+  get waitingPose(): KeeperPose {
+    return this.home;
+  }
+
+  /** Stops any motion: the keeper waits in the middle until he hears the next squares. */
   reset(): void {
     this.stop();
+    this.home = HOME_POSE;
+    this.clear = true;
+    this.squaresKey = '';
     this.apply(HOME_POSE);
+    this.setFaded(false);
     this.setPhase('idle');
+  }
+
+  /**
+   * The target and hint squares of the current target (FR-064). The keeper's waiting spot moves so that he covers none
+   * of them; when he is waiting, he shuffles there now, otherwise he walks there after the shot.
+   */
+  keepClear(squares: readonly Rect[]): void {
+    const key = squares.map((r) => `${r.x},${r.y},${r.width},${r.height}`).join(';');
+    if (key === this.squaresKey) return;
+    this.squaresKey = key;
+    const spot = waitingSpot(squares);
+    this.home = spot.pose;
+    this.clear = spot.clear;
+    if (this.current !== 'idle') return;
+    this.setFaded(!spot.clear);
+    if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
+      this.moveTo(spot.pose, SHUFFLE_MS, () => {}, (k) => (1 - Math.cos(Math.PI * k)) / 2);
+    }
   }
 
   /**
@@ -115,8 +172,10 @@ export class KeeperView {
   dive(square: Rect, outcome: 'catch' | 'beaten'): void {
     this.stop();
     this.setPhase('diving');
+    // He is drawn fully again once the child shoots (FR-064).
+    this.setFaded(false);
     const from = this.pose;
-    const to = diveEnd(square, outcome);
+    const to = diveEnd(square, outcome, from);
     const arc = Math.min(ARC, Math.hypot(to.x - from.x, to.y - from.y) * 0.2);
     this.tween = this.scene.tweens.addCounter({
       from: 0,
@@ -138,20 +197,23 @@ export class KeeperView {
     });
   }
 
-  /** The ball is in his gloves: he holds it, then goes back to the middle. */
+  /** The ball is in his gloves: he holds it, then goes back to his waiting spot. */
   catchBall(): void {
     this.setPhase('caught');
     this.moveTo(this.pose, HOLD_MS, () => this.goHome());
   }
 
-  /** The ball went past him: he lands on the grass, waits, then goes back to the middle. */
+  /** The ball went past him: he lands on the grass, waits, then goes back to his waiting spot. */
   beaten(): void {
     this.setPhase('beaten');
-    this.moveTo(fallenPose(this.pose), FALL_MS, () => this.moveTo(this.pose, HOLD_MS, () => this.goHome()), (k) => k * k);
+    this.moveTo(fallenPose(this.pose, this.home), FALL_MS, () => this.moveTo(this.pose, HOLD_MS, () => this.goHome()), (k) => k * k);
   }
 
   private goHome(): void {
-    this.moveTo(HOME_POSE, RETURN_MS, () => this.setPhase('idle'), (k) => (1 - Math.cos(Math.PI * k)) / 2);
+    this.moveTo(this.home, RETURN_MS, () => {
+      this.setFaded(!this.clear);
+      this.setPhase('idle');
+    }, (k) => (1 - Math.cos(Math.PI * k)) / 2);
   }
 
   private moveTo(to: KeeperPose, ms: number, onDone: () => void, easing: (k: number) => number = (k) => k): void {
@@ -183,16 +245,20 @@ export class KeeperView {
 
   private apply(pose: KeeperPose): void {
     this.pose = pose;
-    this.body.setPosition(pose.x, pose.y).setRotation(pose.rotation).setScale(pose.scale);
+    this.body.setPosition(pose.x, pose.y).setRotation(pose.rotation);
     const arm = ARM_READY + (ARM_UP - ARM_READY) * pose.arms;
     this.leftArm.setRotation(arm);
     this.rightArm.setRotation(-arm);
     // The shadow stays on the grass below him and fades as he leaps up.
     const height = Math.max(0, HOME_POSE.y - pose.y);
-    this.shadow
-      .setPosition(pose.x, HOME_POSE.y + 34 * HOME_POSE.scale)
-      .setScale(pose.scale / HOME_POSE.scale)
-      .setAlpha(Math.max(0.15, 1 - height / 300));
+    this.shadow.setPosition(pose.x, HOME_POSE.y + FEET_BELOW_HIPS * KEEPER_SCALE).setAlpha(Math.max(0.15, 1 - height / 300) * (this.faded ? FADED_ALPHA : 1));
+  }
+
+  /** Half transparent while he waits without a free spot (FR-064), fully drawn otherwise. */
+  private setFaded(faded: boolean): void {
+    this.faded = faded;
+    this.body.setAlpha(faded ? FADED_ALPHA : 1);
+    this.apply(this.pose);
   }
 
   destroy(): void {

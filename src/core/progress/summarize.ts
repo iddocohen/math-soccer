@@ -5,7 +5,7 @@
  */
 import type { Settings } from '../settings/schema';
 import type { Progress, Records } from '../storage/schemas';
-import { MAX_STEP } from '../targets/nextTarget';
+import { STEP_COUNT } from './ladder';
 import { DIRECTIONS, MODES, type Direction, type Mode } from '../types';
 import { directionKey, rowToRaise } from './adaptive';
 import { isMastered } from './mastery';
@@ -19,7 +19,7 @@ export interface DirectionRow {
   /** Targets solved after help or misses, plus targets left unsolved. */
   withHelp: number;
   guesses: number;
-  /** 0 to 3; the page shows `step + 1` of `stepCount`. */
+  /** 0 to 7; the page shows `step + 1` of `stepCount`. */
   step: number;
   stepCount: number;
   /** More independent targets in a row that raise the step; null at the top step, with adaptive off or without settings. */
@@ -65,7 +65,7 @@ export function summarize(p: Progress, records: Records, settings?: Settings): P
         withHelp: ds.assisted,
         guesses: ds.guesses,
         step: ds.step,
-        stepCount: MAX_STEP + 1,
+        stepCount: STEP_COUNT,
         toRaise: settings ? rowToRaise(ds, direction, settings) : null,
         mastered: isMastered(ds),
       });

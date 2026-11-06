@@ -1,4 +1,5 @@
 // Adapted from math-tank src/core/storage/migrate.ts.
+import { defaultSettings } from '../settings/defaults';
 import { settingsSchema, type Settings } from '../settings/schema';
 import { validateSettings } from '../settings/validate';
 import { isRecord } from '../util';
@@ -7,11 +8,32 @@ import { isRecord } from '../util';
 export type StoredKindName = 'settings' | 'progress' | 'records' | 'lockerRoom' | 'round';
 
 /**
- * Upgrade steps per kind: step i turns version i + 1 into version i + 2. Every kind is at version 1, so all lists are
- * empty; a change to a stored shape raises its version and adds a step here, as math-tank does.
+ * Settings version 1 to version 2 (amendment 05, FR-070; amendments 06 and 07): the game modes and the line length go,
+ * the line directions stay as "Richtungen" (`directions`), and every hint pattern, every shape and the time challenge
+ * of 2 minutes are turned on. The other fields stay as they were.
+ */
+function settingsV1toV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...raw };
+  delete rest.modes;
+  delete rest.lineLength;
+  delete rest.lineDirections;
+  const defaults = defaultSettings();
+  return {
+    ...rest,
+    version: 2,
+    directions: raw.lineDirections ?? defaults.directions,
+    patterns: defaults.patterns,
+    shapes: defaults.shapes,
+    timeChallenge: defaults.timeChallenge,
+  };
+}
+
+/**
+ * Upgrade steps per kind: step i turns version i + 1 into version i + 2. A change to a stored shape raises its version
+ * and adds a step here, as math-tank does. The storage keys keep their `.v1` names.
  */
 const STEPS: Record<StoredKindName, Array<(raw: Record<string, unknown>) => Record<string, unknown>>> = {
-  settings: [],
+  settings: [settingsV1toV2],
   progress: [],
   records: [],
   lockerRoom: [],

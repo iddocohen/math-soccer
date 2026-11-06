@@ -84,7 +84,7 @@ describe('storage keys', () => {
 describe('round trip', () => {
   it('keeps every kind unchanged', () => {
     const kv = memoryKeyValue();
-    const settings = { ...defaultSettings(), lineLength: 7, difficulty: 'normal' as const };
+    const settings = { ...defaultSettings(), timeChallenge: { allowed: false, minutes: 3 as const }, difficulty: 'normal' as const };
     const records = { version: 1 as const, bests: { '1-100|holes|untilHearts': { goals: 8, timeMs: 340000, at: '2026-11-06T10:00:00.000Z' } } };
     const locker = { ...emptyLockerRoom(), stars: 12, totalEarned: 20, shirtName: 'MIA' };
     const round = storedRound({ seed: 42, mode: 'keeper', roundType: 'goalCount', goals: 3, hearts: 2, elapsedMs: 61_500 });
@@ -136,9 +136,30 @@ describe('damaged data resets with a reason (FR-036)', () => {
   });
 
   it('settings that break a settings rule give defaults with resetReason invalid', () => {
-    const bad = { ...defaultSettings(), modes: { holes: false, lines: false, keeper: false } };
+    const bad = { ...defaultSettings(), patterns: { neighbors: false, middle: false, row: false, shape: false } };
     const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(bad) });
     expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'invalid' });
+  });
+
+  it('settings stored by the published game (version 1) load as version 2 without a reset (FR-070)', () => {
+    const v1 = {
+      ...defaultSettings(),
+      version: 1,
+      modes: { holes: true, lines: false, keeper: true },
+      lineLength: 6,
+      lineDirections: { ...defaultSettings().directions, up: true },
+      difficulty: 'challenging',
+    } as Record<string, unknown>;
+    for (const key of ['directions', 'patterns', 'shapes', 'timeChallenge']) delete v1[key];
+    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(v1) });
+    const { value, resetReason } = loadSettings(kv);
+    expect(resetReason).toBe('none');
+    expect(value).toEqual({ ...defaultSettings(), directions: { ...defaultSettings().directions, up: true }, difficulty: 'challenging' });
+  });
+
+  it('settings of a version above 2 give defaults with resetReason newer', () => {
+    const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), version: 3 }) });
+    expect(loadSettings(kv)).toEqual({ value: defaultSettings(), resetReason: 'newer' });
   });
 
   it('data without a version gives defaults with resetReason invalid', () => {
@@ -220,7 +241,7 @@ describe('export and import', () => {
     expect(importData('[1]')).toEqual({ ok: false, reason: 'notJson' });
     expect(importData(JSON.stringify({ ...data(), app: 'math-tanks' }))).toEqual({ ok: false, reason: 'wrongApp' });
     const file = (over: Record<string, unknown>) => JSON.stringify({ app: 'math-soccer', ...data(), ...over });
-    expect(importData(file({ settings: { ...defaultSettings(), lineLength: 1 } }))).toEqual({ ok: false, reason: 'invalidSettings' });
+    expect(importData(file({ settings: { ...defaultSettings(), goalsPerRound: 0 } }))).toEqual({ ok: false, reason: 'invalidSettings' });
     expect(importData(file({ progress: null }))).toEqual({ ok: false, reason: 'invalidProgress' });
     expect(importData(file({ records: { version: 1 } }))).toEqual({ ok: false, reason: 'invalidRecords' });
     expect(importData(file({ lockerRoom: { ...emptyLockerRoom(), shirtNumber: 100 } }))).toEqual({

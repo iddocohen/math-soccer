@@ -48,26 +48,37 @@ const I: Outcome = 'independent';
 const A: Outcome = 'assisted';
 const U: Outcome = 'unsolved';
 
-describe('ladder (FR-040): 0 direct, 1 vertical or diagonal, 2 far, 3 on request, clamped to the settings', () => {
-  it('climbs 0, 1, 2 for down with hints always, and to 3 only with "auf Wunsch"', () => {
+describe('ladder steps per direction (FR-067), clamped to the settings', () => {
+  it('right climbs Nachbarn 0, Mitte across 1, Reihe 3, Nachbarn two away 6, and 7 only with "auf Wunsch"', () => {
     const s = settings();
-    expect([stepUp('down', 0, s), stepUp('down', 1, s), stepUp('down', 2, s)]).toEqual([1, 2, 2]);
-    expect(topStep('down', s)).toBe(2);
+    expect([stepUp('right', 0, s), stepUp('right', 1, s), stepUp('right', 3, s)]).toEqual([1, 3, 6]);
+    expect(topStep('right', s)).toBe(6);
     const onRequest = settings({ hintDisplay: 'onRequest' });
-    expect(stepUp('down', 2, onRequest)).toBe(3);
-    expect(topStep('down', onRequest)).toBe(3);
+    expect(stepUp('right', 6, onRequest)).toBe(7);
+    expect(topStep('right', onRequest)).toBe(7);
   });
 
-  it('skips steps the parent turned off: without vertical and diagonal, down goes from 0 to 2', () => {
-    const s = settings({ hintDistance: { direct: true, vertical: false, diagonal: false, far: true } });
-    expect(stepUp('down', 0, s)).toBe(2);
-    // As math-tank: down to the nearest step that looks different; step 1 falls back to direct hints like step 0.
+  it('down skips Mitte across: Nachbarn 0, Mitte down 2, Reihe down 3', () => {
+    const s = settings();
+    expect([stepUp('down', 0, s), stepUp('down', 2, s)]).toEqual([2, 3]);
+    // As math-tank: down to the nearest step that looks different; step 1 falls back to Nachbarn like step 0.
     expect(stepDown('down', 2, s)).toBe(1);
-    expect(stepUp('down', 1, s)).toBe(2);
   });
 
-  it('never rises with only direct hints allowed', () => {
-    const s = settings({ hintDistance: { direct: true, vertical: false, diagonal: false, far: false } });
+  it('a diagonal goes from its Nachbarn straight to Mitte or Reihe diagonal', () => {
+    expect(stepUp('downRight', 0, settings())).toBe(4);
+  });
+
+  it('skips patterns the parent turned off: without Mitte, right goes from 0 to Reihe at 3', () => {
+    const s = settings({ patterns: { neighbors: true, middle: false, row: true, shape: true } });
+    expect(stepUp('right', 0, s)).toBe(3);
+  });
+
+  it('never rises with only Nachbarn and only direct hints allowed', () => {
+    const s = settings({
+      patterns: { neighbors: true, middle: false, row: false, shape: false },
+      hintDistance: { direct: true, vertical: false, diagonal: false, far: false },
+    });
     expect(topStep('right', s)).toBe(0);
     expect(stepUp('right', 0, s)).toBe(0);
   });
@@ -76,20 +87,20 @@ describe('ladder (FR-040): 0 direct, 1 vertical or diagonal, 2 far, 3 on request
 describe('recordAttempt (FR-037, FR-040)', () => {
   it('starts at step 0 and rises one step after 3 independent targets in a row', () => {
     const s = settings();
-    const p = play(emptyProgress(), ['independent', 'independent'], s);
-    expect(ds(p).step).toBe(0);
-    expect(rowToRaise(ds(p), 'down', s)).toBe(1);
-    const raised = play(p, ['independent'], s);
-    expect(ds(raised).step).toBe(1);
-    expect(ds(raised).recent).toEqual([]);
+    const p = play(emptyProgress(), ['independent', 'independent'], s, ['right']);
+    expect(ds(p, 'right').step).toBe(0);
+    expect(rowToRaise(ds(p, 'right'), 'right', s)).toBe(1);
+    const raised = play(p, ['independent'], s, ['right']);
+    expect(ds(raised, 'right').step).toBe(1);
+    expect(ds(raised, 'right').recent).toEqual([]);
   });
 
   it('goes down one step when 2 of the last 3 needed help', () => {
     const s = settings();
-    const start = play(emptyProgress(), ['independent', 'independent', 'independent'], s);
-    expect(ds(start).step).toBe(1);
-    const lowered = play(start, ['assisted', 'independent', 'unsolved'], s);
-    expect(ds(lowered).step).toBe(0);
+    const start = play(emptyProgress(), ['independent', 'independent', 'independent'], s, ['right']);
+    expect(ds(start, 'right').step).toBe(1);
+    const lowered = play(start, ['assisted', 'independent', 'unsolved'], s, ['right']);
+    expect(ds(lowered, 'right').step).toBe(0);
   });
 
   it('counts guesses without letting them into the row or the windows', () => {
@@ -139,11 +150,12 @@ describe('isMastered (FR-039): 10 independent attempts and 8 of the last 10 inde
 describe('targetProgress', () => {
   it('lists mastered directions and clamps steps to what the settings allow now', () => {
     const p = emptyProgress();
-    p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), step: 3, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
+    p.directions[directionKey('holes', 'down')] = { ...emptyDirectionState(), step: 7, independent: 10, masteryWindow: Array<Outcome>(10).fill(I) };
     p.directions[directionKey('holes', 'right')] = { ...emptyDirectionState(), step: 1 };
     const tp = targetProgress(p, 'holes', settings());
     expect(tp.mastered).toEqual(['down']);
-    expect(tp.steps).toEqual({ right: 1, down: 2 });
+    // With hints always shown, step 7 looks like step 6 (Nachbarn two squares away), so down is clamped to 6.
+    expect(tp.steps).toEqual({ right: 1, down: 6 });
     expect(targetProgress(p, 'keeper', settings())).toEqual({ mastered: [], steps: {} });
   });
 });

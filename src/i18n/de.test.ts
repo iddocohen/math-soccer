@@ -70,9 +70,8 @@ describe('texts from contracts/screens.md', () => {
     expect([de.parent.settings, de.parent.progress]).toEqual(['Einstellungen', 'Fortschritt']);
     expect(Object.values(de.settings.groups)).toEqual([
       'Zahlenraum',
-      'Spielarten',
       'Hinweise',
-      'Reihen',
+      'Richtungen',
       'Runde',
       'Schwierigkeit',
       'Ton',

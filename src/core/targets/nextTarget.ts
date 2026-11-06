@@ -1,23 +1,29 @@
 /**
- * Hole and goalkeeper targets (research R5, R9; FR-011, FR-014, FR-019, FR-038, FR-040).
+ * Hole and goalkeeper targets (research R5, R9; FR-011, FR-014, FR-019, FR-038, FR-040, FR-065, FR-067).
  *
- * Answer-first, as math-tank: the generator picks the direction to train, then the hint distance from the adaptive
- * step clamped to the parent's settings, then the target number, and last the hint numbers around it. A target is
- * valid only when at least one hint remains on the chart, two for `direct`. All randomness comes from the given `Rng`,
- * so the same seed gives the same target.
+ * Answer-first, as math-tank. Goalkeeper targets use the hint patterns (core/targets/patterns.ts): the ladder
+ * (core/progress/ladder.ts) picks the direction and the pattern within the parent's choices, then the generator picks
+ * the target number among the pattern's placements on the chart. Hole targets (removed with T088) still pick the
+ * direction, then the hint distance from their own ladder, then the number, and last the hints around it; a hole target
+ * is valid only when at least one hint remains on the chart, two for `direct`. All randomness comes from the given
+ * `Rng`, so the same seed gives the same target.
  */
 import { COLUMNS, numberAt, type ChartLayout } from '../chart/layout';
 import type { Rng } from '../rng';
 import type { Settings } from '../settings/schema';
+import { adaptiveChoice, DISTANCE_DIRECTIONS, pickDirection, randomChoice } from '../progress/ladder';
 import { HINT_DISTANCES, type Direction, type HintDistance, type Mode, type Target } from '../types';
 import { clamp } from '../util';
 import { directionsOf, hintsFor } from './hints';
+import { placements } from './patterns';
+
+export { DISTANCE_DIRECTIONS, pickDirection, UNMASTERED_WEIGHT } from '../progress/ladder';
 
 /** What the generator needs to know about the child's progress; the progress module (T042) fills it. */
 export interface TargetProgress {
   /** Directions the child has mastered in this mode. */
   mastered: readonly Direction[];
-  /** The adaptive step per direction, 0 to 3; a missing direction is at step 0. */
+  /** The adaptive step per direction, 0 to MAX_STEP of the ladder; a missing direction is at step 0. */
   steps: Partial<Record<Direction, number>>;
 }
 
@@ -34,25 +40,14 @@ export interface NextTargetInput {
   avoid?: number;
 }
 
-/** Unmastered directions are picked this many times as often as mastered ones (research R9). */
-export const UNMASTERED_WEIGHT = 2;
-
 /** The most decorative patched holes on the board in hole mode (FR-011, critique P5). */
 export const MAX_PATCHED_HOLES = 3;
 
-/** The highest adaptive step: hints on request only (FR-040). */
-export const MAX_STEP = 3;
+/** The highest step of the hole mode ladder (FR-040). */
+export const HOLE_MAX_STEP = 3;
 
-/** The directions that hints of each distance train. */
-export const DISTANCE_DIRECTIONS: Record<HintDistance, readonly Direction[]> = {
-  direct: ['right', 'left', 'down', 'up'],
-  vertical: ['down', 'up'],
-  diagonal: ['downRight', 'upLeft', 'downLeft', 'upRight'],
-  far: ['right', 'left', 'down', 'up'],
-};
-
-/** The difficulty ladder (FR-040): the hint distances of each step, easiest first. Step 3 is step 2 with hints on request. */
-export const LADDER: ReadonlyArray<readonly HintDistance[]> = [['direct'], ['vertical', 'diagonal'], ['far'], ['far']];
+/** The hole mode ladder (FR-040): the hint distances of each step, easiest first. Step 3 is step 2 with hints on request. */
+export const HOLE_LADDER: ReadonlyArray<readonly HintDistance[]> = [['direct'], ['vertical', 'diagonal'], ['far'], ['far']];
 
 /** The fewest hints a valid target has with this distance. */
 function minHints(distance: HintDistance): number {
@@ -62,21 +57,6 @@ function minHints(distance: HintDistance): number {
 /** The hint distances the parent allows, in ladder order. */
 export function allowedDistances(settings: Settings): HintDistance[] {
   return HINT_DISTANCES.filter((d) => settings.hintDistance[d]);
-}
-
-/**
- * Picks one direction, weighting directions not yet mastered UNMASTERED_WEIGHT times (FR-040: adaptive difficulty
- * favors directions that are not yet mastered).
- */
-export function pickDirection(candidates: readonly Direction[], mastered: readonly Direction[], rng: Rng): Direction {
-  if (candidates.length === 0) throw new RangeError('pickDirection: no candidates');
-  const weights = candidates.map((d) => (mastered.includes(d) ? 1 : UNMASTERED_WEIGHT));
-  let roll = rng.next() * weights.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < candidates.length; i++) {
-    roll -= weights[i]!;
-    if (roll < 0) return candidates[i]!;
-  }
-  return candidates[candidates.length - 1]!;
 }
 
 /** Every number of the range in which the target has enough hints with `distance` and one of them trains `direction`. */
@@ -94,10 +74,10 @@ function numbersFor(layout: ChartLayout, distance: HintDistance, direction: Dire
  * `direction`. When none does, the nearest step below, then above, that has one.
  */
 export function distancesForStep(step: number, allowed: readonly HintDistance[], direction: Direction): HintDistance[] {
-  const fits = (s: number) => (LADDER[s] ?? []).filter((d) => allowed.includes(d) && DISTANCE_DIRECTIONS[d].includes(direction));
-  for (let delta = 0; delta <= MAX_STEP; delta++) {
+  const fits = (s: number) => (HOLE_LADDER[s] ?? []).filter((d) => allowed.includes(d) && DISTANCE_DIRECTIONS[d].includes(direction));
+  for (let delta = 0; delta <= HOLE_MAX_STEP; delta++) {
     for (const s of [step - delta, step + delta]) {
-      if (s < 0 || s > MAX_STEP) continue;
+      if (s < 0 || s > HOLE_MAX_STEP) continue;
       const found = fits(s);
       if (found.length > 0) return found;
     }
@@ -107,6 +87,29 @@ export function distancesForStep(step: number, allowed: readonly HintDistance[],
 
 /** Hole or goalkeeper target, answer-first (see the file comment). */
 export function nextTarget(input: NextTargetInput): Target {
+  return input.mode === 'keeper' ? patternTarget(input) : holeTarget(input);
+}
+
+/** A goalkeeper target with a hint pattern (FR-065, FR-067). */
+function patternTarget(input: NextTargetInput): Target {
+  const { layout, mode, settings, progress, rng, avoid } = input;
+  const pick = settings.adaptive ? adaptiveChoice(layout, settings, progress, rng) : randomChoice(layout, settings, rng);
+  const options = placements(layout, pick.choice, pick.direction);
+  const fresh = options.filter((p) => p.number !== avoid);
+  const placement = rng.pick(fresh.length > 0 ? fresh : options);
+  return {
+    mode,
+    number: placement.number,
+    hints: placement.hints,
+    patchedHoles: [],
+    directions: placement.directions,
+    difficultyStep: pick.step,
+    pattern: pick.choice.pattern,
+  };
+}
+
+/** A hole mode target with hint distances (FR-011, FR-014, FR-040). */
+function holeTarget(input: NextTargetInput): Target {
   const { layout, mode, settings, progress, rng, avoid } = input;
   const allowed = allowedDistances(settings);
 
@@ -133,7 +136,7 @@ export function nextTarget(input: NextTargetInput): Target {
   const candidates = [...usable.keys()];
   const direction = pickDirection(candidates, progress.mastered, rng);
   const byDistance = usable.get(direction)!;
-  const step = settings.adaptive ? clamp(progress.steps[direction] ?? 0, 0, MAX_STEP) : null;
+  const step = settings.adaptive ? clamp(progress.steps[direction] ?? 0, 0, HOLE_MAX_STEP) : null;
   const choices = step === null ? [...byDistance.keys()] : distancesForStep(step, [...byDistance.keys()], direction);
   const distance = rng.pick(choices.length > 0 ? choices : [...byDistance.keys()]);
 
@@ -148,7 +151,7 @@ export function nextTarget(input: NextTargetInput): Target {
     hints,
     patchedHoles: mode === 'holes' ? patchedHoles(layout, number, hints, rng) : [],
     directions: directionsOf(number, hints),
-    difficultyStep: step ?? LADDER.findIndex((ds) => ds.includes(distance)),
+    difficultyStep: step ?? HOLE_LADDER.findIndex((ds) => ds.includes(distance)),
   };
 }
 

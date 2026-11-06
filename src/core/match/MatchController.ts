@@ -64,6 +64,9 @@ export const SHOWN_MS = 1500;
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 const SAVE_TIME_EVERY_MS = 1000;
 
+/** Squares per line in line mode: the default of the line length setting that settings version 2 dropped. */
+const LINE_LENGTH = 5;
+
 /** What the message line says; the app turns it into German text. */
 export type MatchMessage =
   | { kind: 'outOfRange'; min: number; max: number }
@@ -273,11 +276,11 @@ function freshState(s: Settings, mode: Mode, seed: number, started: boolean): Ma
 /** The settings that shape targets: a change gives the running round a new target (FR-052). */
 const TARGET_KEYS = [
   'range',
-  'modes',
   'hintDisplay',
   'hintDistance',
-  'lineDirections',
-  'lineLength',
+  'directions',
+  'patterns',
+  'shapes',
   'difficulty',
   'adaptive',
   'pointAfterFullHelp',
@@ -374,14 +377,14 @@ export class MatchController {
 
   /**
    * Continues the stored round after a refresh. Returns false, and deletes the stored round, when there is none or it
-   * no longer fits the settings: another range, or a mode the parent turned off (FR-036a).
+   * no longer fits the settings: another range (FR-036a).
    */
   restore(): boolean {
     const store = this.options.store;
     const stored = store?.load() ?? null;
     if (!store || !stored) return false;
     const s = this.options.settings();
-    if (stored.min !== s.range.min || stored.max !== s.range.max || !s.modes[stored.mode]) {
+    if (stored.min !== s.range.min || stored.max !== s.range.max) {
       store.clear();
       return false;
     }
@@ -608,15 +611,15 @@ export class MatchController {
 
   /**
    * A new line for the round: the direction from the parent's line directions, weighting directions not yet mastered
-   * in line mode (FR-017, FR-040), and the parent's line length (FR-018).
+   * in line mode (FR-017, FR-040), and LINE_LENGTH squares (the line length setting went with settings version 2).
    */
   private newLine(state: MatchState): Line {
     const s = this.roundSettings;
     const rng = createRng(deriveSeed(state.seed, state.targetCount));
-    const enabled = DIRECTIONS.filter((d) => s.lineDirections[d]);
+    const enabled = DIRECTIONS.filter((d) => s.directions[d]);
     const progress = this.options.progress?.('lines') ?? NO_PROGRESS;
     const direction = pickDirection(enabled.length > 0 ? enabled : ['right'], progress.mastered, rng);
-    return makeLine(layoutChart(state.min, state.max), direction, s.lineLength, rng);
+    return makeLine(layoutChart(state.min, state.max), direction, LINE_LENGTH, rng);
   }
 
   /** Hole and goalkeeper targets from core/targets. */

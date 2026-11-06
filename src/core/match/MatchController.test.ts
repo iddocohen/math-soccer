@@ -372,14 +372,6 @@ describe('saving the round (mathsoccer.round.v1)', () => {
     expect(again.getState().started).toBe(false);
   });
 
-  it('discards a stored round whose mode the parent turned off (FR-036a)', () => {
-    const store = memoryStore();
-    holes({}, store);
-    const changed = { ...defaultSettings(), modes: { holes: false, lines: true, keeper: true } };
-    expect(new MatchController({ settings: () => changed, store }).restore()).toBe(false);
-    expect(store.round).toBeNull();
-  });
-
   it('a refresh keeps the round-start goals per round and round type, not the current settings (FR-052, H7)', () => {
     const store = memoryStore();
     let settings: Settings = { ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 };
@@ -497,7 +489,7 @@ describe('attempt records (T043, FR-037)', () => {
 describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
   const downOnly: Settings = {
     ...defaultSettings(),
-    lineDirections: { right: false, down: true, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false },
+    directions: { right: false, down: true, downRight: false, downLeft: false, left: false, up: false, upLeft: false, upRight: false },
   };
 
   function lineController(settings: Settings = downOnly, extra: Partial<ConstructorParameters<typeof MatchController>[0]> = {}) {
@@ -586,7 +578,7 @@ describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
   });
 
   it('picks directions from the enabled ones, unmastered twice as often', () => {
-    const two: Settings = { ...downOnly, lineDirections: { ...downOnly.lineDirections, right: true } };
+    const two: Settings = { ...downOnly, directions: { ...downOnly.directions, right: true } };
     const counts = { down: 0, right: 0 };
     for (let seed = 0; seed < 300; seed++) {
       const c = new MatchController({ settings: () => two, newSeed: () => seed, progress: () => ({ mastered: ['right'], steps: {} }) });
@@ -612,7 +604,7 @@ describe('line mode (US4, FR-015 to FR-018, FR-026)', () => {
 });
 
 describe('MatchController goalkeeper mode (T053, FR-019, FR-020)', () => {
-  const keeperOnly: Settings = { ...defaultSettings(), modes: { holes: false, lines: false, keeper: true } };
+  const keeperOnly: Settings = defaultSettings();
 
   function keeperController(seed = 11) {
     const c = new MatchController({ settings: () => keeperOnly, newSeed: () => seed });

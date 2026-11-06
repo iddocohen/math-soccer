@@ -216,7 +216,8 @@ export function App() {
   const [transfer, setTransfer] = useState<Transfer | null>(() => (saveCodeFromHash(window.location.hash) === null ? null : { kind: 'reading' }));
   const state = useMatchState(controller);
   const gameParent = useRef<HTMLDivElement>(null);
-  const offered: Mode[] = MODES.filter((m) => settings().modes[m]);
+  // Settings version 2 has no mode switches; all modes stay offered until the start screen gets "Spielen" (T089).
+  const offered: readonly Mode[] = MODES;
   const [record, setRecord] = useState<RoundRecord | null>(null);
   // The keeper's phase from the scene, shown as `data-keeper` in goalkeeper mode (T054).
   const [keeper, setKeeper] = useState<KeeperPhase>('idle');

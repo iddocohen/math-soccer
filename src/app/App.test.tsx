@@ -3,7 +3,7 @@
  * is replaced by a stand-in so the app runs in jsdom; the stand-in keeps the controller, so a test can land the ball and
  * end the celebration as MatchScene does.
  */
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import type { MatchController } from '../core/match/MatchController';
@@ -46,12 +46,12 @@ function scoreGoal(): void {
 afterEach(cleanup);
 
 describe('App', () => {
-  it('shows one button per offered mode on the start screen', () => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), modes: { holes: true, lines: false, keeper: true } }));
+  it('shows one button per mode on the start screen, also for version 1 settings that turned a mode off', () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), version: 1, modes: { holes: true, lines: false, keeper: true }, lineLength: 5 }));
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
     const modes = Array.from(document.querySelectorAll('[data-mode]')).map((b) => b.getAttribute('data-mode'));
-    expect(modes).toEqual(['holes', 'keeper']);
+    expect(modes).toEqual(['holes', 'lines', 'keeper']);
   });
 
   it('key 1 starts hole mode with the canvas under the overlay; digits type and Enter refuses 150', async () => {
@@ -207,17 +207,6 @@ describe('App parent screens (T041 to T046)', () => {
     expect(screen.getByTestId('progress-page').textContent).toContain('Noch keine Versuche.');
   });
 
-  it('saved settings change the offered modes on the start screen at once', () => {
-    render(<App />);
-    holdGear();
-    fireEvent.click(screen.getByRole('button', { name: 'Einstellungen' }));
-    fireEvent.click(screen.getByLabelText('Torwart'));
-    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));
-    const modes = Array.from(document.querySelectorAll('[data-mode]')).map((b) => b.getAttribute('data-mode'));
-    expect(modes).toEqual(['holes', 'lines']);
-  });
-
   it('records an attempt per scored target in the progress (T043)', async () => {
     render(<App />);
     fireEvent.keyDown(window, { key: '1' });
@@ -366,19 +355,6 @@ describe('App: saved settings reach the running round when the settings page clo
     await waitFor(() => expect(game.controller).not.toBeNull());
     return screen.getByTestId('match');
   }
-
-  it('"Nochmal" goes to the start screen when the parent turned the round\'s mode off during the round (code review)', async () => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 1 }));
-    await startMatch();
-    openSettings();
-    fireEvent.click(within(screen.getByRole('group', { name: 'Spielarten' })).getByLabelText('Löcher'));
-    save();
-    close();
-    scoreGoal();
-    expect(screen.getByTestId('round-end')).toBeTruthy();
-    fireEvent.click(screen.getByText('Nochmal'));
-    expect(screen.getByTestId('start')).toBeTruthy();
-  });
 
   it('gives a new target on the new board when the page closes after a save; goals stay and the round continues', async () => {
     const apply = vi.spyOn(Controller.prototype, 'applySettings');

@@ -1,8 +1,6 @@
 import {
   GOALS_PER_ROUND_MAX,
   GOALS_PER_ROUND_MIN,
-  LINE_LENGTH_MAX,
-  LINE_LENGTH_MIN,
   RANGE_MAX_LIMIT,
   RANGE_MIN_LIMIT,
   RANGE_PRESETS,
@@ -17,10 +15,10 @@ export const SETTINGS_ERROR_KEYS = [
   'rangeOrder',
   'rangeSpan',
   'rangePresetMismatch',
-  'noMode',
   'noHintDistance',
-  'noLineDirection',
-  'lineLength',
+  'noDirection',
+  'noPattern',
+  'noShape',
   'goalsPerRound',
 ] as const;
 
@@ -54,13 +52,13 @@ export function validateSettings(s: Settings): SettingsError[] {
     if (fixed.min !== min || fixed.max !== max) errors.push({ key: 'rangePresetMismatch', path: 'range.preset' });
   }
 
-  // modes, hintDistance, lineDirections: "at least one true"
-  if (!Object.values(s.modes).some(Boolean)) errors.push({ key: 'noMode', path: 'modes' });
+  // hintDistance, directions, patterns: "at least one true"; shapes: at least one while "Formen" is on
   if (!Object.values(s.hintDistance).some(Boolean)) errors.push({ key: 'noHintDistance', path: 'hintDistance' });
-  if (!Object.values(s.lineDirections).some(Boolean)) errors.push({ key: 'noLineDirection', path: 'lineDirections' });
+  if (!Object.values(s.directions).some(Boolean)) errors.push({ key: 'noDirection', path: 'directions' });
+  if (!Object.values(s.patterns).some(Boolean)) errors.push({ key: 'noPattern', path: 'patterns' });
+  if (s.patterns.shape && !Object.values(s.shapes).some(Boolean)) errors.push({ key: 'noShape', path: 'shapes' });
 
-  // lineLength: "3 to 10"; goalsPerRound: "1 to 20"
-  if (!isInt(s.lineLength, LINE_LENGTH_MIN, LINE_LENGTH_MAX)) errors.push({ key: 'lineLength', path: 'lineLength' });
+  // goalsPerRound: "1 to 20"
   if (!isInt(s.goalsPerRound, GOALS_PER_ROUND_MIN, GOALS_PER_ROUND_MAX)) {
     errors.push({ key: 'goalsPerRound', path: 'goalsPerRound' });
   }

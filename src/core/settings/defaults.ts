@@ -5,8 +5,9 @@ export const RANGE_MIN_LIMIT = 0;
 export const RANGE_MAX_LIMIT = 1000;
 /** "`max - min >= 9`": at least one full row of 10 numbers. */
 export const RANGE_SPAN_MIN = 9;
-export const LINE_LENGTH_MIN = 3;
-export const LINE_LENGTH_MAX = 10;
+/** The time challenge lengths the parent can choose, in minutes (FR-076). */
+export const CHALLENGE_MINUTES = [1, 2, 3, 5] as const;
+export type ChallengeMinutes = (typeof CHALLENGE_MINUTES)[number];
 export const GOALS_PER_ROUND_MIN = 1;
 export const GOALS_PER_ROUND_MAX = 20;
 
@@ -22,12 +23,11 @@ export const MISSES_PER_HEART: Record<Difficulty, 3 | 4 | 5> = { easy: 5, normal
 /** The defaults listed in data-model.md "Settings". A new object on every call. */
 export function defaultSettings(): Settings {
   return {
-    version: 1,
+    version: 2,
     range: { preset: '1-100', min: 1, max: 100 },
-    modes: { holes: true, lines: true, keeper: true },
     hintDisplay: 'always',
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
-    lineDirections: {
+    directions: {
       right: true,
       down: true,
       downRight: true,
@@ -37,7 +37,9 @@ export function defaultSettings(): Settings {
       upLeft: false,
       upRight: false,
     },
-    lineLength: 5,
+    patterns: { neighbors: true, middle: true, row: true, shape: true },
+    shapes: { I: true, O: true, T: true, L: true, J: true, S: true, Z: true },
+    timeChallenge: { allowed: true, minutes: 2 },
     roundType: 'untilHearts',
     goalsPerRound: 10,
     difficulty: 'easy',

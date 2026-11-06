@@ -85,7 +85,7 @@ describe('transfer links (FR-041)', () => {
     expect(await decodeTransfer('v2.abc', { codec: null })).toEqual({ ok: false });
     expect(await decodeTransfer('v1.***', { codec: null })).toEqual({ ok: false });
     expect(await decodeTransfer(`v1.${'A'.repeat(TRANSFER_MAX_CODE_LENGTH)}`, { codec: null })).toEqual({ ok: false });
-    const bad = await encodeTransfer({ ...saveData(), settings: { ...defaultSettings(), lineLength: 1 } }, PAGE, { codec: null });
+    const bad = await encodeTransfer({ ...saveData(), settings: { ...defaultSettings(), goalsPerRound: 0 } }, PAGE, { codec: null });
     expect(await decodeTransfer(bad.code, { codec: null })).toEqual({ ok: false });
   });
 

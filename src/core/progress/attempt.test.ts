@@ -77,7 +77,7 @@ describe('summarize (FR-039)', () => {
     records.bests['broken'] = { goals: 1, timeMs: 1, at: '' };
     const summary = summarize(p, records, s);
     expect(summary.directions.map((r) => `${r.mode}|${r.direction}`)).toEqual(['holes|right', 'holes|down']);
-    expect(summary.directions[1]).toMatchObject({ attempts: 2, independent: 1, withHelp: 1, step: 0, stepCount: 4, toRaise: 3, mastered: false });
+    expect(summary.directions[1]).toMatchObject({ attempts: 2, independent: 1, withHelp: 1, step: 0, stepCount: 8, toRaise: 3, mastered: false });
     expect(summary.bests).toEqual([{ min: 1, max: 100, mode: 'holes', roundType: 'untilHearts', goals: 8, timeMs: 340_000 }]);
   });
 

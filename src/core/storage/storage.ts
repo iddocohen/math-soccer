@@ -19,7 +19,7 @@ import {
   type StoredRound,
 } from './schemas';
 
-/** Storage keys (data-model.md). */
+/** Storage keys (data-model.md). The names keep `.v1`; the version inside the stored value can be higher. */
 export const SETTINGS_KEY = 'mathsoccer.settings.v1';
 export const PROGRESS_KEY = 'mathsoccer.progress.v1';
 export const LOCKER_ROOM_KEY = 'mathsoccer.lockerroom.v1';
@@ -52,7 +52,7 @@ function schemaParser<T>(name: StoredKindName, schema: { safeParse(v: unknown): 
 export const SETTINGS: StoredKind<Settings> = {
   name: 'settings',
   key: SETTINGS_KEY,
-  version: 1,
+  version: 2,
   parse: parseSettings,
   empty: defaultSettings,
 };

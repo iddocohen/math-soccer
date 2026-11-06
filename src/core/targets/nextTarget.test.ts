@@ -89,12 +89,16 @@ describe('nextTarget', () => {
     }
   });
 
-  it('never goes beyond the parent settings: step 2 with only direct allowed still gives direct hints', () => {
+  it('never goes beyond the parent settings: steps 2 and 6 with only Nachbarn and direct hints allowed still give direct hints', () => {
     const rng = createRng(8);
-    const steps = Object.fromEntries(DIRECTIONS.map((d) => [d, 2]));
-    for (let i = 0; i < 50; i++) {
-      const t = nextTarget({ layout: chart, mode: 'keeper', settings: only('direct'), progress: { mastered: [], steps }, rng });
-      expect(t.hints).toEqual(hintsFor(chart, t.number, 'direct'));
+    const settings: Settings = { ...only('direct'), patterns: { neighbors: true, middle: false, row: false, shape: false } };
+    for (const step of [2, 6]) {
+      const steps = Object.fromEntries(DIRECTIONS.map((d) => [d, step]));
+      for (let i = 0; i < 50; i++) {
+        const t = nextTarget({ layout: chart, mode: 'keeper', settings, progress: { mastered: [], steps }, rng });
+        expect(t.hints).toEqual(hintsFor(chart, t.number, 'direct'));
+        expect(t.pattern).toBe('neighbors');
+      }
     }
   });
 });

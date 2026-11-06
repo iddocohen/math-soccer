@@ -59,7 +59,7 @@ describe('ProgressPage (T045)', () => {
     const down = table.querySelector('tr[data-mode="holes"][data-direction="down"]')!;
     const cells = [...down.children].map((c) => c.textContent);
     expect(cells.slice(0, 5)).toEqual([P.directions.down, 'Löcher', '2', '1', '1']);
-    expect(cells[5]).toContain(P.stepOf(1, 4));
+    expect(cells[5]).toContain(P.stepOf(1, 8));
     expect(cells[6]).toBe(P.masteredNo);
     expect(table.querySelector('tr[data-mode="keeper"][data-direction="right"]')).not.toBeNull();
   });

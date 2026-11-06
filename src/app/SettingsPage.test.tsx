@@ -38,14 +38,13 @@ afterEach(() => {
 });
 
 describe('SettingsPage (T044, FR-035)', () => {
-  it('shows the ten groups in order', () => {
+  it('shows the nine groups in order', () => {
     setup();
     const legends = screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toEqual([
       'Zahlenraum',
-      'Spielarten',
       'Hinweise',
-      'Reihen',
+      'Richtungen',
       'Runde',
       'Schwierigkeit',
       'Ton',
@@ -76,11 +75,13 @@ describe('SettingsPage (T044, FR-035)', () => {
     expect(saveButton().disabled).toBe(false);
   });
 
-  it('needs at least one mode, one hint distance and one line direction', () => {
+  it('needs at least one direction', () => {
     setup();
-    const modes = group('Spielarten');
-    for (const name of ['Löcher', 'Reihen', 'Torwart']) fireEvent.click(within(modes).getByLabelText(name));
-    expect(within(modes).getByText(t().settingsErrors.noMode)).toBeTruthy();
+    const directions = group('Richtungen');
+    for (const name of ['nach rechts', 'nach unten', 'schräg nach rechts unten', 'schräg nach links unten']) {
+      fireEvent.click(within(directions).getByLabelText(name));
+    }
+    expect(within(directions).getByText(t().settingsErrors.noDirection)).toBeTruthy();
     expect(saveButton().disabled).toBe(true);
   });
 

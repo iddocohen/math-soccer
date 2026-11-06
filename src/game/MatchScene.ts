@@ -153,6 +153,10 @@ export class MatchScene extends Phaser.Scene {
       this.stands.calm();
     }
     this.keeper.setVisible(s.mode === 'keeper');
+    // The waiting keeper leaves the target and hint squares visible (FR-064).
+    if (s.mode === 'keeper' && s.target) {
+      this.keeper.keepClear([s.target.number, ...s.target.hints].map((n) => cellRect(layout, CHART_RECT, n)));
+    }
     this.refreshLook(s);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);

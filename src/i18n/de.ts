@@ -189,9 +189,8 @@ export const de = {
     version: (version: string, date: string) => `Version ${version} vom ${date}`,
     groups: {
       range: 'Zahlenraum',
-      modes: 'Spielarten',
       hints: 'Hinweise',
-      lines: 'Reihen',
+      directions: 'Richtungen',
       round: 'Runde',
       difficulty: 'Schwierigkeit',
       sound: 'Ton',
@@ -205,8 +204,6 @@ export const de = {
       rangeMax: 'Bis',
       hintDisplay: 'Hinweiszahlen',
       hintDistance: 'Abstand der Hinweise',
-      lineDirections: 'Richtungen',
-      lineLength: 'Länge einer Reihe',
       roundType: 'Rundenende',
       goalsPerRound: 'Tore pro Runde',
       difficulty: 'Schwierigkeit',
@@ -223,10 +220,9 @@ export const de = {
     },
     options: {
       rangePreset: { '1-100': '1 bis 100', '0-1000': '0 bis 1000', custom: 'Eigener Zahlenraum' },
-      modes: { holes: 'Löcher', lines: 'Reihen', keeper: 'Torwart' },
       hintDisplay: { always: 'immer', onRequest: 'auf Wunsch' },
       hintDistance: { direct: 'direkt daneben', vertical: 'darüber und darunter', diagonal: 'schräg', far: 'weiter weg' },
-      lineDirections: {
+      directions: {
         right: 'nach rechts',
         left: 'nach links',
         down: 'nach unten',
@@ -268,10 +264,10 @@ export const de = {
     rangeOrder: '„Von“ muss kleiner sein als „Bis“.',
     rangeSpan: 'Der Zahlenraum braucht mindestens 10 Zahlen.',
     rangePresetMismatch: 'Von und Bis passen nicht zum gewählten Zahlenraum.',
-    noMode: 'Mindestens eine Spielart muss an sein.',
     noHintDistance: 'Mindestens ein Abstand muss an sein.',
-    noLineDirection: 'Mindestens eine Richtung muss an sein.',
-    lineLength: 'Eine Reihe hat 3 bis 10 Felder.',
+    noDirection: 'Mindestens eine Richtung muss an sein.',
+    noPattern: 'Mindestens ein Hinweis-Muster muss an sein.',
+    noShape: 'Mindestens eine Form muss an sein.',
     goalsPerRound: 'Eine Runde hat 1 bis 20 Tore.',
   },
 

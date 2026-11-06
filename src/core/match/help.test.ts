@@ -10,7 +10,7 @@ import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { Target } from '../types';
 import type { Digit } from './entry';
-import { helpHint, hintsVisible, targetHintDisplay } from './help';
+import { helpHint, hintsVisible, ON_REQUEST_STEP, targetHintDisplay } from './help';
 import { GOAL_STARS } from '../rewards/lockerRoom';
 import { MatchController, MAX_HELP_STEP } from './MatchController';
 
@@ -210,14 +210,15 @@ describe('help step 3: the answer (FR-025b)', () => {
   });
 });
 
-describe('targetHintDisplay (FR-040: on request only at adaptive step 3)', () => {
+describe('targetHintDisplay (FR-040, FR-067: on request only at the top ladder step)', () => {
   it('shows hints always with "immer", whatever the step', () => {
-    expect(targetHintDisplay({ hintDisplay: 'always', adaptive: true }, { difficultyStep: 3 })).toBe('always');
+    expect(targetHintDisplay({ hintDisplay: 'always', adaptive: true }, { difficultyStep: ON_REQUEST_STEP })).toBe('always');
   });
 
-  it('with "auf Wunsch" and adaptive on, waits for a request only at step 3', () => {
+  it('with "auf Wunsch" and adaptive on, waits for a request only at step 7', () => {
     const s = { hintDisplay: 'onRequest' as const, adaptive: true };
-    expect([0, 1, 2, 3].map((difficultyStep) => targetHintDisplay(s, { difficultyStep }))).toEqual(['always', 'always', 'always', 'onRequest']);
+    expect(ON_REQUEST_STEP).toBe(7);
+    expect([0, 3, 6, 7].map((difficultyStep) => targetHintDisplay(s, { difficultyStep }))).toEqual(['always', 'always', 'always', 'onRequest']);
   });
 
   it('with "auf Wunsch" and adaptive off, applies the parent choice', () => {

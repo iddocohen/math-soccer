@@ -2,8 +2,8 @@
 /**
  * Settings page for parents (FR-035, FR-041, contracts/screens.md "Settings").
  *
- * Every field of data-model "Settings", grouped as Zahlenraum, Spielarten, Hinweise, Reihen, Runde, Schwierigkeit, Ton,
- * Bedienung, Kabine and Daten. The form is checked with `validateSettings` on every change; errors appear next to their
+ * The fields of data-model "Settings", grouped as Zahlenraum, Hinweise, Richtungen, Runde, Schwierigkeit, Ton, Bedienung,
+ * Kabine and Daten. The groups for hint patterns, shapes and the time challenge follow with T089. The form is checked with `validateSettings` on every change; errors appear next to their
  * fields and "Speichern" stays disabled while any error exists. Saving writes through persistence.ts and hands the
  * settings to the app; they apply from the next round (applying them to a running round is amendment 01, T070/T071).
  *
@@ -12,12 +12,12 @@
  * again after "Speichern" and after "Daten laden".
  */
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
-import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LINE_LENGTH_MAX, LINE_LENGTH_MIN, RANGE_PRESETS } from '../core/settings/defaults';
+import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, RANGE_PRESETS } from '../core/settings/defaults';
 import type { RangePreset, Settings } from '../core/settings/schema';
 import { validateSettings } from '../core/settings/validate';
 import { qrMatrix, qrPath, type QrMatrix } from '../core/transfer/qr';
 import { encodeTransfer, type EncodedTransfer } from '../core/transfer/transfer';
-import { DIRECTIONS, HINT_DISTANCES, MODES } from '../core/types';
+import { DIRECTIONS, HINT_DISTANCES } from '../core/types';
 import { t } from '../i18n';
 import { BUILD_DATE, BUILD_VERSION } from './buildInfo';
 import type { Persistence } from './persistence';
@@ -87,7 +87,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
   };
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => update({ ...draft, [key]: value });
   /** A switch inside one of the on/off groups. */
-  const flag = <G extends 'modes' | 'hintDistance' | 'lineDirections' | 'sound'>(group: G, key: keyof Settings[G] & string) => ({
+  const flag = <G extends 'hintDistance' | 'directions' | 'sound'>(group: G, key: keyof Settings[G] & string) => ({
     checked: (draft[group] as Record<string, boolean>)[key] === true,
     onChange: (v: boolean) => set(group, { ...draft[group], [key]: v }),
   });
@@ -189,12 +189,6 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           )}
         </Group>
 
-        <Group title={S.groups.modes} errors={errorsAt('modes')}>
-          {MODES.map((mode) => (
-            <Check key={mode} label={O.modes[mode]} {...flag('modes', mode)} />
-          ))}
-        </Group>
-
         <Group title={S.groups.hints} errors={errorsAt('hintDistance')}>
           <Select
             label={L.hintDisplay}
@@ -209,19 +203,10 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Check label={L.pointAfterFullHelp} checked={draft.pointAfterFullHelp} onChange={(v) => set('pointAfterFullHelp', v)} />
         </Group>
 
-        <Group title={S.groups.lines} errors={errorsAt('lineDirections')}>
-          <p className="field-label">{L.lineDirections}</p>
+        <Group title={S.groups.directions} errors={errorsAt('directions')}>
           {DIRECTIONS.map((d) => (
-            <Check key={d} label={O.lineDirections[d]} {...flag('lineDirections', d)} />
+            <Check key={d} label={O.directions[d]} {...flag('directions', d)} />
           ))}
-          <NumberInput
-            label={L.lineLength}
-            value={draft.lineLength}
-            min={LINE_LENGTH_MIN}
-            max={LINE_LENGTH_MAX}
-            errors={errorsAt('lineLength')}
-            onChange={(n) => set('lineLength', n)}
-          />
         </Group>
 
         <Group title={S.groups.round}>

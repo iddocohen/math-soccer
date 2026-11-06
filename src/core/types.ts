@@ -1,4 +1,5 @@
 /** Shared types of the engine-free core (data-model.md, contracts/core-api.md). */
+import type { Pattern } from './targets/patterns';
 
 /** The 8 directions on the hundred chart. Steps: right +1, left -1, down +10, up -10, downRight +11, upLeft -11, downLeft +9, upRight -9. */
 export const DIRECTIONS = ['right', 'left', 'down', 'up', 'downRight', 'upLeft', 'downLeft', 'upRight'] as const;
@@ -31,8 +32,10 @@ export interface Target {
   patchedHoles: number[];
   /** Directions trained, from the hint offsets or the line's direction. */
   directions: Direction[];
-  /** 0 to 3, from the adaptive ladder. */
+  /** 0 to 7, from the adaptive ladder (core/progress/ladder.ts). */
   difficultyStep: number;
+  /** The hint pattern of a goalkeeper target (FR-065); missing on hole and line targets. */
+  pattern?: Pattern;
 }
 
 /** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */

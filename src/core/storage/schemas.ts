@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { STARTER } from '../rewards/items';
 import { GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN } from '../settings/defaults';
 import { LINE_MIN_LENGTH } from '../targets/lines';
+import { PATTERNS } from '../targets/patterns';
 import { DIRECTIONS, MODES } from '../types';
 
 /**
@@ -30,7 +31,8 @@ export const attemptRecordSchema = z.object({
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
   /** How hints showed for this target: always, or on request (parent setting or adaptive step 3). */
   hintDisplay: z.enum(['always', 'onRequest']),
-  difficultyStep: z.number().int().min(0).max(3),
+  /** The ladder step, 0 to 7 (core/progress/ladder.ts); hole mode used 0 to 3. */
+  difficultyStep: z.number().int().min(0).max(7),
   /** Scored before help step 3 showed the answer. */
   solved: z.boolean(),
   /** The highest help step used on the target, 0 to 3. */
@@ -44,8 +46,8 @@ export type AttemptRecord = z.infer<typeof attemptRecordSchema>;
 
 /** The adaptive state of one direction in one mode (data-model "DirectionProgress", as math-tank's SkillProgress). */
 export const directionStateSchema = z.object({
-  /** Adaptive step, 0 to 3. */
-  step: z.number().int().min(0).max(3),
+  /** Adaptive step, 0 to 7 (core/progress/ladder.ts); older data holds 0 to 3. */
+  step: z.number().int().min(0).max(7),
   /** Newest last, at most 6; cleared on a step change. Guesses never enter it. */
   recent: z.array(outcomeSchema),
   /** Newest last, at most 10; kept across step changes. Guesses never enter it. */
@@ -126,7 +128,9 @@ export const targetSchema = z.object({
   hints: z.array(z.number().int()),
   patchedHoles: z.array(z.number().int()),
   directions: z.array(z.enum(DIRECTIONS)),
-  difficultyStep: z.number().int().min(0).max(3),
+  difficultyStep: z.number().int().min(0).max(7),
+  /** The hint pattern of a goalkeeper target; missing in rounds stored before amendment 05. */
+  pattern: z.enum(PATTERNS).optional(),
 });
 
 /** A line of line mode (data-model "Line"). */
