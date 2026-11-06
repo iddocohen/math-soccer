@@ -142,6 +142,8 @@ export const de = {
     won: (onTo: string) => `Gewonnen! ${onTo}`,
     cupWon: (n: number) => `Gewonnen! Pokal ${n} gehört dir!`,
     lost: (team: string) => `Knapp! Noch mal gegen ${team}?`,
+    /** A cup match whose cup was replaced during it (reset, loaded data or transfer): its result counts for nothing. */
+    replaced: 'Der Pokal wurde neu gestartet.',
     /** "3:1", the child's goals first. */
     score: (goals: number, against: number) => `${goals}:${against}`,
     /** The bracket screen (FR-106): its title names the cup, "Pokal 2". */

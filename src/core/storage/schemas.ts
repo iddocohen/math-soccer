@@ -206,9 +206,14 @@ export const roundSchema = z
     targetMisses: z.number().int().min(0),
     /** Play times of the shots that missed the current target, for the guess rule (T043). */
     missTimes: z.array(z.number().min(0)),
-    /** A cup match (amendment 13): its level and the goals that win it; null for the other round types. */
+    /** A cup match (amendment 13): its level, the goals that win it, and its cup and stage; null for the other round types. */
     cupMatch: z
-      .object({ level: z.literal(LEVELS), goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX) })
+      .object({
+        level: z.literal(LEVELS),
+        goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX),
+        cup: z.number().int().min(1),
+        stage: z.number().int().min(0).max(CUP_MATCHES - 1),
+      })
       .nullable(),
     phase: z.enum(['aiming', 'celebrating']),
   })

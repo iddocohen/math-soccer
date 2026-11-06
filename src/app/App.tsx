@@ -273,10 +273,14 @@ function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, s
 /**
  * Records a finished cup match in the cup (FR-108, FR-111, FR-112): the next match after a win, one more try after a
  * loss, the trophy and the next cup after a won final. The bonus stars go to the locker room. Returns the round end's
- * line and the bonus stars.
+ * line and the bonus stars. When the cup was replaced during the match (reset, loaded data or a transfer), the match
+ * no longer belongs to the cup: nothing is recorded, no bonus is given, and "Weiter" goes to the bracket.
  */
 function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): CupRoundResult & { bonus: number } {
   const before = persistence.cup();
+  if (s.cupMatch === null || s.cupMatch.cup !== before.cup || s.cupMatch.stage !== before.stage) {
+    return { won: false, replaced: true, line: t().cup.replaced, bonus: 0 };
+  }
   const won = cupMatchWon(s);
   const update = recordMatch(before, { won, goals: s.goals, against: START_HEARTS - s.hearts });
   saves.report(persistence.saveCup(update.cup));
@@ -468,10 +472,11 @@ export function App() {
       if (kind === 'cup') {
         // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109). The scene reads the
         // opponent when the round starts, so it is set first.
-        const match = nextMatch(persistence.cup(), settings());
+        const cup = persistence.cup();
+        const match = nextMatch(cup, settings());
         cupScene.current = cupSceneOf(match);
         setIntro({ stage: match.stage, team: match.team });
-        controller.startCup({ level: match.level, goals: match.goals });
+        controller.startCup({ level: match.level, goals: match.goals, cup: cup.cup, stage: match.stage });
       } else {
         cupScene.current = null;
         setIntro(null);
@@ -547,7 +552,7 @@ export function App() {
     // A won cup match goes on to the bracket (FR-108), where the next match waits.
     // The round that just ended tells what it started as; a restored time challenge counts as one.
     const last = startKindOf(state.roundType);
-    if (last === 'cup' && cupResult?.won) {
+    if (last === 'cup' && (cupResult?.won || cupResult?.replaced)) {
       setScreen('cup');
       return;
     }

@@ -965,14 +965,14 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
 
   it('starts a cup round with hearts, the match goals and no countdown', () => {
     const { c } = setup({ answer: 46 });
-    c.startCup({ level: 3, goals: 3 });
-    expect(c.getState()).toMatchObject({ started: true, roundType: 'cup', cupMatch: { level: 3, goals: 3 }, hearts: 3, challengeMinutes: null });
+    c.startCup({ level: 3, goals: 3, cup: 1, stage: 0 });
+    expect(c.getState()).toMatchObject({ started: true, roundType: 'cup', cupMatch: { level: 3, goals: 3, cup: 1, stage: 0 }, hearts: 3, challengeMinutes: null });
   });
 
   it('every target plays the match level, not the child level, and no X shape with two empty squares', () => {
     for (const level of [2, 3, 4, 5] as const) {
       const { c } = setup();
-      c.startCup({ level, goals: 5 });
+      c.startCup({ level, goals: 5, cup: 1, stage: 0 });
       for (let i = 0; i < 4; i++) {
         const t = c.getState().target!;
         expect(t.level).toBe(level);
@@ -985,7 +985,7 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
 
   it('is won at the match goals: the round ends after the celebration', () => {
     const { c } = setup({ answer: 46 });
-    c.startCup({ level: 1, goals: 3 });
+    c.startCup({ level: 1, goals: 3, cup: 1, stage: 0 });
     for (let i = 0; i < 3; i++) {
       expect(cupMatchWon(c.getState())).toBe(false);
       shootAt(c, 46);
@@ -999,7 +999,7 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
   it('is lost when the hearts are gone first', () => {
     const settings = defaultSettings();
     const { c } = setup({ settings, answer: 46 });
-    c.startCup({ level: 1, goals: 3 });
+    c.startCup({ level: 1, goals: 3, cup: 1, stage: 0 });
     shootAt(c, 46);
     c.celebrationDone();
     const misses = START_HEARTS * MISSES_PER_HEART[settings.difficulty];
@@ -1016,20 +1016,20 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
 
   it('is saved and continued after a refresh with its level and goals', () => {
     const { c, store } = setup({ answer: 46 });
-    c.startCup({ level: 4, goals: 6 });
+    c.startCup({ level: 4, goals: 6, cup: 1, stage: 0 });
     shootAt(c, 46);
     c.celebrationDone();
-    expect(store.round).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6 }, goals: 1 });
+    expect(store.round).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6, cup: 1, stage: 0 }, goals: 1 });
     const again = new MatchController({ settings: defaultSettings, store, nextTarget: () => target(46) });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6 }, goals: 1, hearts: 3 });
+    expect(again.getState()).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6, cup: 1, stage: 0 }, goals: 1, hearts: 3 });
     // The round settings keep a round type of "Spielen"; the cup match lives in the state.
     expect(again.getRoundSettings().roundType).toBe('untilHearts');
   });
 
   it('"Zum Start" ends a cup match as neither won nor lost (FR-118)', () => {
     const { c, store } = setup({ answer: 46 });
-    c.startCup({ level: 1, goals: 3 });
+    c.startCup({ level: 1, goals: 3, cup: 1, stage: 0 });
     shootAt(c, 46);
     c.celebrationDone();
     const phases: string[] = [];
@@ -1042,7 +1042,7 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
 
   it('a normal round after a cup match is no cup match', () => {
     const { c } = setup({ answer: 46 });
-    c.startCup({ level: 2, goals: 3 });
+    c.startCup({ level: 2, goals: 3, cup: 1, stage: 0 });
     c.start();
     expect(c.getState()).toMatchObject({ roundType: 'untilHearts', cupMatch: null });
   });

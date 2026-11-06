@@ -301,10 +301,10 @@ describe('stored cup (mathsoccer.cup.v1, amendment 13)', () => {
   });
 
   it('a stored cup round needs its cup match, and only a cup round has one', () => {
-    const cupRound = storedRound({ roundType: 'cup', cupMatch: { level: 3, goals: 5 } });
+    const cupRound = storedRound({ roundType: 'cup', cupMatch: { level: 3, goals: 5, cup: 1, stage: 0 } });
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(cupRound) })).value).toEqual(cupRound);
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify({ ...cupRound, cupMatch: null }) })).resetReason).toBe('invalid');
-    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ cupMatch: { level: 3, goals: 5 } })) })).resetReason).toBe('invalid');
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ cupMatch: { level: 3, goals: 5, cup: 1, stage: 0 } })) })).resetReason).toBe('invalid');
   });
 });
 

@@ -67,6 +67,7 @@
 - It is part of "Daten sichern" and "Daten laden", the QR transfer, "Kopie wiederherstellen" and "Alles zurücksetzen".
 - The locker room data gets the owned and chosen celebration, with a version bump and a migration (default "Arme hoch").
 - A running cup match is saved like a round, so a refresh continues it.
+- A cup match whose cup was replaced during it (reset, loaded data or transfer) records no result.
 
 ## Tests
 

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/settings/defaults';
 import type { MatchController } from '../core/match/MatchController';
 import { emptyCup, emptyLockerRoom, emptyProgress, emptyRecords } from '../core/storage/schemas';
-import { BASELINE, BASELINE_KEY, LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
+import { BASELINE, BASELINE_KEY, CUP_KEY, LOCKER_ROOM_KEY, PROGRESS_KEY, RECORDS_KEY, ROUND_KEY, SETTINGS_KEY } from '../core/storage/storage';
 import { encodeTransfer } from '../core/transfer/transfer';
 import { MatchController as Controller } from '../core/match/MatchController';
 import { t } from '../i18n';
@@ -278,6 +278,40 @@ describe('App parent screens (T041 to T046)', () => {
     holdGear();
     fireEvent.click(screen.getByRole('button', { name: 'Fortschritt' }));
     expect(screen.getByTestId('progress-page').textContent).toContain('Noch keine Versuche.');
+  });
+
+  it('a cup match whose cup was reset during it records nothing and gives no bonus; "Weiter" goes to the bracket', async () => {
+    const cup = { version: 1, cup: 1, stage: 2, tries: 1, scores: [{ goals: 3, against: 0 }, { goals: 3, against: 1 }], trophies: [] };
+    localStorage.setItem(CUP_KEY, JSON.stringify(cup));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), cupGoals: 3 }));
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Pokal' }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t().cup.nextLabel) }));
+    await waitFor(() => expect(game.controller).not.toBeNull());
+    fireEvent.pointerDown(screen.getByTestId('cup-intro'));
+    scoreGoal();
+
+    holdGear();
+    fireEvent.click(screen.getByRole('button', { name: 'Fortschritt' }));
+    fireEvent.click(screen.getByRole('button', { name: t().progressPage.resetAll }));
+    fireEvent.click(screen.getByRole('button', { name: t().progressPage.resetAllYes }));
+    fireEvent.click(screen.getByRole('button', { name: t().progressPage.close }));
+    expect(screen.queryByTestId('progress-page')).toBeNull();
+
+    scoreGoal();
+    scoreGoal();
+    expect(screen.getByTestId('round-end')).toBeTruthy();
+    const result = screen.getByTestId('cup-result');
+    expect(result.textContent).toBe('Der Pokal wurde neu gestartet.');
+    expect(result.getAttribute('data-cup-won')).toBe('false');
+    // 2 stars per goal and no bonus for the match; the reset cleared the stars of the first goal.
+    expect(screen.getByTestId('round-stars').textContent).toBe(t().roundEnd.stars(6));
+    expect((JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number }).stars).toBe(4);
+    expect(JSON.parse(localStorage.getItem(CUP_KEY)!)).toMatchObject({ cup: 1, stage: 0, tries: 0, scores: [] });
+
+    expect(screen.queryByRole('button', { name: 'Nochmal' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t().cup.next }));
+    expect(screen.getByTestId('cup-bracket').getAttribute('data-cup-stage')).toBe('0');
   });
 
   it('records an attempt per scored target in the progress (T043)', async () => {

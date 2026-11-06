@@ -28,6 +28,8 @@ export interface CupRoundResult {
   line: string;
   /** The match won the final, and with it the cup (FR-110, FR-111). */
   cupWon?: boolean;
+  /** The cup was replaced during the match, so its result counts for nothing; "Weiter" goes to the bracket. */
+  replaced?: boolean;
 }
 
 export interface RoundRecord {
@@ -92,8 +94,8 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
         </p>
       )}
       <div className="round-end-buttons">
-        {cup?.won ? (
-          // A won cup match goes on to the bracket (Enter or Space as well).
+        {cup?.won || cup?.replaced ? (
+          // A won cup match, or one whose cup was replaced, goes on to the bracket (Enter or Space as well).
           <button type="button" className="primary" onClick={onBack}>
             {t().cup.next}
           </button>

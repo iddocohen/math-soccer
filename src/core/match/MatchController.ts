@@ -242,10 +242,15 @@ const TARGET_RESET = {
 /** What `start` begins: a normal round ("Spielen") or a time challenge ("Zeit-Challenge"). */
 export type StartKind = 'play' | 'time';
 
-/** What a cup match needs (core/cup `nextMatch`): the level of its targets and the goals that win it. */
+/**
+ * What a cup match needs (core/cup `nextMatch`): the level of its targets and the goals that win it. `cup` and `stage`
+ * name the match in the cup, so the app can tell when the cup was replaced during the match.
+ */
 export interface CupMatchSetup {
   level: Level;
   goals: number;
+  cup: number;
+  stage: number;
 }
 
 /** True when the cup match of `s` has ended won: its goals were scored before the hearts were gone (FR-108). */
