@@ -1,18 +1,27 @@
 import type { Rect } from '../types';
 
 /**
- * Fixed world coordinates of the match scene (contracts/screens.md). The canvas scales this world to fit the screen,
- * so every view and the chart mapping work in these units.
+ * Fixed world coordinates of the match scene (contracts/screens.md, amendment 02). The canvas scales this world to fit
+ * the screen, so every view and the chart mapping work in these units.
  */
 
 export const WORLD_WIDTH = 1600;
 export const WORLD_HEIGHT = 1000;
 
-/** The goal mouth, which holds the number chart: x 300 to 1300, y 230 to 790. */
-export const GOAL_RECT: Rect = { x: 300, y: 230, width: 1000, height: 560 };
+/** Outer edge of the goal posts and the crossbar: x 260 to 1340, y 200 to 800. The bottom edge is the goal line. */
+export const GOAL_FRAME: Rect = { x: 260, y: 200, width: 1080, height: 600 };
+
+/** Thickness of the posts and the crossbar. */
+export const POST_WIDTH = 22;
+
+/**
+ * The number chart, a panel inside the goal mouth: x 340 to 1260, y 250 to 750 (FR-054). The net shows between the
+ * panel and the posts and crossbar. Board, hints, help arrow and ball target all use this rectangle with `cellRect`.
+ */
+export const CHART_RECT: Rect = { x: 340, y: 250, width: 920, height: 500 };
 
 /** The stands with the fans: y 0 to 260. */
 export const STANDS_BOTTOM = 260;
 
-/** Where the player stands and the ball waits before a shot. */
-export const KICK_SPOT = { x: 800, y: 930 } as const;
+/** Where the ball waits before a shot, below the goal line so it never covers a chart square (FR-056). */
+export const KICK_SPOT = { x: 860, y: 940 } as const;

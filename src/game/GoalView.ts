@@ -1,15 +1,21 @@
 /**
- * The goal (FR-001, FR-004, FR-011, FR-013): the net, the board with the printed chart, and the posts, in three layers.
+ * The goal (FR-001, FR-004, FR-011, FR-013, FR-053 to FR-055): the net in depth, the board panel with the printed
+ * chart, and the posts, in three layers. Seen from the penalty spot.
  *
- * - The net is drawn once, behind the board.
- * - The board is a canvas texture of the whole goal rectangle, drawn from `buildBoard` (src/game/board.ts). It is redrawn
- *   only when `boardKey` changes, that is when the target, the hints shown, the help step or the shown square change
- *   (plan decision 9), not every frame. Help shows on the board too (T040): at steps 1 and 2 a yellow arrow from the
- *   closest hint number to the hole, at step 3 the answer in the hole. The open hole is left transparent, so the net shows through it, and a ball
- *   placed between the net and the board (`BALL_IN_NET_DEPTH`) shows only through the hole.
+ * - The net is drawn once, behind the board: the back net, the side nets and the roof net in perspective, with the
+ *   mesh visible, and the thin back posts. It fills the whole goal mouth (`GOAL_FRAME`), so it shows around the panel.
+ * - The board is a canvas texture of `CHART_RECT`, a panel inside the goal mouth, drawn from `buildBoard`
+ *   (src/game/board.ts). It is redrawn only when `boardKey` changes, that is when the target, the hints shown, the help
+ *   step or the shown square change (plan decision 9), not every frame. Help shows on the board too (T040): at steps 1
+ *   and 2 a yellow arrow from the closest hint number to the hole, at step 3 the answer in the hole. The open hole is
+ *   left transparent, so the net shows through it, and a ball placed between the net and the board
+ *   (`BALL_IN_NET_DEPTH`) shows only through the hole.
+ * - In hole and line mode a dark edge and ropes to the frame hang the panel in the goal. In goalkeeper mode the goal is
+ *   open: no panel edge, and the faint grid lies inside the same `CHART_RECT`.
  * - The posts and the crossbar are drawn once, in front of the board.
  */
 import Phaser from 'phaser';
+import { CHART_RECT, GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { boardKey, buildBoard, type Arrow, type BoardInput, type Square } from './board';
 import { COLOR, css } from './palette';
@@ -23,49 +29,58 @@ export const POSTS_DEPTH = 5;
 const BOARD_TEXTURE = 'goal-board';
 /** Canvas pixels per world pixel, so the numbers stay sharp on large screens. */
 const RESOLUTION = 2;
-const NET_MESH = 14;
-const POST = 14;
+/** Mesh size of the back net in world pixels. */
+const NET_MESH = 18;
+/** Width of the dark edge around the board panel. */
+const PANEL_EDGE = 8;
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+function lerp(a: Point, b: Point, t: number): Point {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
 
 export class GoalView {
   private readonly scene: Phaser.Scene;
-  private readonly goal: Rect;
+  private readonly chart: Rect = CHART_RECT;
   private readonly texture: Phaser.Textures.CanvasTexture;
   private readonly net: Phaser.GameObjects.Graphics;
+  private readonly panel: Phaser.GameObjects.Graphics;
   private readonly board: Phaser.GameObjects.Image;
   private readonly posts: Phaser.GameObjects.Graphics;
   private key = '';
   /** How often the board was drawn; the scene shows it as `data-board-draws` for tests. */
   draws = 0;
 
-  constructor(scene: Phaser.Scene, goal: Rect) {
+  constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.goal = goal;
+    const chart = this.chart;
 
     this.net = scene.add.graphics().setDepth(NET_DEPTH);
-    this.net.fillStyle(COLOR.net, 1);
-    this.net.fillRect(goal.x, goal.y, goal.width, goal.height);
-    this.net.lineStyle(1, COLOR.chalk, 0.18);
-    for (let x = goal.x; x <= goal.x + goal.width; x += NET_MESH) this.net.lineBetween(x, goal.y, x, goal.y + goal.height);
-    for (let y = goal.y; y <= goal.y + goal.height; y += NET_MESH) this.net.lineBetween(goal.x, y, goal.x + goal.width, y);
+    drawNet(this.net);
+
+    this.panel = scene.add.graphics().setDepth(BOARD_DEPTH);
+    drawPanelEdge(this.panel, chart);
 
     if (scene.textures.exists(BOARD_TEXTURE)) scene.textures.remove(BOARD_TEXTURE);
-    const texture = scene.textures.createCanvas(BOARD_TEXTURE, goal.width * RESOLUTION, goal.height * RESOLUTION);
+    const texture = scene.textures.createCanvas(BOARD_TEXTURE, chart.width * RESOLUTION, chart.height * RESOLUTION);
     if (!texture) throw new Error('GoalView: the board texture could not be created');
     this.texture = texture;
-    this.board = scene.add.image(goal.x, goal.y, BOARD_TEXTURE).setOrigin(0, 0).setDisplaySize(goal.width, goal.height).setDepth(BOARD_DEPTH);
+    this.board = scene.add.image(chart.x, chart.y, BOARD_TEXTURE).setOrigin(0, 0).setDisplaySize(chart.width, chart.height).setDepth(BOARD_DEPTH);
 
     this.posts = scene.add.graphics().setDepth(POSTS_DEPTH);
-    this.posts.fillStyle(COLOR.chalk, 1);
-    this.posts.fillRect(goal.x - POST, goal.y - POST, POST, goal.height + POST);
-    this.posts.fillRect(goal.x + goal.width, goal.y - POST, POST, goal.height + POST);
-    this.posts.fillRect(goal.x - POST, goal.y - POST, goal.width + 2 * POST, POST);
+    drawPosts(this.posts);
   }
 
   /** Redraws the board when what it shows changed; returns true when it did. */
   update(input: Omit<BoardInput, 'goal'>): boolean {
-    const full: BoardInput = { ...input, goal: this.goal };
+    const full: BoardInput = { ...input, goal: this.chart };
     const key = boardKey(full);
     if (key === this.key) return false;
+    this.panel.setVisible(input.mode !== 'keeper');
     this.key = key;
     this.draw(full);
     return true;
@@ -74,7 +89,7 @@ export class GoalView {
   private draw(input: BoardInput): void {
     const board = buildBoard(input);
     const ctx = this.texture.getContext();
-    const { x: gx, y: gy, width, height } = this.goal;
+    const { x: gx, y: gy, width, height } = this.chart;
     ctx.setTransform(RESOLUTION, 0, 0, RESOLUTION, -gx * RESOLUTION, -gy * RESOLUTION);
     ctx.clearRect(gx, gy, width, height);
     for (const s of board.squares) this.drawSquare(ctx, s);
@@ -202,8 +217,121 @@ export class GoalView {
 
   destroy(): void {
     this.net.destroy();
+    this.panel.destroy();
     this.board.destroy();
     this.posts.destroy();
     if (this.scene.textures.exists(BOARD_TEXTURE)) this.scene.textures.remove(BOARD_TEXTURE);
   }
+}
+
+/** Inner corners of the goal mouth (front) and of the back of the goal, which looks smaller and higher from the spot. */
+function goalCorners(): { front: Record<'tl' | 'tr' | 'bl' | 'br', Point>; back: Record<'tl' | 'tr' | 'bl' | 'br', Point> } {
+  const left = GOAL_FRAME.x + POST_WIDTH;
+  const right = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH;
+  const top = GOAL_FRAME.y + POST_WIDTH;
+  const line = GOAL_FRAME.y + GOAL_FRAME.height;
+  const backLeft = left + 100;
+  const backRight = right - 100;
+  const backTop = top + 70;
+  const backLine = line - 45;
+  return {
+    front: { tl: { x: left, y: top }, tr: { x: right, y: top }, bl: { x: left, y: line }, br: { x: right, y: line } },
+    back: { tl: { x: backLeft, y: backTop }, tr: { x: backRight, y: backTop }, bl: { x: backLeft, y: backLine }, br: { x: backRight, y: backLine } },
+  };
+}
+
+/** The net in depth: grass inside the goal, back net, side nets and roof net with their mesh, and the back posts. */
+function drawNet(g: Phaser.GameObjects.Graphics): void {
+  const { front: f, back: b } = goalCorners();
+  const poly = (points: Point[], color: number, alpha: number): void => {
+    g.fillStyle(color, alpha);
+    g.fillPoints(points.map((p) => new Phaser.Math.Vector2(p.x, p.y)), true);
+  };
+  // Grass inside the goal, in the shade of the net.
+  poly([f.bl, f.br, b.br, b.bl], 0x1d4a26, 1);
+  // Back net, then the side and roof nets, a little lighter where the light falls on them.
+  poly([b.tl, b.tr, b.br, b.bl], COLOR.net, 0.72);
+  poly([f.tl, b.tl, b.bl, f.bl], COLOR.net, 0.7);
+  poly([f.tr, b.tr, b.br, f.br], COLOR.net, 0.7);
+  poly([f.tl, f.tr, b.tr, b.tl], COLOR.net, 0.85);
+
+  // Mesh of the back net.
+  g.lineStyle(1.5, COLOR.chalk, 0.32);
+  for (let x = b.tl.x; x <= b.tr.x + 0.5; x += NET_MESH) g.lineBetween(x, b.tl.y, x, b.bl.y);
+  for (let y = b.tl.y; y <= b.bl.y + 0.5; y += NET_MESH) g.lineBetween(b.tl.x, y, b.tr.x, y);
+
+  // Mesh of the side and roof nets: lines along the depth and lines across it.
+  g.lineStyle(1.5, COLOR.chalk, 0.38);
+  const across = 6;
+  const sides: Array<[Point, Point, Point, Point]> = [
+    [f.tl, f.bl, b.tl, b.bl],
+    [f.tr, f.br, b.tr, b.br],
+    [f.tl, f.tr, b.tl, b.tr],
+  ];
+  for (const [f0, f1, b0, b1] of sides) {
+    const along = Math.round(Math.hypot(f1.x - f0.x, f1.y - f0.y) / NET_MESH);
+    for (let i = 0; i <= along; i++) {
+      const t = i / along;
+      const a = lerp(f0, f1, t);
+      const c = lerp(b0, b1, t);
+      g.lineBetween(a.x, a.y, c.x, c.y);
+    }
+    for (let i = 1; i < across; i++) {
+      const t = i / across;
+      const a = lerp(f0, b0, t);
+      const c = lerp(f1, b1, t);
+      g.lineBetween(a.x, a.y, c.x, c.y);
+    }
+  }
+
+  // Back posts, back bar and the stays from the crossbar corners to the back.
+  g.lineStyle(5, COLOR.chalk, 0.6);
+  g.strokePoints([b.bl, b.tl, b.tr, b.br].map((p) => new Phaser.Math.Vector2(p.x, p.y)), false);
+  g.lineStyle(4, COLOR.chalk, 0.5);
+  g.lineBetween(f.tl.x, f.tl.y, b.tl.x, b.tl.y);
+  g.lineBetween(f.tr.x, f.tr.y, b.tr.x, b.tr.y);
+  g.lineBetween(f.bl.x, f.bl.y, b.bl.x, b.bl.y);
+  g.lineBetween(f.br.x, f.br.y, b.br.x, b.br.y);
+}
+
+/** The dark edge of the board panel and the ropes that hang it from the crossbar and the posts. */
+function drawPanelEdge(g: Phaser.GameObjects.Graphics, chart: Rect): void {
+  const left = GOAL_FRAME.x + POST_WIDTH;
+  const right = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH;
+  const top = GOAL_FRAME.y + POST_WIDTH;
+  const chartRight = chart.x + chart.width;
+  const chartBottom = chart.y + chart.height;
+  g.lineStyle(3, 0xd8d2bd, 0.9);
+  for (const x of [chart.x + 30, chartRight - 30]) g.lineBetween(x, top, x, chart.y);
+  for (const y of [chart.y + 40, chartBottom - 40]) {
+    g.lineBetween(left, y, chart.x, y);
+    g.lineBetween(chartRight, y, right, y);
+  }
+  g.fillStyle(0x2a3a46, 1);
+  g.fillRect(chart.x - PANEL_EDGE, chart.y - PANEL_EDGE, chart.width + 2 * PANEL_EDGE, PANEL_EDGE);
+  g.fillRect(chart.x - PANEL_EDGE, chartBottom, chart.width + 2 * PANEL_EDGE, PANEL_EDGE);
+  g.fillRect(chart.x - PANEL_EDGE, chart.y, PANEL_EDGE, chart.height);
+  g.fillRect(chartRight, chart.y, PANEL_EDGE, chart.height);
+}
+
+/** Thick white posts and crossbar with a shaded inner side, and their shadow on the goal line. */
+function drawPosts(g: Phaser.GameObjects.Graphics): void {
+  const { x, y, width, height } = GOAL_FRAME;
+  const p = POST_WIDTH;
+  const shade = 7;
+  g.fillStyle(0x000000, 0.25);
+  g.fillEllipse(x + p / 2, y + height, p * 2.4, 12);
+  g.fillEllipse(x + width - p / 2, y + height, p * 2.4, 12);
+  g.fillStyle(COLOR.chalk, 1);
+  g.fillRect(x, y, p, height);
+  g.fillRect(x + width - p, y, p, height);
+  g.fillRect(x, y, width, p);
+  g.fillStyle(0xc4c9bd, 1);
+  g.fillRect(x + p - shade, y + p, shade, height - p);
+  g.fillRect(x + width - p, y + p, shade, height - p);
+  g.fillRect(x + p - shade, y + p - shade, width - 2 * p + 2 * shade, shade);
+  g.lineStyle(2, COLOR.ink, 0.45);
+  g.strokeRect(x, y, width, p);
+  g.lineBetween(x, y + p, x, y + height);
+  g.lineBetween(x + width, y + p, x + width, y + height);
 }

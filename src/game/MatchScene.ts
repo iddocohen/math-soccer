@@ -17,7 +17,7 @@ import Phaser from 'phaser';
 import { ballKind, cellRect, layoutChart } from '../core/chart/layout';
 import type { MatchController, MatchState } from '../core/match/MatchController';
 import { helpHint, HINT_STEP, hintsVisible } from '../core/match/help';
-import { GOAL_RECT, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
+import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
 import { BallView } from './BallView';
 import { GoalView } from './GoalView';
@@ -73,7 +73,7 @@ export class MatchScene extends Phaser.Scene {
     this.drawBackdrop();
     const look = this.options.look ?? DEFAULT_LOOK;
     this.stands = new StandsView(this, look.scarfColor);
-    this.goal = new GoalView(this, GOAL_RECT);
+    this.goal = new GoalView(this);
     this.player = new PlayerView(this, look);
     const s = this.controller.getState();
     this.ball = new BallView(this, ballKind(layoutChart(s.min, s.max)));
@@ -141,7 +141,7 @@ export class MatchScene extends Phaser.Scene {
     this.ballInNet = false;
     this.options.sounds?.kick();
     this.player.kick();
-    this.ball.fly(cellRect(layoutChart(s.min, s.max), GOAL_RECT, n), () => this.arrived());
+    this.ball.fly(cellRect(layoutChart(s.min, s.max), CHART_RECT, n), () => this.arrived());
   }
 
   private arrived(): void {
@@ -221,15 +221,15 @@ function paintStadium(g: CanvasRenderingContext2D): void {
     g.fillRect(0, top + i * stripe, W, stripe);
   }
   // The goal line and the sides of the penalty area.
-  const line = GOAL_RECT.y + GOAL_RECT.height + 2;
+  const line = GOAL_FRAME.y + GOAL_FRAME.height;
   g.strokeStyle = css(COLOR.chalk, 0.7);
   g.lineWidth = 5;
   g.beginPath();
   g.moveTo(100, line);
   g.lineTo(W - 100, line);
-  g.moveTo(230, line);
-  g.lineTo(150, H);
-  g.moveTo(W - 230, line);
-  g.lineTo(W - 150, H);
+  g.moveTo(170, line);
+  g.lineTo(70, H);
+  g.moveTo(W - 170, line);
+  g.lineTo(W - 70, H);
   g.stroke();
 }

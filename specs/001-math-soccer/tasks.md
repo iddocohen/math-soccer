@@ -160,9 +160,9 @@ description: "Task list for Math Soccer"
 
 **Goal**: a recognisable goal with the board as a panel inside it. See [amendment-02-visible-goal.md](./amendment-02-visible-goal.md).
 
-- [ ] T076 [US1] Add `GOAL_FRAME` and `CHART_RECT` to `src/core/match/world.ts` per amendment 02 layout (frame x 260 to 1340, y 200 to 800, posts 22 px; chart x 340 to 1260, y 250 to 750) and use `CHART_RECT` everywhere the chart is placed (`cellRect` callers, board texture, hints, help arrow, ball target); unit test that the chart lies inside the frame with at least 6% side and top margin and every `cellRect` lies inside `CHART_RECT`
-- [ ] T077 [US1] Redraw the goal in `src/game/GoalView.ts`: thick posts and crossbar, side nets in depth, net mesh visible around the board panel and through the hole; goalkeeper grid inside `CHART_RECT` (FR-053 to FR-055)
-- [ ] T078 [US1] Move and scale the player in `src/game/PlayerView.ts` (and the kick spot in `world.ts`, ball start in `BallView.ts`) so the player and ball never cover a chart square (FR-056); keep `tests/e2e/holes.spec.ts` and `help.spec.ts` passing in Chromium
+- [X] T076 [US1] Add `GOAL_FRAME` and `CHART_RECT` to `src/core/match/world.ts` per amendment 02 layout (frame x 260 to 1340, y 200 to 800, posts 22 px; chart x 340 to 1260, y 250 to 750) and use `CHART_RECT` everywhere the chart is placed (`cellRect` callers, board texture, hints, help arrow, ball target); unit test that the chart lies inside the frame with at least 6% side and top margin and every `cellRect` lies inside `CHART_RECT`
+- [X] T077 [US1] Redraw the goal in `src/game/GoalView.ts`: thick posts and crossbar, side nets in depth, net mesh visible around the board panel and through the hole; goalkeeper grid inside `CHART_RECT` (FR-053 to FR-055)
+- [X] T078 [US1] Move and scale the player in `src/game/PlayerView.ts` (and the kick spot in `world.ts`, ball start in `BallView.ts`) so the player and ball never cover a chart square (FR-056); keep `tests/e2e/holes.spec.ts` and `help.spec.ts` passing in Chromium
 
 ## Phase 8b: Amendment 01 (math-tank amendments 23, 24, 25)
 

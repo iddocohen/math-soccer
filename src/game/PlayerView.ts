@@ -1,6 +1,6 @@
 /**
  * The child's player, seen from behind (FR-001): hair, a shirt in the shirt color with the shirt number on the back,
- * shorts and legs, standing left of the ball at the kick spot. `kick()` leans the player toward the ball for a moment.
+ * shorts and legs, standing left of the ball at the kick spot, below the goal line and clear of the chart (FR-056). `kick()` leans the player toward the ball for a moment.
  * Drawn with shapes in code (FR-048); the locker room (US6) changes the color and number with `setLook`.
  */
 import Phaser from 'phaser';
@@ -9,8 +9,13 @@ import { COLOR, type Look } from './palette';
 
 export const PLAYER_DEPTH = 6;
 
-/** The player's feet, left of the ball. */
-const FEET = { x: KICK_SPOT.x - 70, y: KICK_SPOT.y + 30 } as const;
+/** The player's feet, left of the ball, below the goal line. */
+const FEET = { x: KICK_SPOT.x - 70, y: KICK_SPOT.y + 50 } as const;
+/**
+ * The player is drawn at this size, so his head (about 200 px above the feet at full size) stays below y 820 and never
+ * covers a chart square (FR-056).
+ */
+const SCALE = 0.8;
 const SHIRT = { width: 74, height: 84 } as const;
 
 export class PlayerView {
@@ -45,7 +50,7 @@ export class PlayerView {
     head.fillStyle(COLOR.hair, 1);
     head.fillCircle(0, -72 - SHIRT.height - 20, 25);
 
-    this.container = scene.add.container(FEET.x, FEET.y, [legs, this.shirt, this.number, head]).setDepth(PLAYER_DEPTH);
+    this.container = scene.add.container(FEET.x, FEET.y, [legs, this.shirt, this.number, head]).setScale(SCALE).setDepth(PLAYER_DEPTH);
     this.setLook(look);
   }
 

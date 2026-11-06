@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { layoutChart } from '../core/chart/layout';
-import { GOAL_RECT } from '../core/match/world';
+import { CHART_RECT } from '../core/match/world';
 import type { Target } from '../core/types';
 import { boardKey, buildBoard, type BoardInput } from './board';
 
 const target: Target = { mode: 'holes', number: 46, hints: [45, 47, 36, 56], patchedHoles: [12, 83], directions: ['right'], difficultyStep: 0 };
 
 function input(over: Partial<BoardInput> = {}): BoardInput {
-  return { layout: layoutChart(1, 100), goal: GOAL_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, ...over };
+  return { layout: layoutChart(1, 100), goal: CHART_RECT, mode: 'holes', target, hintsVisible: true, helpStep: 0, shown: null, hintFrom: null, ...over };
 }
 
 const square = (b: ReturnType<typeof buildBoard>, n: number) => b.squares.find((s) => s.n === n)!;

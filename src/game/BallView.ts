@@ -12,7 +12,7 @@
  */
 import Phaser from 'phaser';
 import type { BallKind } from '../core/chart/layout';
-import { GOAL_RECT, KICK_SPOT } from '../core/match/world';
+import { GOAL_FRAME, KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { BALL_IN_NET_DEPTH } from './GoalView';
 import { BALL_SIZE, TEX } from './textures';
@@ -112,7 +112,7 @@ export class BallView {
     const y0 = this.ball.y;
     const scale0 = this.ball.scale;
     const x1 = x0 + (x0 < KICK_SPOT.x ? -40 : 40);
-    const floor = GOAL_RECT.y + GOAL_RECT.height + 40;
+    const floor = GOAL_FRAME.y + GOAL_FRAME.height + 40;
     this.shadow.setVisible(true);
     this.tween = this.scene.tweens.addCounter({
       from: 0,
