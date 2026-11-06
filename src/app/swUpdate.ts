@@ -114,7 +114,8 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
   // True from page load until the child's first key or touch (FR-104).
   let fresh = true;
   let registered: ServiceWorkerRegistration | null = null;
-  let reloadedFromMemory: string | null = null;
+  /** The version the page last reloaded from automatically; read from the session once, then kept here. */
+  let reloadedFrom: string | null | undefined;
   const listeners = new Set<() => void>();
   const setWaiting = (value: boolean) => {
     if (waiting === value) return;
@@ -122,15 +123,19 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
     for (const fn of listeners) fn();
   };
 
+  // Only this page writes the key, so after the first read the kept value is the stored one.
   const readSession = (): string | null => {
-    try {
-      return env.session?.getItem(AUTO_RELOAD_KEY) ?? reloadedFromMemory;
-    } catch {
-      return reloadedFromMemory;
+    if (reloadedFrom === undefined) {
+      try {
+        reloadedFrom = env.session?.getItem(AUTO_RELOAD_KEY) ?? null;
+      } catch {
+        reloadedFrom = null;
+      }
     }
+    return reloadedFrom;
   };
   const writeSession = (value: string) => {
-    reloadedFromMemory = value;
+    reloadedFrom = value;
     try {
       env.session?.setItem(AUTO_RELOAD_KEY, value);
     } catch {
@@ -182,7 +187,10 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
           if (!registration) return;
           registered = registration;
           checkForUpdate(registration);
-          env.setInterval(() => checkForUpdate(registration), UPDATE_CHECK_MS);
+          // A hidden page skips the check: it checks when it comes back to the front.
+          env.setInterval(() => {
+            if (env.document?.visibilityState !== 'hidden') checkForUpdate(registration);
+          }, UPDATE_CHECK_MS);
           env.document?.addEventListener('visibilitychange', () => {
             if (env.document?.visibilityState === 'visible') checkForUpdate(registration);
           });

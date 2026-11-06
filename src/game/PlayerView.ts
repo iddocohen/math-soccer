@@ -66,7 +66,8 @@ export class PlayerView {
     this.restArms = scene.add.graphics();
     this.shirt = scene.add.graphics();
     this.poseArms = scene.add.graphics().setVisible(false);
-    this.heart = scene.add.graphics().setVisible(false);
+    this.heart = scene.add.graphics().setPosition(HEART_CENTER.x, HEART_CENTER.y).setVisible(false);
+    PlayerView.drawHeartShape(this.heart);
     this.number = scene.add
       .text(0, -146, '', { fontFamily: GAME_FONT, fontStyle: String(GAME_FONT_WEIGHT), fontSize: '54px', color: css(COLOR.ink) })
       .setOrigin(0.5, 0.5);
@@ -223,20 +224,22 @@ export class PlayerView {
     this.drawHeart(pose.heart);
   }
 
-  /** The red heart of "Herz" between the hands, at `size` (0 hides it). */
+  /** The red heart of "Herz" between the hands, at `size` (0 hides it): the shape drawn once, scaled. */
   private drawHeart(size: number): void {
-    const h = this.heart.clear();
     if (size <= 0.05) {
-      h.setVisible(false);
+      this.heart.setVisible(false);
       return;
     }
-    h.setVisible(true);
-    const r = 13 * size;
-    const { x, y } = HEART_CENTER;
+    this.heart.setScale(size).setVisible(true);
+  }
+
+  /** The heart at size 1 around its own origin, which sits at HEART_CENTER. */
+  private static drawHeartShape(h: Phaser.GameObjects.Graphics): void {
+    const r = 13;
     h.fillStyle(0xe0344a, 1);
-    h.fillCircle(x - r, y, r);
-    h.fillCircle(x + r, y, r);
-    h.fillTriangle(x - 2 * r, y + r * 0.35, x + 2 * r, y + r * 0.35, x, y + 2.4 * r);
+    h.fillCircle(-r, 0, r);
+    h.fillCircle(r, 0, r);
+    h.fillTriangle(-2 * r, r * 0.35, 2 * r, r * 0.35, 0, 2.4 * r);
   }
 
   /** Both arms up in the shirt's sleeves, the hands on a gold cup above the head. */

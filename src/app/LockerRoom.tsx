@@ -177,9 +177,10 @@ const PREVIEW_FIGURE = { x: 70, y: 234, scale: 0.87 } as const;
 
 /**
  * The player from behind with the shirt color, the name and the number, and the ball at his feet. While a celebration
- * plays (`playing`), he moves and his arms follow its pose.
+ * plays (`play`), he moves and his arms follow its pose. The frame loop runs here, so only the preview redraws per frame.
  */
-function Preview({ look, label, playing }: { look: Look; label: string; playing: { celebration: Celebration; pose: CelebrationPose } | null }): ReactElement {
+function Preview({ look, label, play }: { look: Look; label: string; play: { celebration: Celebration; n: number } | null }): ReactElement {
+  const playing = useCelebrationPose(play);
   const shirt = css(look.shirtColor);
   const ink = isLight(look.shirtColor) ? css(COLOR.ink) : css(COLOR.chalk);
   const pose = playing?.pose ?? REST;
@@ -237,7 +238,6 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   const [question, setQuestion] = useState<LockerItem | null>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
-  const playing = useCelebrationPose(play);
   const look = lookOf(locker);
   const latest = useRef({ question, onBack });
   latest.current = { question, onBack };
@@ -313,7 +313,7 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
         </button>
       </header>
       <div className="locker-body">
-        <Preview look={look} label={L.preview} playing={playing} />
+        <Preview look={look} label={L.preview} play={play} />
         <div className="locker-groups">
           {(['ball', 'shirt'] as const).map((kind) => (
             <section key={kind} className="locker-group" aria-label={L.groups[GROUP[kind]]}>

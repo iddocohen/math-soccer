@@ -68,7 +68,7 @@ import type { Settings } from '../core/settings/schema';
 import { createSfx } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
-import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf } from '../core/cup/cup';
+import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, type CupMatch } from '../core/cup/cup';
 import type { CupTeam } from '../core/cup/teams';
 import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
@@ -110,9 +110,16 @@ type Screen = 'start' | 'match' | 'lockerRoom' | 'cup';
 const CUP_INTRO_MS = 1500;
 
 /** The cup match the scene shows: the opponent and whether it is the final (stage 4). */
-function cupSceneOf(persistence: Persistence): CupScene {
-  const cup = persistence.cup();
-  return { team: teamOf(cup.cup, cup.stage), final: cup.stage === CUP_MATCHES - 1 };
+function cupSceneOf(match: CupMatch): CupScene {
+  return { team: match.team, final: match.stage === CUP_MATCHES - 1 };
+}
+
+/** What the round end shows of a finished round: its personal bests, or for a cup match its line and bonus stars. */
+type RoundResult = { kind: 'record'; record: RoundRecord | null } | { kind: 'cup'; cup: CupRoundResult & { bonus: number } };
+
+/** The kind of round "Nochmal" starts again for a round of `roundType`. */
+function startKindOf(roundType: MatchView['roundType']): StartKind {
+  return roundType === 'time' || roundType === 'cup' ? roundType : 'play';
 }
 
 /** The parent screens over the game: the parent menu, the settings page and the progress page. */
@@ -274,11 +281,10 @@ function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): Cu
   saves.report(persistence.saveCup(update.cup));
   if (update.stars > 0) saves.report(persistence.awardStars(update.stars));
   const text = t().cup;
-  const line = !won
-    ? text.lost(match.team.name)
-    : update.cupWon
-      ? text.cupWon(before.cup)
-      : text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
+  let line: string;
+  if (!won) line = text.lost(match.team.name);
+  else if (update.cupWon) line = text.cupWon(before.cup);
+  else line = text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
   return { won, line, bonus: update.stars, cupWon: update.cupWon };
 }
 
@@ -310,8 +316,8 @@ export function App() {
   const state = useMatchState(controller);
   const gameParent = useRef<HTMLDivElement>(null);
   const timeChallenge = settings().timeChallenge.allowed;
-  const [record, setRecord] = useState<RoundRecord | null>(null);
-  const [cupResult, setCupResult] = useState<(CupRoundResult & { bonus: number }) | null>(null);
+  const [result, setResult] = useState<RoundResult | null>(null);
+  const cupResult = result?.kind === 'cup' ? result.cup : null;
   // The keeper's phase from the scene, shown as `data-keeper` (T054).
   const [keeper, setKeeper] = useState<KeeperPhase>('idle');
   // The locker room opened from the match, over the running round (FR-049).
@@ -321,7 +327,7 @@ export function App() {
   // celebration) still goes to the personal bests (review M2).
   const lastPhase = useRef<Phase | null>(restored ? null : state.phase);
   // The cup match the scene shows (FR-107, FR-110); a restored cup match is the cup's next match.
-  const cupScene = useRef<CupScene | null>(controller.getState().roundType === 'cup' ? cupSceneOf(persistence) : null);
+  const cupScene = useRef<CupScene | null>(controller.getState().roundType === 'cup' ? cupSceneOf(nextMatch(persistence.cup(), settings())) : null);
   // What the scene shows of the cup, as `data-*` attributes for tests.
   const [cupShow, setCupShow] = useState<CupShow | null>(null);
   // The goal celebration that plays (FR-114), as `data-celebration` for tests.
@@ -372,13 +378,8 @@ export function App() {
     if (state.phase !== 'roundOver' || before === 'roundOver' || !state.started) return;
     const ended = controller.getState();
     // A cup match goes to the cup, never to the personal bests (FR-108).
-    if (ended.roundType === 'cup') {
-      setRecord(null);
-      setCupResult(settleCup(persistence, saves, ended));
-      return;
-    }
-    setCupResult(null);
-    setRecord(recordRound(persistence, saves, ended, settings().showRecords));
+    if (ended.roundType === 'cup') setResult({ kind: 'cup', cup: settleCup(persistence, saves, ended) });
+    else setResult({ kind: 'record', record: recordRound(persistence, saves, ended, settings().showRecords) });
   }, [state.phase, state.started, persistence, controller, settings, saves]);
 
   const lockerOn = settings().lockerRoom;
@@ -459,19 +460,15 @@ export function App() {
   const finePointer = useFinePointer();
   const showPad = numberPadShown(settings().numberPad, finePointer);
 
-  // What the last round started as, for "Nochmal"; a restored time challenge counts as one.
-  const restoredType = controller.getState().roundType;
-  const lastStart = useRef<StartKind>(restoredType === 'time' || restoredType === 'cup' ? restoredType : 'play');
   const startMatch = useCallback(
     (kind: StartKind) => {
-      lastStart.current = kind;
       // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
       if (speech) speaker.prime();
       if (kind === 'cup') {
         // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109). The scene reads the
         // opponent when the round starts, so it is set first.
         const match = nextMatch(persistence.cup(), settings());
-        cupScene.current = cupSceneOf(persistence);
+        cupScene.current = cupSceneOf(match);
         setIntro({ stage: match.stage, team: match.team });
         controller.startCup({ level: match.level, goals: match.goals });
       } else {
@@ -547,11 +544,13 @@ export function App() {
   // "Nochmal" starts the same kind of round again; a time challenge the parent no longer allows becomes "Spielen".
   const playAgain = () => {
     // A won cup match goes on to the bracket (FR-108), where the next match waits.
-    if (lastStart.current === 'cup' && cupResult?.won) {
+    // The round that just ended tells what it started as; a restored time challenge counts as one.
+    const last = startKindOf(state.roundType);
+    if (last === 'cup' && cupResult?.won) {
       setScreen('cup');
       return;
     }
-    const kind = lastStart.current === 'time' && !timeChallenge ? 'play' : lastStart.current;
+    const kind = last === 'time' && !timeChallenge ? 'play' : last;
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round.
     if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
     startMatch(kind);
@@ -626,10 +625,13 @@ export function App() {
     setScreen('start');
   }, [controller]);
   const cupAttributes = useMemo(
-    () =>
-      cupShow === null || cupShow.team === null
-        ? undefined
-        : { quirk: cupShow.quirk ?? '', team: cupShow.team, show: cupShow.won ? 'won' : cupShow.final ? 'final' : 'match' },
+    () => {
+      if (cupShow === null || cupShow.team === null) return undefined;
+      let show = 'match';
+      if (cupShow.won) show = 'won';
+      else if (cupShow.final) show = 'final';
+      return { quirk: cupShow.quirk ?? '', team: cupShow.team, show };
+    },
     [cupShow],
   );
   const closeHelpChart = useCallback(() => controller.closeHelpChart(), [controller]);
@@ -719,7 +721,7 @@ export function App() {
           elapsedMs={state.elapsedMs}
           roundType={state.roundType}
           challengeMinutes={state.challengeMinutes}
-          record={record}
+          record={result?.kind === 'record' ? result.record : null}
           cup={state.roundType === 'cup' ? cupResult : null}
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
