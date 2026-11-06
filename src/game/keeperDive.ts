@@ -16,7 +16,7 @@
  */
 import { center } from '../core/chart/layout';
 import { GOAL_FRAME, POST_WIDTH } from '../core/match/world';
-import { clamp } from '../core/util';
+import { clamp, lerp } from '../core/util';
 import type { DeepReadonly, Rect, Target } from '../core/types';
 
 export interface Point {
@@ -169,6 +169,6 @@ export function fallenPose(dive: KeeperPose, home: KeeperPose = HOME_POSE): Keep
 
 /** The pose `k` (0 to 1) of the way from `a` to `b`. */
 export function mixPose(a: KeeperPose, b: KeeperPose, k: number): KeeperPose {
-  const m = (u: number, v: number) => u + (v - u) * k;
+  const m = (u: number, v: number) => lerp(u, v, k);
   return { x: m(a.x, b.x), y: m(a.y, b.y), rotation: m(a.rotation, b.rotation), arms: m(a.arms, b.arms) };
 }

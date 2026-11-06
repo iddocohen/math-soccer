@@ -60,7 +60,7 @@ export class PlayerView {
     // Shorts with a soft fold between the legs.
     legs.fillStyle(COLOR.chalk, 1);
     legs.fillRoundedRect(-SHORTS.halfWidth, SHORTS.top, SHORTS.halfWidth * 2, SHORTS.bottom - SHORTS.top, 8);
-    legs.fillStyle(0xc4c9bd, 1);
+    legs.fillStyle(COLOR.chalkShade, 1);
     legs.fillRect(-1.5, SHORTS.top + 22, 3, SHORTS.bottom - SHORTS.top - 22);
 
     this.restArms = scene.add.graphics();
@@ -255,7 +255,7 @@ export class PlayerView {
       g.fillCircle(hx, handY, 12);
     }
     // The cup: a bowl with two handles on a stem and a base.
-    const gold = 0xf2c230;
+    const gold = COLOR.gold;
     const shade = 0xc9971a;
     const top = handY - 70;
     g.lineStyle(8, gold, 1);

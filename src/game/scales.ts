@@ -13,7 +13,7 @@
  * - Each scale lies on one calm dark strip in the night color, slightly transparent, so its labels read over the fans
  *   and the grass (FR-101a). One strip per scale, no box per label.
  */
-import { COLUMNS, type ChartLayout } from '../core/chart/layout';
+import { cellRectAt, center, type ChartLayout } from '../core/chart/layout';
 import { ROW_LABELS_ALL_UP_TO, rowColumnHelp, scalesShown } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME } from '../core/match/world';
 import type { DeepReadonly, Rect, Target } from '../core/types';
@@ -76,11 +76,10 @@ export function buildScales(
 ): Scales {
   const help = rowColumnHelp(layout, target, helpStep, helperOn, solved);
   const cellHeight = chart.height / layout.rows;
-  const cellWidth = chart.width / COLUMNS;
   const rowX = GOAL_FRAME.x + GOAL_FRAME.width + ROW_LABEL_GAP;
   const columnY = GOAL_FRAME.y - COLUMN_LABEL_RISE;
-  const rowY = (row: number) => chart.y + (row + 0.5) * cellHeight;
-  const columnX = (col: number) => chart.x + (col + 0.5) * cellWidth;
+  const rowY = (row: number) => center(cellRectAt(layout, chart, row, 0)).y;
+  const columnX = (col: number) => center(cellRectAt(layout, chart, 0, col)).x;
   // Over 20 rows only every fifth label shows, so the labels may be larger than a row.
   const spacing = layout.rows > ROW_LABELS_ALL_UP_TO ? cellHeight * 5 : cellHeight;
   const rowFontSize = clamp(spacing * 0.75, 14, COLUMN_FONT_SIZE);

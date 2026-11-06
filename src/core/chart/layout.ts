@@ -40,6 +40,11 @@ export function layoutChart(min: number, max: number): ChartLayout {
   return { min, max, zeroBased, firstRowStart, rows };
 }
 
+/** True when `n` lies in the chart's range. */
+export function inChart(layout: ChartLayout, n: number): boolean {
+  return n >= layout.min && n <= layout.max;
+}
+
 /** Row and column of `n`, both from 0 at the top left. Throws for a number outside the range. */
 export function cellOf(layout: ChartLayout, n: number): { row: number; col: number } {
   if (!Number.isInteger(n) || n < layout.min || n > layout.max) {

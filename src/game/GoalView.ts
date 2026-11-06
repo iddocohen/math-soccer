@@ -352,7 +352,7 @@ function drawPosts(g: Phaser.GameObjects.Graphics): void {
   g.fillRect(x, y, p, height);
   g.fillRect(x + width - p, y, p, height);
   g.fillRect(x, y, width, p);
-  g.fillStyle(0xc4c9bd, 1);
+  g.fillStyle(COLOR.chalkShade, 1);
   g.fillRect(x + p - shade, y + p, shade, height - p);
   g.fillRect(x + width - p, y + p, shade, height - p);
   g.fillRect(x + p - shade, y + p - shade, width - 2 * p + 2 * shade, shade);

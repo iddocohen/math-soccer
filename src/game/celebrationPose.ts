@@ -16,6 +16,7 @@
  * celebration returns him to it without a jump.
  */
 import type { Celebration } from '../core/rewards/items';
+import { clamp, lerp } from '../core/util';
 import { BODY } from './playerPose';
 
 export interface ArmPose {
@@ -121,19 +122,19 @@ function full(key: Key): CelebrationPose {
 }
 
 // The ends are exact, so a pose at a keyframe is that keyframe without rounding errors.
-const mix = (a: number, b: number, k: number) => (k <= 0 ? a : k >= 1 ? b : a + (b - a) * k);
+const mix = (a: number, b: number, k: number) => (k <= 0 ? a : k >= 1 ? b : lerp(a, b, k));
 const mixArm = (a: ArmPose, b: ArmPose, k: number): ArmPose => ({ up: mix(a.up, b.up, k), bend: mix(a.bend, b.bend, k) });
 
 /** The pose of `celebration` at `t` (0 to 1, clamped), eased between the two keyframes around it. */
 export function poseAt(celebration: Celebration, t: number): CelebrationPose {
   const keys = KEYFRAMES[celebration];
-  const at = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 1));
+  const at = clamp(Number.isFinite(t) ? t : 1, 0, 1);
   let i = 0;
   while (i < keys.length - 2 && keys[i + 1]!.t <= at) i++;
   const a = keys[i]!;
   const b = keys[i + 1]!;
   const span = b.t - a.t;
-  const raw = span > 0 ? Math.min(1, Math.max(0, (at - a.t) / span)) : 1;
+  const raw = span > 0 ? clamp((at - a.t) / span, 0, 1) : 1;
   const k = raw * raw * (3 - 2 * raw);
   const p = full(a);
   const q = full(b);

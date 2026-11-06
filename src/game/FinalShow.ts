@@ -4,7 +4,9 @@
  * paused scene holds it. The player's cup lift is PlayerView.liftCup; the sounds come from src/audio/sfx.ts.
  */
 import Phaser from 'phaser';
+import { TEAMS } from '../core/cup/teams';
 import { STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
+import { COLOR, hexColor } from './palette';
 
 /** Over the fans (depth 1), under the goal and its grid (2 and up). */
 export const FIREWORKS_DEPTH = 1.5;
@@ -12,7 +14,18 @@ export const FIREWORKS_DEPTH = 1.5;
 export const CONFETTI_DEPTH = 9;
 
 const CONFETTI_COUNT = 90;
-const CONFETTI_COLORS = [0xf2c230, 0xd8382f, 0x2b6fd6, 0x3aa64a, 0xf4f6ef, 0xf07a1a, 0x6a3fb5];
+/** A team's color as a number. */
+const teamColor = (id: string): number => hexColor(TEAMS.find((t) => t.id === id)!.color);
+/** Team colors and chalk white, in this order. */
+const CONFETTI_COLORS = [
+  teamColor('blitz'),
+  teamColor('loewen'),
+  teamColor('haie'),
+  teamColor('froesche'),
+  COLOR.chalk,
+  teamColor('turbo'),
+  teamColor('sternenelf'),
+];
 const BURST_EVERY_MS = 650;
 const BURST_SPARKS = 22;
 const BURST_MS = 900;

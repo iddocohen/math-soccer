@@ -11,6 +11,7 @@
  *   so the net is never redrawn per frame. Only the bulge after a goal moves (`startsBulge`, `bulgeAt`).
  */
 import { GOAL_FRAME, POST_WIDTH } from '../core/match/world';
+import { lerp } from '../core/util';
 
 export interface Point {
   x: number;
@@ -90,14 +91,14 @@ export function sagOf(surface: Surface, u: number, v: number): number {
   }
 }
 
-function lerp(a: Point, b: Point, t: number): Point {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+function lerpPoint(a: Point, b: Point, t: number): Point {
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
 }
 
 /** The point at (u, v) of a surface, with its sag. */
 export function surfacePoint(surface: Surface, u: number, v: number): Point {
   const q = surfaceQuad(surface);
-  const p = lerp(lerp(q.a, q.b, u), lerp(q.d, q.c, u), v);
+  const p = lerpPoint(lerpPoint(q.a, q.b, u), lerpPoint(q.d, q.c, u), v);
   return { x: p.x, y: p.y + sagOf(surface, u, v) };
 }
 

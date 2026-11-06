@@ -200,12 +200,13 @@ export function createSfx(options: SfxOptions): Sfx {
   /** A crowd singing one tone: three slightly detuned voices that swell in and fade out. */
   const voice = (c: AudioContextLike, pitch: number, length: number, delay: number) => {
     const t = c.currentTime + delay;
+    // One envelope for the three voices: a gain node scales the sum as it would scale each voice.
+    const g = c.createGain();
+    g.gain.setValueAtTime(SILENT, t);
+    g.gain.linearRampToValueAtTime(0.05, t + length * 0.2);
+    g.gain.linearRampToValueAtTime(SILENT, t + length);
+    g.connect(c.destination);
     for (const detune of [0.985, 1, 1.02]) {
-      const g = c.createGain();
-      g.gain.setValueAtTime(SILENT, t);
-      g.gain.linearRampToValueAtTime(0.05, t + length * 0.2);
-      g.gain.linearRampToValueAtTime(SILENT, t + length);
-      g.connect(c.destination);
       const o = c.createOscillator();
       o.type = 'triangle';
       o.frequency.setValueAtTime(pitch * detune, t);

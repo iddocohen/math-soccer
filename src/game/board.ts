@@ -12,7 +12,7 @@
  * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
  * number.
  */
-import { cellRect, cellRectAt, center, COLUMNS, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
+import { cellRect, cellRectAt, center, COLUMNS, inChart, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
 import { ANSWER_STEP, HINT_STEP, rowColumnHelp } from '../core/match/help';
 import type { DeepReadonly, Rect, Target } from '../core/types';
 
@@ -120,16 +120,15 @@ export function buildBoard(input: BoardInput): Board {
       squares.push({ n, rect, outlined: isTarget, waiting: isWaiting, lit: hints.has(n), shown: isShown, crossing, label });
     }
   }
-  const cellWidth = goal.width / COLUMNS;
   const bands = {
-    row: litRow === null ? null : { x: goal.x, y: goal.y + litRow * cellHeight, width: goal.width, height: cellHeight },
-    column: litColumn === null ? null : { x: goal.x + litColumn * cellWidth, y: goal.y, width: cellWidth, height: goal.height },
+    row: litRow === null ? null : { ...cellRectAt(layout, goal, litRow, 0), x: goal.x, width: goal.width },
+    column: litColumn === null ? null : { ...cellRectAt(layout, goal, 0, litColumn), height: goal.height },
   };
   return { squares, fontSize, numbersFit, arrow: helpArrow(input), bands, panel: cellPanelVisible(layout, target, helpStep, input.solved) };
 }
 
 function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {
   if (!target || hintFrom === null || helpStep < HINT_STEP || helpStep >= ANSWER_STEP) return null;
-  if (hintFrom < layout.min || hintFrom > layout.max || hintFrom === target.number) return null;
+  if (!inChart(layout, hintFrom) || hintFrom === target.number) return null;
   return { from: center(cellRect(layout, goal, hintFrom)), to: center(cellRect(layout, goal, target.number)) };
 }

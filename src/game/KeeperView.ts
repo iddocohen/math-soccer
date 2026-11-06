@@ -41,7 +41,7 @@ import {
   type KeeperPose,
 } from './keeperDive';
 import type { Quirk } from '../core/cup/teams';
-import { COLOR } from './palette';
+import { COLOR, hexColor } from './palette';
 
 export const KEEPER_PHASES = ['idle', 'diving', 'caught', 'beaten'] as const;
 export type KeeperPhase = (typeof KEEPER_PHASES)[number];
@@ -63,7 +63,6 @@ const SHUFFLE_MS = 350;
 /** How high the leap's arc rises above the straight path, at most, in world pixels. */
 const ARC = 60;
 
-const JERSEY = 0x3e6fb0;
 const GLOVE = COLOR.kit;
 /** The arms' swing from the ready stance (gloves out low) to over the head, left arm; the right arm mirrors it. */
 const ARM_READY = 0.9;
@@ -354,7 +353,7 @@ export class KeeperView {
 
   /** Draws the kit in the team colors (or the blue keeper's) and the quirk's look. */
   private paint(): void {
-    const jersey = this.team ? hexColor(this.team.color) : JERSEY;
+    const jersey = this.team ? hexColor(this.team.color) : COLOR.keeperJersey;
     const trim = this.team ? hexColor(this.team.trim) : COLOR.chalk;
     const legs = this.legs.clear();
     legs.fillStyle(COLOR.skin, 1);
@@ -435,9 +434,4 @@ export class KeeperView {
     this.body.destroy();
     this.shadow.destroy();
   }
-}
-
-/** `#rrggbb` as a number for Phaser's fill colors. */
-export function hexColor(hex: string): number {
-  return Number.parseInt(hex.replace('#', ''), 16);
 }

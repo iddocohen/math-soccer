@@ -14,7 +14,7 @@
  * (column) until the target is scored. Each row is labelled with its tens (0, 10 … 90 on 1 to 100, 190 for the
  * row 191 to 200), each column with 1 to 10. Over 20 rows only every fifth row label shows, plus the lit one.
  */
-import { cellOf, COLUMNS, type ChartLayout } from '../chart/layout';
+import { cellOf, COLUMNS, inChart, type ChartLayout } from '../chart/layout';
 import type { Settings } from '../settings/schema';
 import { topLevel } from '../progress/levels';
 import { MOVE } from '../targets/hints';
@@ -66,7 +66,7 @@ export function helpHint(layout: ChartLayout, target: DeepReadonly<Target> | nul
   const to = cellOf(layout, target.number);
   let best: { hint: HelpHint; distance: number } | null = null;
   for (const from of target.hints) {
-    if (from < layout.min || from > layout.max || from === target.number) continue;
+    if (!inChart(layout, from) || from === target.number) continue;
     const cell = cellOf(layout, from);
     const dRow = to.row - cell.row;
     const dCol = to.col - cell.col;
@@ -140,7 +140,7 @@ export function rowColumnHelp(
   solved = false,
 ): RowColumnHelp {
   const shown = scalesShown(helpStep, solved);
-  const cell = target && target.number >= layout.min && target.number <= layout.max ? cellOf(layout, target.number) : null;
+  const cell = target && inChart(layout, target.number) ? cellOf(layout, target.number) : null;
   const litRow = cell && shown !== 'none' ? cell.row : null;
   const litColumn = cell && shown === 'both' ? cell.col : null;
   const sparse = layout.rows > ROW_LABELS_ALL_UP_TO;

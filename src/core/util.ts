@@ -11,6 +11,11 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** The value `t` of the way from `a` to `b` (0 gives `a`, 1 gives `b`). */
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 /**
  * `base` with every part of `over` laid over it: values from `over` replace those in `base`, nested objects merge key
  * by key. Keys that would change an object's prototype are skipped.

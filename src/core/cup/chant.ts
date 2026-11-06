@@ -3,6 +3,7 @@
  * of the child's shirt name. No name is spoken or recorded: each part of the name is one sung crowd tone, followed by
  * three claps, and the line plays twice. The sound module (src/audio/sfx.ts) plays the beats; the stands clap along.
  */
+import { clamp } from '../util';
 
 /** One beat of the chant: a sung crowd tone at `pitch` Hz, or a clap. `at` is in seconds from the start. */
 export type ChantBeat = { at: number; kind: 'voice'; pitch: number; length: number } | { at: number; kind: 'clap' };
@@ -19,7 +20,7 @@ const PITCHES = [392, 330, 330, 262];
 export function chantParts(shirtName: string): number {
   const letters = shirtName.trim().length;
   if (letters === 0) return 2;
-  return Math.min(4, Math.max(1, Math.ceil(letters / 3)));
+  return clamp(Math.ceil(letters / 3), 1, 4);
 }
 
 /** The beats of the whole chant, in time order. */
