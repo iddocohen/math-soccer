@@ -14,8 +14,13 @@
  *   `fireworks` pops and crackles for a won cup. Both are synthesized and are crowd sounds.
  * - `cheer`, `clap` and `ohh` are crowd sounds and play while `sound.crowd` is on.
  * - With `sound.ohh` off, `ohh` plays the clapping alone (data-model "Settings").
- * - Browsers start audio suspended; the context is created and resumed on the first key or tap (installUnlock). Until
- *   then every sound is skipped silently.
+ * - Browsers start audio suspended (amendment 17). iPad Safari and Silk on Fire tablets resume it only inside a user
+ *   gesture that counts as one: a key press, a click, or the end of a touch, not the start of a touch (pointerdown).
+ *   installUnlock listens to keydown, pointerup, touchend and click for the whole session. While the context is not
+ *   running, each of these calls `resume()` synchronously in the handler and plays a one-sample silent buffer, so the
+ *   gesture is not lost to an `await`. The clips are decoded beside it and never delay the resume. When the tab comes
+ *   back into view, or the browser suspends or interrupts the context (a phone call, another app), the next gesture
+ *   resumes it again. Until the context runs, every sound is skipped silently.
  * - Every voice peaks at MAX_GAIN or lower. Clapping is scheduled on the audio clock, not with timers.
  */
 import { chantPattern } from '../core/cup/chant';
@@ -75,9 +80,15 @@ export interface Sfx {
   clap(): void;
   /** The soft "ohhh", then clapping; clapping alone when `sound.ohh` is off. */
   ohh(): void;
-  /** Creates and resumes the audio context, then decodes the clips once; call from a user gesture. */
+  /**
+   * Creates the audio context and, while it is not running, calls `resume()` and plays a silent buffer at once; then
+   * decodes the clips once. Call it synchronously from a user gesture. Resolves when the resume and the decoding end.
+   */
   unlock(): Promise<void>;
-  /** Unlocks on the first pointer or key press on `target`; returns a function that removes the listeners. */
+  /**
+   * Unlocks on every key press, click or end of a touch on `target` while the context is not running, and when the page
+   * comes back into view; returns a function that removes the listeners.
+   */
   installUnlock(target?: EventTarget): () => void;
 }
 
@@ -185,16 +196,35 @@ export function createSfx(options: SfxOptions): Sfx {
 
   const crowd = (): AudioContextLike | null => (options.sound().crowd ? running() : null);
 
-  const unlock = async (): Promise<void> => {
+  /** A one-sample silent sound: iOS Safari starts the context's output only once a sound starts inside a gesture. */
+  const playSilence = (c: AudioContextLike) => {
+    const src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, c.sampleRate);
+    src.connect(c.destination);
+    src.start(0);
+  };
+
+  const unlock = (): Promise<void> => {
+    let resumed: Promise<void> = Promise.resolve();
     try {
       ctx ??= make();
-      if (ctx.state !== 'running') await ctx.resume();
+      if (ctx.state !== 'running') {
+        // Both calls run synchronously in the gesture's handler; awaiting anything first would lose the gesture.
+        resumed = ctx.resume();
+        playSilence(ctx);
+      }
     } catch {
       // No Web Audio here: the game stays silent.
       ctx = null;
-      return;
+      return Promise.resolve();
     }
-    await loadClips(ctx);
+    const c = ctx;
+    return Promise.all([
+      resumed.catch(() => {
+        // Refused outside a gesture: the next key press or tap tries again.
+      }),
+      loadClips(c),
+    ]).then(() => undefined);
   };
 
   /** A crowd singing one tone: three slightly detuned voices that swell in and fade out. */
@@ -268,14 +298,21 @@ export function createSfx(options: SfxOptions): Sfx {
     },
     unlock,
     installUnlock(target: EventTarget = globalThis) {
-      const events = ['pointerdown', 'touchend', 'keydown'];
-      const handler = () => {
-        remove();
-        void unlock();
+      // pointerdown is left out: on a touch screen it does not count as a gesture, so a resume there stays suspended.
+      const gestures = ['keydown', 'pointerup', 'touchend', 'click'];
+      const onGesture = () => {
+        if (!ctx || ctx.state !== 'running') void unlock();
       };
-      const remove = () => events.forEach((e) => target.removeEventListener(e, handler));
-      events.forEach((e) => target.addEventListener(e, handler));
-      return remove;
+      const onVisible = () => {
+        const visibility = (target as Partial<Document>).visibilityState;
+        if (ctx && ctx.state !== 'running' && (visibility === undefined || visibility === 'visible')) void unlock();
+      };
+      gestures.forEach((e) => target.addEventListener(e, onGesture));
+      target.addEventListener('visibilitychange', onVisible);
+      return () => {
+        gestures.forEach((e) => target.removeEventListener(e, onGesture));
+        target.removeEventListener('visibilitychange', onVisible);
+      };
     },
   };
 }

@@ -7,6 +7,7 @@ import { createSfx, MAX_GAIN, OHH_CLIP_SECONDS, OHH_SECONDS, type AudioContextLi
 function fakeContext(decode: (data: ArrayBuffer) => Promise<AudioBuffer> = () => Promise.reject(new Error('no decoder'))) {
   const started: Array<{ kind: 'osc' | 'noise'; at: number; type?: string; buffer?: unknown }> = [];
   const gains: number[] = [];
+  const silent: number[] = [];
   let state: AudioContextState = 'suspended';
   const param = (log: number[]) => ({
     value: 0,
@@ -39,15 +40,61 @@ function fakeContext(decode: (data: ArrayBuffer) => Promise<AudioBuffer> = () =>
       const o = { ...node(), type: 'sine', frequency: param([]), start: (at: number) => started.push({ kind: 'osc', at, type: o.type }), stop() {} };
       return o;
     },
-    createBuffer: (_c: number, length: number) => ({ getChannelData: () => new Float32Array(length) }),
+    createBuffer: (_c: number, length: number) => ({ length, getChannelData: () => new Float32Array(length) }),
     createBufferSource: () => {
-      const src = { ...node(), buffer: null as unknown, start: (at: number) => started.push({ kind: 'noise', at, buffer: src.buffer }), stop() {} };
+      const src = {
+        ...node(),
+        buffer: null as unknown,
+        // The one-sample silent buffer of the unlock is counted apart from the sounds.
+        start: (at: number) => ((src.buffer as { length?: number } | null)?.length === 1 ? silent.push(at) : started.push({ kind: 'noise', at, buffer: src.buffer })),
+        stop() {},
+      };
       return src;
     },
     decodeAudioData: decode,
     createBiquadFilter: () => ({ ...node(), type: 'lowpass', frequency: param([]), Q: param([]) }),
   };
-  return { ctx: ctx as unknown as AudioContextLike, started, gains };
+  return { ctx: ctx as unknown as AudioContextLike, started, gains, silent };
+}
+
+/**
+ * A context that behaves like iPad Safari and Silk: `resume()` runs it only when called during a gesture (`gesture`
+ * dispatches an event with the flag set, as a browser does); outside one the promise stays pending and the context stays
+ * suspended. `interrupt` puts it back into "interrupted", as a phone call or a hidden tab does.
+ */
+function tabletContext() {
+  const f = fakeContext();
+  let state: string = 'suspended';
+  let inGesture = false;
+  const resumes: boolean[] = [];
+  Object.defineProperty(f.ctx, 'state', { get: () => state });
+  Object.defineProperty(f.ctx, 'resume', {
+    value: () => {
+      resumes.push(inGesture);
+      if (!inGesture) return new Promise<void>(() => {});
+      state = 'running';
+      return Promise.resolve();
+    },
+  });
+  const gesture = (target: EventTarget, type: string) => {
+    inGesture = true;
+    target.dispatchEvent(new Event(type));
+    inGesture = false;
+  };
+  return { ...f, resumes, gesture, interrupt: () => (state = 'interrupted') };
+}
+
+function setupTablet(options: { fetchClip?: (url: string) => Promise<ArrayBuffer> } = {}) {
+  const f = tabletContext();
+  const sfx = createSfx({
+    sound: () => ({ effects: true, crowd: true, ohh: true }),
+    createContext: () => f.ctx,
+    clips: options.fetchClip ? (name) => `/assets/${name}.mp3` : undefined,
+    fetchClip: options.fetchClip,
+  });
+  const target = new EventTarget();
+  const remove = sfx.installUnlock(target);
+  return { f, sfx, target, remove, gesture: f.gesture, interrupt: f.interrupt };
 }
 
 function setup(sound: Partial<SoundSwitches> = {}) {
@@ -151,7 +198,7 @@ describe('sfx', () => {
     expect(f.started).toEqual([]);
   });
 
-  it('installUnlock resumes audio on the first key press and removes its listeners', async () => {
+  it('installUnlock resumes audio on a key press', async () => {
     const { f, sfx } = setup();
     const target = new EventTarget();
     sfx.installUnlock(target);
@@ -160,6 +207,78 @@ describe('sfx', () => {
     await Promise.resolve();
     sfx.kick();
     expect(f.started).toHaveLength(1);
+  });
+
+  describe('unlock on iPad and Fire tablets (amendment 17)', () => {
+    it('stays suspended until a gesture; the start of a touch is not one, its end resumes at once', () => {
+      const t = setupTablet();
+      t.gesture(t.target, 'pointerdown');
+      t.sfx.kick();
+      expect(t.f.resumes).toEqual([]);
+      expect(t.f.started).toEqual([]);
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([true]);
+      expect(t.f.silent).toEqual([0]);
+      t.sfx.kick();
+      expect(t.f.started).toHaveLength(1);
+    });
+
+    it.each(['pointerup', 'click', 'keydown'])('resumes synchronously on %s', (type) => {
+      const t = setupTablet();
+      t.gesture(t.target, type);
+      expect(t.f.resumes).toEqual([true]);
+      t.sfx.cheer();
+      expect(t.f.started.length).toBeGreaterThan(0);
+    });
+
+    it('a resume refused outside a gesture keeps the listeners, and the next tap unlocks', () => {
+      const t = setupTablet();
+      void t.sfx.unlock();
+      expect(t.f.resumes).toEqual([false]);
+      t.sfx.kick();
+      expect(t.f.started).toEqual([]);
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([false, true]);
+      t.sfx.kick();
+      expect(t.f.started).toHaveLength(1);
+    });
+
+    it('resumes before the clips are decoded, and plays the synthesized sounds meanwhile', () => {
+      const t = setupTablet({ fetchClip: () => new Promise<ArrayBuffer>(() => {}) });
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([true]);
+      t.sfx.kick();
+      expect(t.f.started).toEqual([{ kind: 'osc', at: 0, type: 'triangle' }]);
+    });
+
+    it('resumes again on the next tap after an interruption, and calls resume only while not running', () => {
+      const t = setupTablet();
+      t.gesture(t.target, 'touchend');
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([true]);
+      t.interrupt();
+      t.sfx.kick();
+      expect(t.f.started).toEqual([]);
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([true, true]);
+      t.sfx.kick();
+      expect(t.f.started).toHaveLength(1);
+    });
+
+    it('tries to resume when the page comes back into view, and the removed listeners do nothing', () => {
+      const t = setupTablet();
+      t.target.dispatchEvent(new Event('visibilitychange'));
+      // Not created yet: nothing to resume before the first gesture.
+      expect(t.f.resumes).toEqual([]);
+      t.gesture(t.target, 'touchend');
+      t.interrupt();
+      t.gesture(t.target, 'visibilitychange');
+      expect(t.f.resumes).toEqual([true, true]);
+      t.interrupt();
+      t.remove();
+      t.gesture(t.target, 'touchend');
+      expect(t.f.resumes).toEqual([true, true]);
+    });
   });
 
   it('stays silent when Web Audio is missing', async () => {

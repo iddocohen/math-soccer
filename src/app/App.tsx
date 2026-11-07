@@ -342,7 +342,8 @@ export function App() {
   const introShown = useRef(false);
   introShown.current = intro !== null;
 
-  // Sound starts after the first key or tap (spec edge case "Sound blocked by the browser").
+  // Sound starts after the first key press, click or end of a touch, and resumes after an interruption (spec edge case
+  // "Sound blocked by the browser", amendment 17).
   useEffect(() => sfx.installUnlock(document), [sfx]);
 
   useEffect(() => {
@@ -467,7 +468,9 @@ export function App() {
 
   const startMatch = useCallback(
     (kind: StartKind) => {
-      // Tablet browsers speak only after a user tap: the start tap (or key) unlocks speech (FR-032).
+      // Tablet browsers play sound and speak only after a user tap: the start tap (or key) unlocks both (FR-032,
+      // amendment 17), as in math-tank.
+      void sfx.unlock();
       if (speech) speaker.prime();
       if (kind === 'cup') {
         // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109). The scene reads the
@@ -484,7 +487,7 @@ export function App() {
       }
       setScreen('match');
     },
-    [controller, speech, speaker, persistence, settings],
+    [controller, sfx, speech, speaker, persistence, settings],
   );
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
