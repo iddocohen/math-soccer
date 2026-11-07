@@ -1,6 +1,6 @@
 // Copied from math-tank src/app/NumberPad.tsx. No minus key (the ranges have no negative numbers); a shoot key takes the
-// place of math-tank's fire button. The rule for "automatic" (numberPadShown) and the pointer hook come from math-tank
-// src/core/view/screen.ts and src/app/useScreen.ts, trimmed to the pointer query.
+// place of math-tank's fire button. Whether the pad shows is decided in src/core/view/screen.ts and src/app/useScreen.ts
+// (amendment 16).
 /**
  * On-screen number pad (FR-031): keys 0 to 9, ⌫ and "Schießen". Each key calls the same controller method as the
  * keyboard (digits and Backspace through `typeKey`, the shoot key through `shoot`).
@@ -10,37 +10,12 @@
  * block (1 2 3 / 4 5 6 / 7 8 9 / ⌫ 0 shoot) at the bottom right when the screen is wider than high, two rows across
  * the bottom when it is higher than wide.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { Digit } from '../core/match/entry';
-import type { Settings } from '../core/settings/schema';
 import { t } from '../i18n';
 import { noFocus } from './noFocus';
 
 const DIGITS: Digit[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
-
-/** The media query of a mouse or trackpad; without one, the device counts as a touch device. */
-export const FINE_POINTER_QUERY = '(any-pointer: fine)';
-
-/** Whether the pad shows: always, never, or with "automatic" only on a device without a fine pointer (touch). */
-export function numberPadShown(setting: Settings['numberPad'], finePointer: boolean): boolean {
-  if (setting === 'always') return true;
-  if (setting === 'never') return false;
-  return !finePointer;
-}
-
-/** True when the device has a mouse or trackpad; follows changes (a keyboard cover with a trackpad on an iPad). */
-export function useFinePointer(): boolean {
-  const read = () => (typeof window.matchMedia === 'function' ? window.matchMedia(FINE_POINTER_QUERY).matches : true);
-  const [fine, setFine] = useState(read);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const list = window.matchMedia(FINE_POINTER_QUERY);
-    const onChange = () => setFine(list.matches);
-    list.addEventListener?.('change', onChange);
-    return () => list.removeEventListener?.('change', onChange);
-  }, []);
-  return fine;
-}
 
 interface Props {
   /** True while the child cannot shoot (ball in flight, pause, round end). */

@@ -90,7 +90,6 @@ import { CupBracket, CupIntro } from './CupBracket';
 import { HelpChart } from './HelpChart';
 import { LockerRoom } from './LockerRoom';
 import { MatchOverlay } from './MatchOverlay';
-import { numberPadShown, useFinePointer } from './NumberPad';
 import { ParentGate } from './ParentGate';
 import { PauseScreen } from './PauseScreen';
 import { createPersistence, type DataKind, type Persistence } from './persistence';
@@ -103,6 +102,7 @@ import { TransferDialog, type TransferDialogState } from './TransferDialog';
 import { useAutoPause } from './useAutoPause';
 import { useMatchState, type ClockSource } from './useController';
 import { applyMatchAction, useKeyboard } from './useKeyboard';
+import { useNumberPadShown } from './useScreen';
 
 type Screen = 'start' | 'match' | 'lockerRoom' | 'cup';
 
@@ -462,8 +462,8 @@ export function App() {
   // The speaker icon reads the task again.
   const speakTask = useCallback(() => speaker.speak(t().match.task), [speaker]);
 
-  const finePointer = useFinePointer();
-  const showPad = numberPadShown(settings().numberPad, finePointer);
+  // Amendment 16: with "Automatisch" the pad shows without a fine pointer or on a screen narrower than 1100 px.
+  const showPad = useNumberPadShown(settings().numberPad);
 
   const startMatch = useCallback(
     (kind: StartKind) => {

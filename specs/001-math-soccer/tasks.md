@@ -251,6 +251,8 @@ See [amendment 12](./amendment-12-reliable-updates.md) and [13](./amendment-13-c
 
 - [X] T106 Migration baseline (after all features): every stored kind (settings, progress, locker room, records, round, cup) reset to a clean version 1 with its final shape; dev-time migration chains removed; old data resets to defaults once; the migration mechanism stays ready for future changes with one example test
 
+- [X] T107 [US1] Amendment 16: number pad on iPad and Fire tablets with "Automatisch": shown without a fine pointer or on a screen narrower than 1100 px, as math-tank (`src/core/view/screen.ts`, `src/app/useScreen.ts`); Fire projects in `playwright.config.ts`; `tests/e2e/numberPadTablets.spec.ts`
+
 ---
 
 ## Phase 9: Polish & Cross-Cutting Concerns

@@ -1,15 +1,41 @@
-// Copied from math-tank playwright.config.ts. Phone and Fire tablet projects are left out: phones and
-// Fire tablets are not targets of math-soccer. The ports are 4273 and 4274, not math-tank's 4173 and 4174, so
+// Copied from math-tank playwright.config.ts. Phone projects are left out: phones are not a target of math-soccer.
+// The Fire tablet projects (math-tank amendment 16) run only the number pad spec (amendment 16 here). The ports are 4273 and 4274, not math-tank's 4173 and 4174, so
 // `reuseExistingServer` never tests math-tank's build (amendment 01 section 4).
 import { defineConfig, devices } from '@playwright/test';
 import { GAME_WAIT } from './tests/e2e/gameWait';
+import { FIRE_BARS_HEIGHT, FIRE_DEVICES, silkUserAgent } from './tests/e2e/silk';
 
 /** Specs that run only in the iPad projects. */
 const DEVICE_SPECS = /devices\.spec\.ts$/;
+/** Amendment 16: the number pad on tablets runs in the iPad and Fire projects only. */
+const TABLET_SPEC = /numberPadTablets\.spec\.ts$/;
 /** The smoke test of the build for GitHub Pages runs only in the `base-path` project. */
 const BASE_PATH_SPEC = /basePath\.spec\.ts$/;
 /** The frame rate check runs only in the `performance` project, after every other project (T066). */
 const PERFORMANCE_SPEC = /performance\.spec\.ts$/;
+/** Amendment 16, as math-tank: Fire 7, Fire HD 8 and Fire HD 10 held sideways and upright, in Chromium with Silk's user agent and touch. */
+function fireProjects() {
+  return FIRE_DEVICES.flatMap((d) =>
+    (['landscape', 'portrait'] as const).map((orientation) => {
+      const screen = orientation === 'landscape' ? d.screen : { width: d.screen.height, height: d.screen.width };
+      return {
+        name: `${d.id}-${orientation}`,
+        testMatch: TABLET_SPEC,
+        use: {
+          ...devices['Desktop Chrome'],
+          userAgent: silkUserAgent(d.model),
+          viewport: { width: screen.width, height: screen.height - FIRE_BARS_HEIGHT },
+          screen,
+          deviceScaleFactor: d.scale,
+          isMobile: true,
+          hasTouch: true,
+          launchOptions: { args: ['--mute-audio'] },
+        },
+      };
+    }),
+  );
+}
+const FIRE_PROJECTS = fireProjects();
 /**
  * As math-tank: Chromium draws WebGL with the graphics card only when asked; headless it uses software rendering
  * (SwiftShader). On macOS the performance project uses Metal through ANGLE.
@@ -34,12 +60,13 @@ export default defineConfig({
   },
   projects: [
     // Test runs stay silent.
-    { name: 'chromium', testIgnore: [DEVICE_SPECS, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Chrome'], launchOptions: { args: ['--mute-audio'] } } },
-    { name: 'firefox', testIgnore: [DEVICE_SPECS, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Firefox'], launchOptions: { firefoxUserPrefs: { 'media.volume_scale': '0.0' } } } },
-    { name: 'webkit', testIgnore: [DEVICE_SPECS, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Safari'] } },
-    // iPad held sideways and upright, in WebKit with touch. They run only the device specs.
-    { name: 'ipad-landscape', testMatch: DEVICE_SPECS, use: { ...devices['iPad Mini landscape'] } },
-    { name: 'ipad-portrait', testMatch: DEVICE_SPECS, use: { ...devices['iPad Mini'] } },
+    { name: 'chromium', testIgnore: [DEVICE_SPECS, TABLET_SPEC, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Chrome'], launchOptions: { args: ['--mute-audio'] } } },
+    { name: 'firefox', testIgnore: [DEVICE_SPECS, TABLET_SPEC, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Firefox'], launchOptions: { firefoxUserPrefs: { 'media.volume_scale': '0.0' } } } },
+    { name: 'webkit', testIgnore: [DEVICE_SPECS, TABLET_SPEC, BASE_PATH_SPEC, PERFORMANCE_SPEC], use: { ...devices['Desktop Safari'] } },
+    // iPad held sideways and upright, in WebKit with touch. They run only the device and tablet specs.
+    { name: 'ipad-landscape', testMatch: [DEVICE_SPECS, TABLET_SPEC], use: { ...devices['iPad Mini landscape'] } },
+    { name: 'ipad-portrait', testMatch: [DEVICE_SPECS, TABLET_SPEC], use: { ...devices['iPad Mini'] } },
+    ...FIRE_PROJECTS,
     // The build for GitHub Pages under /math-soccer/, in Chromium.
     { name: 'base-path', testMatch: BASE_PATH_SPEC, use: { ...devices['Desktop Chrome'], baseURL: BASE_PATH_URL, launchOptions: { args: ['--mute-audio'] } } },
     // T066: the frame rate in Chromium, after all other projects so no other browser renders at the same time.
@@ -47,7 +74,7 @@ export default defineConfig({
     {
       name: 'performance',
       testMatch: PERFORMANCE_SPEC,
-      dependencies: ['chromium', 'firefox', 'webkit', 'ipad-landscape', 'ipad-portrait', 'base-path'],
+      dependencies: ['chromium', 'firefox', 'webkit', 'ipad-landscape', 'ipad-portrait', 'base-path', ...FIRE_PROJECTS.map((p) => p.name)],
       use: { ...devices['Desktop Chrome'], launchOptions: { args: ['--mute-audio', ...GPU_ARGS] } },
     },
   ],

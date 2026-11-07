@@ -1,5 +1,5 @@
-// Copied from math-tank src/app/NumberPad.test.tsx; the minus key tests are replaced by the shoot key and the
-// automatic setting.
+// Copied from math-tank src/app/NumberPad.test.tsx; the minus key tests are replaced by the shoot key. The automatic
+// setting is tested in src/core/view/screen.test.ts and src/app/useScreen.test.ts (amendment 16).
 /**
  * FR-031: the on-screen number pad. Its keys act like the keyboard's digits, Backspace and Enter, never take focus,
  * and are at least 48 by 48 CSS pixels through the class `pad-key`.
@@ -7,7 +7,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
-import { NumberPad, numberPadShown } from './NumberPad';
+import { NumberPad } from './NumberPad';
 
 function setup(over: { disabled?: boolean } = {}) {
   const onDigit = vi.fn();
@@ -58,19 +58,5 @@ describe('NumberPad (FR-031)', () => {
     expect(key('5')!.disabled).toBe(true);
     expect(onDigit).not.toHaveBeenCalled();
     expect(onShoot).not.toHaveBeenCalled();
-  });
-});
-
-describe('numberPadShown (FR-031)', () => {
-  it('always and never ignore the device', () => {
-    for (const fine of [true, false]) {
-      expect(numberPadShown('always', fine)).toBe(true);
-      expect(numberPadShown('never', fine)).toBe(false);
-    }
-  });
-
-  it('automatic shows the pad only without a mouse or trackpad (touch devices)', () => {
-    expect(numberPadShown('auto', false)).toBe(true);
-    expect(numberPadShown('auto', true)).toBe(false);
   });
 });

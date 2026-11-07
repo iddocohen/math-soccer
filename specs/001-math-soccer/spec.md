@@ -203,7 +203,7 @@ The child earns stars for correct shots and goals. In the locker room ("Kabine")
 **Start screen and input**
 
 - **FR-030**: The start screen MUST offer the modes the parent turned on; keys 1, 2 and 3 MUST start hole, line and goalkeeper mode when they are on. Enter and Space MUST start, continue and confirm, H MUST show help, Escape MUST pause and resume, Backspace MUST remove a digit.
-- **FR-031**: An on-screen number pad MUST be available, with the parent setting automatic (shown on touch devices), always or never, as math-tank.
+- **FR-031**: An on-screen number pad MUST be available, with the parent setting automatic (shown without a fine pointer or on a screen narrower than 1100 CSS px, amendment 16), always or never, as math-tank.
 - **FR-032**: All child-facing text MUST be German, short (about 8 words or fewer per message), and mainly numbers and icons. Tasks MUST be readable aloud with the browser's speech when the parent turns "Vorlesen" on (off by default), as math-tank.
 - **FR-033**: The game MUST support pause and resume, and fullscreen.
 
