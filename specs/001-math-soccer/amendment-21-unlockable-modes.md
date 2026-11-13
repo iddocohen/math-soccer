@@ -31,6 +31,7 @@
   - A shot at a number behind the wall hits the wall, with the soft "ohhh". The square of the typed number still flashes, so the child sees where the number is (FR-003).
   - The wall moves to new columns after each goal.
   - The defenders are drawn taller than the keeper and smaller than the child's player, standing on the grass in front of the goal line under the covered columns, beside the child's player whenever the free columns allow it; they are drawn behind the grid, so they never cover a number, a hint or the target.
+  - Each defender is drawn like the keeper (head, shirt, shorts, two legs, arms) in the opponent's colors, side by side with a small gap and the hands crossed low in front; on every shot all defenders jump together, highest when the ball reaches the wall, and a soft dark shade marks only the chart squares behind the wall (parent feedback, wall3.png).
 
   Targets come from the child's current level. Rounds follow the parent's round type.
 

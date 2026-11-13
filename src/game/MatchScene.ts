@@ -34,8 +34,8 @@
  *   rain falls behind the chart (WeatherView). `onExtras` hears them too (`data-weather`, `data-floodlight`,
  *   `data-stands` for tests).
  * - "Freistoß mit Mauer" (amendment 21, FR-142): WallView draws the wall of the current target (`s.wall`) and shades
- *   the columns behind it. A shot at a number behind the wall flies to the wall instead of the square; the keeper does
- *   not dive, the defenders jump, and the "ohhh" plays as after a caught ball. The square of the typed number lights up
+ *   the squares behind it. On every shot the defenders jump together. A shot at a number behind the wall flies to the
+ *   wall instead of the square; the keeper does not dive, and the "ohhh" plays as after a caught ball. The square of the typed number lights up
  *   from the controller's shown square, as after any miss.
  * - "Selbst ins Tor" (amendment 21, FR-143 to FR-145): the keeper wears the child's kit and shirt number, and the
  *   player at the kick spot is the opponent, drawn in a cup team's colors (`keeperOpponent`). On each new shot he kicks
@@ -340,7 +340,7 @@ export class MatchScene extends Phaser.Scene {
       this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
     }
     this.refreshLook(layout);
-    this.wall.setWall(s.wall, this.currentLook().shirtColor);
+    this.wall.setWall(layout, s.wall, this.currentLook().shirtColor);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
@@ -563,6 +563,8 @@ export class MatchScene extends Phaser.Scene {
     // On a square of a cutout that is not its last one the keeper waits aside (FR-126); a ball the wall stops never
     // reaches him.
     this.keeperInPlay = !isCutoutFill(s.target) && !blocked;
+    // The defenders jump on every shot, highest when the ball reaches them (FR-142).
+    this.wall.jump(blocked);
     // The same rule as the controller's: the target number scores, any other number is caught.
     if (this.keeperInPlay) this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
     this.ball.fly(square, () => this.arrived());
@@ -591,7 +593,6 @@ export class MatchScene extends Phaser.Scene {
       this.options.sounds?.clap?.();
     } else if (s.ball?.outcome === 'blocked') {
       // The wall stopped the ball: it rests at the defenders a moment and fades (FR-142).
-      this.wall.bump();
       this.ball.caught(HOLD_MS);
       this.mascot.coverEyes();
       this.stands.ohh();
