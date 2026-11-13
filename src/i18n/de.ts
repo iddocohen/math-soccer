@@ -169,6 +169,8 @@ export const de = {
     preview: 'Dein Spieler',
     /** The small stadium where a trail, a goal effect or a mascot plays (amendment 20, FR-139). */
     extrasPreview: 'Vorschau im Stadion',
+    /** The stadium and weather preview (amendment 20 part 2, FR-139). */
+    stadiumPreview: 'Vorschau von Stadion und Wetter',
     groups: {
       ball: 'Ball',
       shirt: 'Trikot',
@@ -178,6 +180,8 @@ export const de = {
       trail: 'Ballspur',
       goalEffect: 'Tor-Effekt',
       mascot: 'Maskottchen',
+      stadium: 'Stadion',
+      weather: 'Wetter',
       trophies: 'Pokale',
     },
     /** The trophy shelf (amendment 13, FR-111). */
@@ -193,6 +197,11 @@ export const de = {
     chosen: 'Gewählt',
     shirtNumberHint: '1 bis 99',
     shirtNameHint: 'Bis zu 10 Buchstaben',
+    /** The "Stadion" group (amendment 20, FR-135). */
+    stadiumName: 'Name vom Stadion',
+    stadiumNameHint: 'Bis zu 14 Zeichen, steht auf der Anzeigetafel',
+    stands: 'Tribüne',
+    floodlight: 'Flutlicht',
     /** Item names by id (src/core/rewards/items.ts). */
     items: {
       'ball.classic': 'Klassisch',
@@ -235,6 +244,18 @@ export const de = {
       'mascot.penguin': 'Pinguin',
       'mascot.bear': 'Bär',
       'mascot.lion': 'Löwe',
+      'stands.normal': 'Normal',
+      'stands.big': 'Größer',
+      'floodlight.white': 'Weiß',
+      'floodlight.gold': 'Gold',
+      'floodlight.blue': 'Blau',
+      'floodlight.green': 'Grün',
+      'floodlight.purple': 'Lila',
+      'weather.evening': 'Abend',
+      'weather.day': 'Tag',
+      'weather.sunset': 'Sonnenuntergang',
+      'weather.rain': 'Regen',
+      'weather.snow': 'Schnee',
     } as Record<string, string>,
   },
 

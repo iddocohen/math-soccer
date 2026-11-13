@@ -122,10 +122,15 @@ export const lockerRoomSchema = z.object({
   trail: z.string().default(STARTER.trail),
   goalEffect: z.string().default(STARTER.goalEffect),
   mascot: z.string().default(STARTER.mascot),
+  // Amendment 20 part 2: the stadium and the weather, also with defaults.
+  stadiumName: z.string().max(14).regex(/^[\p{L}\p{N} -]*$/u).default('Mathe-Arena'),
+  stands: z.string().default(STARTER.stands),
+  floodlight: z.string().default(STARTER.floodlight),
+  weather: z.string().default(STARTER.weather),
 });
 export type LockerRoom = z.infer<typeof lockerRoomSchema>;
 
-/** A new player: no stars, the starter items, shirt number 10, no name, the celebration "Arme hoch", and no trail, goal effect or mascot. */
+/** A new player: no stars, the starter items, shirt number 10, no name, the celebration "Arme hoch", no trail, goal effect or mascot, the stadium "Mathe-Arena" with the usual stands and white floodlights, and the evening. */
 export function emptyLockerRoom(): LockerRoom {
   return {
     version: 1,
@@ -141,6 +146,10 @@ export function emptyLockerRoom(): LockerRoom {
     trail: STARTER.trail,
     goalEffect: STARTER.goalEffect,
     mascot: STARTER.mascot,
+    stadiumName: 'Mathe-Arena',
+    stands: STARTER.stands,
+    floodlight: STARTER.floodlight,
+    weather: STARTER.weather,
   };
 }
 

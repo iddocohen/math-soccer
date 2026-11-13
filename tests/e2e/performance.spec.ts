@@ -4,7 +4,8 @@
  * Frame rate (T066, plan "Performance Goals"): in a 1 to 200 round (20 rows) and a 0 to 1000 round (the largest chart),
  * the frame rate while the ball flies (`data-phase="ballInFlight"`) averages at least 55 frames per second, and the
  * match is ready within 3 seconds of Enter on the start screen. A third round adds a fire trail, fireworks and the lion
- * (amendment 20, T111), so the trail's and the effect's particles are measured too.
+ * (amendment 20, T111), so the trail's and the effect's particles are measured too, and a fourth the bigger stands and
+ * falling snow (T112).
  *
  * Frame rates depend on the machine being idle, so this spec runs in its own Playwright project `performance`, after
  * every other project has finished (playwright.config.ts). `pnpm exec playwright test --project=performance --no-deps`
@@ -34,10 +35,20 @@ const EXTRAS = {
   mascot: 'mascot.lion',
 };
 
-const ROUNDS: Array<{ name: string; range: Settings['range']; locker?: typeof EXTRAS }> = [
+/** The bigger stands, purple floodlights and snow, owned and chosen (amendment 20 part 2, T112). */
+const STADIUM = {
+  ...emptyLockerRoom(),
+  owned: ['stands.big', 'floodlight.purple', 'weather.snow'],
+  stands: 'stands.big',
+  floodlight: 'floodlight.purple',
+  weather: 'weather.snow',
+};
+
+const ROUNDS: Array<{ name: string; range: Settings['range']; locker?: typeof EXTRAS | typeof STADIUM }> = [
   { name: '1 to 200', range: { preset: 'custom', min: 1, max: 200 } },
   { name: '0 to 1000', range: { preset: '0-1000', min: 0, max: 1000 } },
   { name: '1 to 100 with a fire trail, fireworks and the lion', range: { preset: '1-100', min: 1, max: 100 }, locker: EXTRAS },
+  { name: '1 to 100 with bigger stands and snow', range: { preset: '1-100', min: 1, max: 100 }, locker: STADIUM },
 ];
 
 /** The WebGL renderer's name, to tell a graphics card from software drawing. */

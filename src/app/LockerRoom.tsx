@@ -17,6 +17,11 @@
  * and mascots, bought and chosen like the other items. A tap on one plays it on the small stadium preview beside the
  * player (src/app/LockerExtras.tsx), also before it is bought.
  *
+ * "Stadion" and "Wetter" (amendment 20 part 2, FR-135, FR-138, FR-139): the stadium name for the scoreboard (up to 14
+ * characters, saved as the child types), the bigger stands, the floodlight colors and the weather, bought and chosen
+ * like the other items. A tap on one shows it on the stadium preview (src/app/LockerStadium.tsx), also before it is
+ * bought.
+ *
  * The trophy shelf (amendment 13, FR-111) shows every won cup as "Pokal 1", "Pokal 2" and so on
  * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
  *
@@ -31,10 +36,13 @@ import {
   BALL_COLORS,
   ballDesign,
   celebrationOf,
+  floodlightOf,
   goalEffectOf,
   ITEMS,
   mascotOf,
+  standsOf,
   trailOf,
+  weatherOf,
   type BallDesign,
   type Celebration,
   type ItemKind,
@@ -49,7 +57,9 @@ import {
   lookOf,
   setShirtName,
   setShirtNumber,
+  setStadiumName,
   SHIRT_NAME_MAX,
+  STADIUM_NAME_MAX,
   starsNeeded,
   type Look,
 } from '../core/rewards/lockerRoom';
@@ -57,6 +67,7 @@ import type { LockerRoom as LockerData } from '../core/storage/schemas';
 import { t } from '../i18n';
 import { TrophyIcon } from './CupBracket';
 import { ExtrasPreview, GoalEffectIcon, MascotIcon, TrailIcon, type ExtrasPlay } from './LockerExtras';
+import { FloodlightIcon, StadiumPreview, StandsIcon, WeatherIcon, type StadiumPlay } from './LockerStadium';
 
 interface Props {
   locker: LockerData;
@@ -118,7 +129,7 @@ function CelebrationIcon({ celebration, shirt }: { celebration: Celebration; shi
   );
 }
 
-const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration' | 'trail' | 'goalEffect' | 'mascot'> = {
+const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration' | 'trail' | 'goalEffect' | 'mascot' | 'stadium' | 'weather'> = {
   ball: 'ball',
   shirt: 'shirt',
   scarf: 'fans',
@@ -126,6 +137,9 @@ const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration' | 'trail
   trail: 'trail',
   goalEffect: 'goalEffect',
   mascot: 'mascot',
+  stands: 'stadium',
+  floodlight: 'stadium',
+  weather: 'weather',
 };
 
 /** True for colors where dark text reads better than light text. */
@@ -258,6 +272,9 @@ function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): Reac
   if (item.kind === 'trail') return <TrailIcon trail={trailOf(item.id)} />;
   if (item.kind === 'goalEffect') return <GoalEffectIcon effect={goalEffectOf(item.id)} />;
   if (item.kind === 'mascot') return <MascotIcon mascot={mascotOf(item.id)} />;
+  if (item.kind === 'stands') return <StandsIcon stands={standsOf(item.id)} />;
+  if (item.kind === 'floodlight') return <FloodlightIcon floodlight={floodlightOf(item.id)} />;
+  if (item.kind === 'weather') return <WeatherIcon weather={weatherOf(item.id)} />;
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
@@ -267,6 +284,7 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
   const [extrasPlay, setExtrasPlay] = useState<ExtrasPlay | null>(null);
+  const [stadiumPlay, setStadiumPlay] = useState<StadiumPlay | null>(null);
   const look = lookOf(locker);
   const latest = useRef({ question, onBack });
   latest.current = { question, onBack };
@@ -290,6 +308,11 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
     if (item.kind === 'trail') setExtrasPlay({ kind: 'trail', name: trailOf(item.id), n });
     if (item.kind === 'goalEffect') setExtrasPlay({ kind: 'goalEffect', name: goalEffectOf(item.id), n });
     if (item.kind === 'mascot') setExtrasPlay({ kind: 'mascot', name: mascotOf(item.id), n });
+    // Stands, a floodlight color or a weather shows on the stadium preview, also before it is bought (FR-139).
+    const m = (stadiumPlay?.n ?? 0) + 1;
+    if (item.kind === 'stands') setStadiumPlay({ kind: 'stands', name: standsOf(item.id), n: m });
+    if (item.kind === 'floodlight') setStadiumPlay({ kind: 'floodlight', name: floodlightOf(item.id), n: m });
+    if (item.kind === 'weather') setStadiumPlay({ kind: 'weather', name: weatherOf(item.id), n: m });
     if (isOwned(locker, item.id)) onChange(equip(locker, item.kind, item.id));
     else if (canBuy(locker, item.id)) setQuestion(item);
   };
@@ -350,6 +373,14 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
         <div className="locker-previews">
           <Preview look={look} label={L.preview} play={play} />
           <ExtrasPreview mascot={look.mascot} ball={look.ball} play={extrasPlay} label={L.extrasPreview} />
+          <StadiumPreview
+            stands={look.stands}
+            floodlight={look.floodlight}
+            weather={look.weather}
+            name={look.stadiumName}
+            play={stadiumPlay}
+            label={L.stadiumPreview}
+          />
         </div>
         <div className="locker-groups">
           {(['ball', 'shirt'] as const).map((kind) => (
@@ -408,6 +439,34 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
               {items(kind)}
             </section>
           ))}
+          <section className="locker-group" aria-label={L.groups.stadium}>
+            <h2>{L.groups.stadium}</h2>
+            <div className="locker-fields">
+              <label>
+                {L.stadiumName}
+                <input
+                  type="text"
+                  data-testid="stadium-name"
+                  value={locker.stadiumName}
+                  maxLength={STADIUM_NAME_MAX}
+                  autoComplete="off"
+                  aria-describedby="stadium-name-hint"
+                  onChange={(e) => onChange(setStadiumName(locker, e.target.value))}
+                />
+                <span id="stadium-name-hint" className="hint">
+                  {L.stadiumNameHint}
+                </span>
+              </label>
+            </div>
+            <h3>{L.stands}</h3>
+            {items('stands')}
+            <h3>{L.floodlight}</h3>
+            {items('floodlight')}
+          </section>
+          <section className="locker-group" aria-label={L.groups.weather}>
+            <h2>{L.groups.weather}</h2>
+            {items('weather')}
+          </section>
           <section className="locker-group" aria-label={L.groups.trophies}>
             <h2>{L.groups.trophies}</h2>
             <ul className="trophy-shelf" data-testid="trophy-shelf" data-trophies={trophies.length}>

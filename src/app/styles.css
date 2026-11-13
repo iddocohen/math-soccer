@@ -278,6 +278,40 @@ button:focus-visible {
   gap: 10px;
 }
 
+/* The status takes the room the buttons leave, so the scoreboard shrinks before the buttons move (FR-135). */
+.overlay-status {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.overlay-buttons {
+  flex: 0 0 auto;
+  margin-left: 10px;
+}
+
+.overlay-status > :not(.scoreboard) {
+  flex: 0 0 auto;
+}
+
+/* The stadium's scoreboard (amendment 20, FR-135): dark like the goal counter, with the name in lamp letters. */
+.scoreboard {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 2px solid #3a4c5e;
+  background: #0a121b;
+  color: #ffd75e;
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgb(255 200 60 / 55%);
+}
+
 .hearts {
   display: inline-flex;
   gap: 6px;
@@ -908,6 +942,13 @@ button:focus-visible {
 .locker-group h2 {
   margin: 0 0 8px;
   font-size: 1.1rem;
+}
+
+/* The parts of the "Stadion" group: Tribüne and Flutlicht (amendment 20). */
+.locker-group h3 {
+  margin: 12px 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .locker-items {

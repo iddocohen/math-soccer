@@ -29,6 +29,10 @@
  *   not in the cup final, which has its own show (FR-137, FR-110). The mascot stands left of the goal, cheers on a
  *   goal and covers its eyes on a miss (FR-136). `onExtras` hears what shows (`data-trail`, `data-goal-effect`,
  *   `data-mascot` and their states for tests).
+ * - Amendment 20 part 2: the stands (usual or bigger), the floodlights' color and the weather from the locker room
+ *   (FR-135, FR-138). The backdrop is painted once per combination and swapped when the look changes; the snow or the
+ *   rain falls behind the chart (WeatherView). `onExtras` hears them too (`data-weather`, `data-floodlight`,
+ *   `data-stands` for tests).
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -55,7 +59,9 @@ import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
 import { emptyLockerRoom } from '../core/storage/schemas';
-import type { Celebration, GoalEffect, Mascot, Trail } from '../core/rewards/items';
+import type { Celebration, Floodlight, GoalEffect, Mascot, Stands, Trail, Weather } from '../core/rewards/items';
+import { backdropKey, coneLight, FLOODLIGHT_X, standRows, WEATHER_STYLE, type StadiumLook } from './stadium';
+import { WeatherView } from './WeatherView';
 import { celebrationMs } from './celebrationPose';
 import { COLOR, css, hexColor } from './palette';
 import { PlayerView } from './PlayerView';
@@ -105,6 +111,12 @@ export interface SceneExtras {
   /** True while the goal effect plays. */
   goalEffectPlaying: boolean;
   mascotMood: MascotMood;
+  /** The stadium and the weather (amendment 20 part 2). */
+  stands: Stands;
+  floodlight: Floodlight;
+  weather: Weather;
+  /** The number of snowflakes or raindrops falling now; 0 without snow or rain. */
+  weatherDrops: number;
 }
 
 export interface MatchSceneOptions {
@@ -131,7 +143,6 @@ export interface MatchSceneOptions {
 /** How long the ball rests on a filled square of a cutout before it fades, uncovering the square's number. */
 const FILL_REST_MS = 250;
 
-const BACKDROP_TEXTURE = 'stadium';
 const GRASS_TEXTURE = 'grass';
 /** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
 const GRASS_TILE_SCALE = 0.5;
@@ -150,7 +161,20 @@ export class MatchScene extends Phaser.Scene {
   private trail!: TrailView;
   private goalEffect!: GoalEffectView;
   private mascot!: MascotView;
-  private extras: SceneExtras = { trail: 'none', goalEffect: 'none', mascot: 'none', trailShowing: false, goalEffectPlaying: false, mascotMood: 'idle' };
+  private weather!: WeatherView;
+  private backdrop!: Phaser.GameObjects.Image;
+  private extras: SceneExtras = {
+    trail: 'none',
+    goalEffect: 'none',
+    mascot: 'none',
+    trailShowing: false,
+    goalEffectPlaying: false,
+    mascotMood: 'idle',
+    stands: 'normal',
+    floodlight: 'white',
+    weather: 'evening',
+    weatherDrops: 0,
+  };
   /** The extras last reported to `onExtras`, as one string. */
   private extrasKey = '';
   /** The cup match of the round; null outside the cup. */
@@ -185,10 +209,13 @@ export class MatchScene extends Phaser.Scene {
   create(): void {
     ensureTextures(this);
     ensureFxTextures(this);
-    this.drawBackdrop();
     const look = this.currentLook();
+    this.backdrop = this.add.image(0, 0, this.backdropTexture(look)).setOrigin(0, 0).setDepth(0);
+    this.weather = new WeatherView(this);
+    this.weather.setWeather(look.weather);
     this.lookKey = lookKey(look);
     this.stands = new StandsView(this, look.scarfColor);
+    this.stands.setStands(look.stands);
     this.goal = new GoalView(this);
     this.helper = new HelperView(this);
     this.keeper = new KeeperView(this, this.options.onKeeper);
@@ -220,6 +247,7 @@ export class MatchScene extends Phaser.Scene {
     this.trail.update(delta, this.ball.flightPoint);
     this.goalEffect.update(delta);
     this.mascot.update(delta);
+    this.weather.update(delta);
     if (this.trail.showing !== this.extras.trailShowing || this.goalEffect.running !== this.extras.goalEffectPlaying) {
       this.setExtras({ trailShowing: this.trail.showing, goalEffectPlaying: this.goalEffect.running });
     }
@@ -349,7 +377,16 @@ export class MatchScene extends Phaser.Scene {
     this.ball.setLook(ballKind(layout), look.ball);
     this.trail.setTrail(look.trail);
     this.mascot.setMascot(look.mascot);
-    this.setExtras({ trail: look.trail, goalEffect: look.goalEffect, mascot: look.mascot });
+    this.applyStadium(look);
+    this.setExtras({
+      trail: look.trail,
+      goalEffect: look.goalEffect,
+      mascot: look.mascot,
+      stands: look.stands,
+      floodlight: look.floodlight,
+      weather: look.weather,
+      weatherDrops: this.weather.falling,
+    });
   }
 
   /** The chart layout of the range of `s`. */
@@ -445,17 +482,29 @@ export class MatchScene extends Phaser.Scene {
     this.time.paused = paused;
   }
 
-  /** The evening stadium behind everything, drawn once: sky, floodlights, stand rows, pitch and chalk lines. */
-  private drawBackdrop(): void {
-    if (!this.textures.exists(BACKDROP_TEXTURE)) {
-      const texture = this.textures.createCanvas(BACKDROP_TEXTURE, WORLD_WIDTH, WORLD_HEIGHT);
+  /** The stands, the floodlights' color and the weather of the look (amendment 20 part 2, FR-135, FR-138). */
+  private applyStadium(look: Look): void {
+    const key = this.backdropTexture(look);
+    if (this.backdrop.texture.key !== key) this.backdrop.setTexture(key);
+    this.stands.setStands(look.stands);
+    this.weather.setWeather(look.weather);
+  }
+
+  /**
+   * The stadium behind everything for the stands, floodlights and weather of `look`: sky, light cones, stand rows,
+   * pitch and chalk lines. Each combination is painted once and kept.
+   */
+  private backdropTexture(look: StadiumLook): string {
+    const key = backdropKey(look);
+    if (!this.textures.exists(key)) {
+      const texture = this.textures.createCanvas(key, WORLD_WIDTH, WORLD_HEIGHT);
       if (texture) {
         const grass = this.textures.exists(GRASS_TEXTURE) ? (this.textures.get(GRASS_TEXTURE).getSourceImage() as CanvasImageSource) : null;
-        paintStadium(texture.getContext(), grass);
+        paintStadium(texture.getContext(), grass, look);
         texture.refresh();
       }
     }
-    this.add.image(0, 0, BACKDROP_TEXTURE).setOrigin(0, 0).setDepth(0);
+    return key;
   }
 }
 
@@ -463,39 +512,48 @@ export class MatchScene extends Phaser.Scene {
  * Paints the stadium after the prototype (specs/001-math-soccer/prototype/index.html), scaled to the world. The pitch is
  * the tiled grass texture, darkened toward the evening sky, or a drawn green without it (FR-057).
  */
-function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource | null): void {
+function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource | null, look: StadiumLook): void {
   const W = WORLD_WIDTH;
   const H = WORLD_HEIGHT;
   const top = STANDS_BOTTOM + 30;
+  const style = WEATHER_STYLE[look.weather];
   const sky = g.createLinearGradient(0, 0, 0, top);
-  sky.addColorStop(0, '#0b1622');
-  sky.addColorStop(1, '#1b3247');
+  sky.addColorStop(0, style.sky[0]);
+  sky.addColorStop(1, style.sky[1]);
   g.fillStyle = sky;
   g.fillRect(0, 0, W, top);
   // The floodlights stand above the top edge, out of view: only their soft light falls in, so no bright lamp shows
-  // around the counters and buttons of the top bar (FR-099).
-  for (const x of [130, W - 130]) {
-    g.fillStyle = 'rgb(255 248 214 / 6%)';
-    g.beginPath();
-    g.moveTo(x - 50, 0);
-    g.lineTo(x - 230, top);
-    g.lineTo(x + 230, top);
-    g.lineTo(x + 50, 0);
-    g.fill();
+  // around the counters and buttons of the top bar (FR-099). The light takes the floodlight color; a day match has none.
+  const cone = coneLight(look.floodlight, look.weather);
+  if (cone) {
+    for (const x of FLOODLIGHT_X) {
+      g.fillStyle = css(cone.color, cone.alpha);
+      g.beginPath();
+      g.moveTo(x - 50, 0);
+      g.lineTo(x - 230, top);
+      g.lineTo(x + 230, top);
+      g.lineTo(x + 50, 0);
+      g.fill();
+    }
   }
-  for (let row = 0; row < 4; row++) {
-    g.fillStyle = row % 2 ? '#22384c' : '#1d3044';
-    g.fillRect(0, 60 + row * 48 + 14, W, 44);
-  }
+  standRows(look.stands).forEach((row, i, rows) => {
+    // The front row keeps its color, so the usual stands look as before.
+    g.fillStyle = (rows.length - 1 - i) % 2 ? '#1d3044' : '#22384c';
+    g.fillRect(0, row.bandTop, W, row.bandHeight);
+    if (style.snowCover) {
+      g.fillStyle = 'rgb(240 246 252 / 55%)';
+      g.fillRect(0, row.bandTop, W, 3);
+    }
+  });
   const pattern = grassImage ? g.createPattern(grassImage, 'repeat') : null;
   if (pattern) {
     pattern.setTransform(new DOMMatrix().scale(GRASS_TILE_SCALE));
     g.fillStyle = pattern;
     g.fillRect(0, top, W, H - top);
-    // Darker far away under the evening sky, lighter near the player under the floodlights.
+    // Darker far away under the evening sky, lighter near the player under the floodlights; lighter on a day match.
     const dusk = g.createLinearGradient(0, top, 0, H);
-    dusk.addColorStop(0, 'rgb(6 20 14 / 62%)');
-    dusk.addColorStop(1, 'rgb(6 20 14 / 38%)');
+    dusk.addColorStop(0, style.grassShade[0]);
+    dusk.addColorStop(1, style.grassShade[1]);
     g.fillStyle = dusk;
     g.fillRect(0, top, W, H - top);
   } else {
@@ -504,6 +562,31 @@ function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource
     grass.addColorStop(1, '#3a8a46');
     g.fillStyle = grass;
     g.fillRect(0, top, W, H - top);
+    const shade = g.createLinearGradient(0, top, 0, H);
+    shade.addColorStop(0, style.grassShade[0]);
+    shade.addColorStop(1, style.grassShade[1]);
+    g.fillStyle = shade;
+    g.fillRect(0, top, W, H - top);
+  }
+  if (style.grassWash) {
+    g.fillStyle = style.grassWash;
+    g.fillRect(0, top, W, H - top);
+  }
+  if (style.wet) paintWet(g, top);
+  if (style.snowCover) paintSnowCover(g, top);
+  // Where the cones reach the grass, a soft pool of light in the floodlight color.
+  if (cone) {
+    for (const x of FLOODLIGHT_X) {
+      g.save();
+      g.translate(x, top + 120);
+      g.scale(2.4, 1);
+      const pool = g.createRadialGradient(0, 0, 0, 0, 0, 140);
+      pool.addColorStop(0, css(cone.color, cone.alpha * 1.2));
+      pool.addColorStop(1, css(cone.color, 0));
+      g.fillStyle = pool;
+      g.fillRect(-140, -140, 280, 280);
+      g.restore();
+    }
   }
   const stripe = (H - top) / 6;
   for (let i = 0; i < 6; i++) {
@@ -522,4 +605,45 @@ function paintStadium(g: CanvasRenderingContext2D, grassImage: CanvasImageSource
   g.moveTo(W - 170, line);
   g.lineTo(W - 70, H);
   g.stroke();
+}
+
+/** Wet grass in the rain: soft, long light streaks where the floodlights shine on the water. */
+function paintWet(g: CanvasRenderingContext2D, top: number): void {
+  const H = WORLD_HEIGHT;
+  const middle = (top + H) / 2;
+  const stretch = (H - top) / 2 / 80;
+  for (const x of FLOODLIGHT_X) {
+    // A soft, tall shine: a round glow stretched downward, so it has no hard edges.
+    g.save();
+    g.translate(x, middle);
+    g.scale(1, stretch);
+    const shine = g.createRadialGradient(0, 0, 0, 0, 0, 80);
+    shine.addColorStop(0, 'rgb(200 220 240 / 12%)');
+    shine.addColorStop(1, 'rgb(200 220 240 / 0%)');
+    g.fillStyle = shine;
+    g.fillRect(-80, -80, 160, 160);
+    g.restore();
+  }
+}
+
+/** A light white cover of snow on the grass edges: along the stands and at the left and right side of the pitch. */
+function paintSnowCover(g: CanvasRenderingContext2D, top: number): void {
+  const W = WORLD_WIDTH;
+  const H = WORLD_HEIGHT;
+  const white = (alpha: number) => `rgb(240 246 252 / ${alpha}%)`;
+  const along = g.createLinearGradient(0, top, 0, top + 40);
+  along.addColorStop(0, white(55));
+  along.addColorStop(1, white(0));
+  g.fillStyle = along;
+  g.fillRect(0, top, W, 40);
+  for (const [from, to] of [
+    [0, 130],
+    [W, W - 130],
+  ] as const) {
+    const side = g.createLinearGradient(from, 0, to, 0);
+    side.addColorStop(0, white(50));
+    side.addColorStop(1, white(0));
+    g.fillStyle = side;
+    g.fillRect(Math.min(from, to), top, 130, H - top);
+  }
 }

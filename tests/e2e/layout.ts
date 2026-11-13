@@ -53,8 +53,8 @@ export async function expectPadKeys(page: Page): Promise<Locator[]> {
 }
 
 /**
- * The match fits: the canvas, the pad, the typed number, the message line and every top button lie inside the
- * viewport, and the pad overlaps none of the others.
+ * The match fits: the canvas, the pad, the typed number, the message line, every top button and the scoreboard lie
+ * inside the viewport, the pad overlaps none of the others, and the scoreboard none of the top buttons.
  */
 export async function expectMatchFits(page: Page): Promise<void> {
   const { width, height } = page.viewportSize()!;
@@ -67,10 +67,16 @@ export async function expectMatchFits(page: Page): Promise<void> {
     ['goal counter', page.getByTestId('goal-count')],
     ['help button', page.getByTestId('help-button')],
     ['gear', page.getByTestId('parent-gate')],
+    ['scoreboard', page.getByTestId('scoreboard')],
   ];
   for (const [name, locator] of others) {
     const box = await boxOf(locator);
     expect(inside(box, width, height), `${name} inside the screen`).toBe(true);
     expect(overlap(box, pad), `${name} clear of the number pad`).toBe(false);
+  }
+  // The stadium's scoreboard (amendment 20, FR-135) shares the top bar and never covers a top button.
+  const scoreboard = await boxOf(page.getByTestId('scoreboard'));
+  for (const button of await page.locator('.overlay-buttons > *').all()) {
+    expect(overlap(scoreboard, await boxOf(button)), 'scoreboard clear of a top button').toBe(false);
   }
 }

@@ -5,6 +5,12 @@ import { emptyLockerRoom } from '../storage/schemas';
 import {
   BALL_DESIGNS,
   CELEBRATIONS,
+  FLOODLIGHTS,
+  WEATHERS,
+  STANDS,
+  floodlightOf,
+  standsOf,
+  weatherOf,
   GOAL_EFFECTS,
   ITEMS,
   ITEM_KINDS,
@@ -33,13 +39,18 @@ import {
   newStars,
   setShirtName,
   setShirtNumber,
+  cleanStadiumName,
+  setStadiumName,
+  stadiumNameShown,
+  STADIUM_NAME_MAX,
   GOAL_STARS,
   starsNeeded,
 } from './lockerRoom';
 
 describe('items', () => {
   it('has ball designs, shirt colors and scarf colors with unique ids', () => {
-    for (const kind of ITEM_KINDS) expect(ITEMS.filter((i) => i.kind === kind).length).toBeGreaterThan(3);
+    // The stands are the one group of two: the usual and the bigger stands (amendment 20).
+    for (const kind of ITEM_KINDS) expect(ITEMS.filter((i) => i.kind === kind).length).toBeGreaterThan(kind === 'stands' ? 1 : 3);
     expect(new Set(ITEMS.map((i) => i.id)).size).toBe(ITEMS.length);
     for (const item of ITEMS) expect(item.id.startsWith(`${item.kind}.`)).toBe(true);
   });
@@ -53,6 +64,9 @@ describe('items', () => {
       trail: { min: 40, max: 120 },
       goalEffect: { min: 60, max: 120 },
       mascot: { min: 80, max: 150 },
+      stands: { min: 150, max: 150 },
+      floodlight: { min: 40, max: 40 },
+      weather: { min: 50, max: 100 },
     });
     for (const kind of ITEM_KINDS) {
       const prices = ITEMS.filter((i) => i.kind === kind && i.price > 0).map((i) => i.price);
@@ -77,6 +91,9 @@ describe('items', () => {
       'trail.none',
       'goalEffect.none',
       'mascot.none',
+      'stands.normal',
+      'floodlight.white',
+      'weather.evening',
     ]);
     for (const id of Object.values(STARTER)) expect(isFree(id)).toBe(true);
   });
@@ -209,6 +226,10 @@ describe('look', () => {
       trail: 'none',
       goalEffect: 'none',
       mascot: 'none',
+      stands: 'normal',
+      floodlight: 'white',
+      weather: 'evening',
+      stadiumName: 'Mathe-Arena',
     });
     expect(lookKey(lookOf(l))).not.toBe(lookKey(lookOf(emptyLockerRoom())));
   });
@@ -315,5 +336,84 @@ describe('trails, goal effects and mascots (amendment 20)', () => {
     expect(LOCKER_ROOM.parse({ ...emptyLockerRoom(), mascot: 'mascot.lion' })).toMatchObject({ mascot: 'mascot.none' });
     const stored = { ...emptyLockerRoom(), owned: ['mascot.lion', 'trail.stars'], mascot: 'mascot.lion', trail: 'trail.stars' };
     expect(LOCKER_ROOM.parse(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+  });
+});
+
+describe('stadium and weather (amendment 20 part 2, FR-135, FR-138)', () => {
+  const names = (kind: string) => ITEMS.filter((i) => i.kind === kind).map((i) => i.id.slice(kind.length + 1));
+
+  it('has the stands, floodlight colors and weathers with the free one chosen by default, and prices in their ranges', () => {
+    expect(names('stands')).toEqual([...STANDS]);
+    expect(names('floodlight')).toEqual([...FLOODLIGHTS]);
+    expect(names('weather')).toEqual([...WEATHERS]);
+    expect(itemById('stands.big')!.price).toBe(150);
+    for (const name of FLOODLIGHTS.filter((f) => f !== 'white')) expect(itemById(`floodlight.${name}`)!.price).toBe(40);
+    for (const name of WEATHERS.filter((w) => w !== 'evening')) {
+      const price = itemById(`weather.${name}`)!.price;
+      expect(price).toBeGreaterThanOrEqual(50);
+      expect(price).toBeLessThanOrEqual(100);
+    }
+    expect(isFree('stands.normal') && isFree('floodlight.white') && isFree('weather.evening')).toBe(true);
+    expect(emptyLockerRoom()).toMatchObject({ stadiumName: 'Mathe-Arena', stands: 'stands.normal', floodlight: 'floodlight.white', weather: 'weather.evening' });
+  });
+
+  it('buys and chooses an item of each group, and chooses the free one again at no cost', () => {
+    let l = award(emptyLockerRoom(), 300);
+    l = buy(l, 'stands.big');
+    l = buy(l, 'floodlight.purple');
+    l = buy(l, 'weather.snow');
+    expect(l).toMatchObject({ stars: 300 - 150 - 40 - 100, stands: 'stands.big', floodlight: 'floodlight.purple', weather: 'weather.snow' });
+    expect(lookOf(l)).toMatchObject({ stands: 'big', floodlight: 'purple', weather: 'snow' });
+    expect(buy(l, 'weather.rain')).toBe(l);
+    expect(starsNeeded(l, 'weather.rain')).toBe(80 - 10);
+    for (const [kind, free] of [
+      ['stands', 'stands.normal'],
+      ['floodlight', 'floodlight.white'],
+      ['weather', 'weather.evening'],
+    ] as const) {
+      const back = equip(l, kind, free);
+      expect(chosen(back, kind)).toBe(free);
+      expect(back.stars).toBe(l.stars);
+      // The bought item stays owned and is chosen again for free.
+      expect(chosen(equip(back, kind, chosen(l, kind)), kind)).toBe(chosen(l, kind));
+    }
+    expect(equip(l, 'weather', 'weather.day')).toBe(l);
+    expect(equip(l, 'weather', 'floodlight.gold')).toBe(l);
+  });
+
+  it('limits the stadium name to 14 letters, digits, spaces and hyphens', () => {
+    expect(STADIUM_NAME_MAX).toBe(14);
+    expect(cleanStadiumName('Fußball-Arena Nord')).toBe('Fußball-Arena ');
+    expect(Array.from(cleanStadiumName('ÄÖÜäöüßéèàçñøå')).length).toBe(14);
+    expect(cleanStadiumName('Arena 2026!')).toBe('Arena 2026');
+    expect(cleanStadiumName('<b>Mia</b>')).toBe('bMiab');
+    const l = setStadiumName(emptyLockerRoom(), 'Sonnenschein-Stadion');
+    expect(l.stadiumName).toBe('Sonnenschein-S');
+    expect(LOCKER_ROOM.parse(l)?.stadiumName).toBe('Sonnenschein-S');
+    expect(LOCKER_ROOM.parse({ ...emptyLockerRoom(), stadiumName: 'A'.repeat(15) })).toBeNull();
+  });
+
+  it('shows "Mathe-Arena" while the name is empty', () => {
+    expect(stadiumNameShown('')).toBe('Mathe-Arena');
+    expect(stadiumNameShown('   ')).toBe('Mathe-Arena');
+    expect(stadiumNameShown(' Mia Park ')).toBe('Mia Park');
+    expect(lookOf(setStadiumName(emptyLockerRoom(), '')).stadiumName).toBe('Mathe-Arena');
+  });
+
+  it('loads a locker room stored before part 2 with the defaults, and drops an item not owned', () => {
+    const old: Record<string, unknown> = { ...emptyLockerRoom() };
+    for (const key of ['stadiumName', 'stands', 'floodlight', 'weather']) delete old[key];
+    expect(LOCKER_ROOM.parse(old)).toMatchObject({ stadiumName: 'Mathe-Arena', stands: 'stands.normal', floodlight: 'floodlight.white', weather: 'weather.evening' });
+    const cheat = cleanLockerRoom({ ...emptyLockerRoom(), weather: 'weather.snow', stands: 'stands.big', floodlight: 'weather.day' });
+    expect(cheat).toMatchObject({ weather: 'weather.evening', stands: 'stands.normal', floodlight: 'floodlight.white' });
+  });
+
+  it('reads the names of ids, and the free one for anything else', () => {
+    expect(standsOf('stands.big')).toBe('big');
+    expect(standsOf('stands.huge')).toBe('normal');
+    expect(floodlightOf('floodlight.green')).toBe('green');
+    expect(floodlightOf('shirt.green')).toBe('white');
+    expect(weatherOf('weather.sunset')).toBe('sunset');
+    expect(weatherOf('weather.fog')).toBe('evening');
   });
 });

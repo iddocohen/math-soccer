@@ -56,7 +56,9 @@
  *
  * Amendment 20 (T111): `data-trail`, `data-goal-effect` and `data-mascot` on the match name the trail, the goal effect
  * and the mascot the scene shows; `data-trail-showing`, `data-goal-effect-playing` and `data-mascot-mood` say what they
- * do right now.
+ * do right now. Part 2 (T112): `data-weather`, `data-floodlight`, `data-stands` and `data-stadium-name` name the
+ * weather, the floodlight color, the stands and the scoreboard's name; `data-weather-drops` counts the falling snowflakes
+ * or raindrops.
  *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
@@ -80,7 +82,7 @@ import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult } from '../core/records/records';
 import type { Celebration } from '../core/rewards/items';
-import { lookOf, newStars } from '../core/rewards/lockerRoom';
+import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
 import { applyBaseline, clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
@@ -709,6 +711,11 @@ export function App() {
       data-goal-effect-playing={extras?.goalEffectPlaying === true}
       data-mascot={extras?.mascot ?? ''}
       data-mascot-mood={extras?.mascotMood ?? ''}
+      data-weather={extras?.weather ?? ''}
+      data-weather-drops={extras?.weatherDrops ?? 0}
+      data-floodlight={extras?.floodlight ?? ''}
+      data-stands={extras?.stands ?? ''}
+      data-stadium-name={stadiumNameShown(locker.stadiumName)}
       onPointerDown={skipCelebration}
     >
       <div className="game-parent" ref={gameParent} />
@@ -719,6 +726,7 @@ export function App() {
         cup={cupAttributes}
         ball={locker.ball}
         shirt={locker.shirtColor}
+        stadium={stadiumNameShown(locker.stadiumName)}
         settings={overlaySettings}
         gear={gear}
         onLockerRoom={lockerOn ? openMatchLocker : undefined}

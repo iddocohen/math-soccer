@@ -1,6 +1,7 @@
 /**
  * The fans in the stands behind the goal (FR-001, FR-021, FR-022), drawn after the prototype
- * (specs/001-math-soccer/prototype/index.html): four rows of small fans in the distance.
+ * (specs/001-math-soccer/prototype/index.html): four rows of small fans in the distance, or six rows with the bigger
+ * stands from the locker room (amendment 20, `setStands`).
  *
  * - Idle: every fan sways a little, each at its own pace.
  * - `cheer()` (a goal): the fans stand up, jump, raise their arms, and every third fan waves a scarf in the scarf
@@ -16,7 +17,8 @@
 import Phaser from 'phaser';
 import { WORLD_WIDTH } from '../core/match/world';
 import { CHANT_BEAT_SECONDS } from '../core/cup/chant';
-import { itemById } from '../core/rewards/items';
+import { itemById, type Stands } from '../core/rewards/items';
+import { standRows } from './stadium';
 import { FAN_ARMS_SIZE, FAN_HEAD_SIZE, FAN_SIZE, SCARF_SIZE, TEX } from './textures';
 
 /** How long the cheer, the slump and the clapping last, in milliseconds of game time. */
@@ -24,9 +26,6 @@ export const CHEER_MS = 1600;
 export const OHH_MS = 900;
 export const CLAP_MS = 1300;
 
-const ROWS = 4;
-const ROW_TOP = 60;
-const ROW_GAP = 48;
 const FAN_GAP = 34;
 const SCALE = 1.6;
 /** Fan shirts in the locker room's shirt colors. */
@@ -72,6 +71,8 @@ export class StandsView {
   private readonly depth: number;
   /** True once the extra fans of the final exist; they are made at the first final. */
   private extrasMade = false;
+  /** The usual four rows or the bigger stands with six (amendment 20, FR-135). */
+  private stands: Stands = 'normal';
 
   constructor(scene: Phaser.Scene, scarfColor: number, depth = 1) {
     this.scene = scene;
@@ -87,8 +88,9 @@ export class StandsView {
    */
   private addFans(extra: boolean): void {
     const perRow = Math.ceil(WORLD_WIDTH / FAN_GAP) + 1;
-    for (let row = 0; row < ROWS; row++) {
-      const y = ROW_TOP + row * ROW_GAP + 36;
+    const rows = standRows(this.stands);
+    for (let row = 0; row < rows.length; row++) {
+      const y = rows[row]!.fanBottom;
       for (let i = 0; i < perRow; i++) {
         const x = 10 + i * FAN_GAP + (row % 2) * (FAN_GAP / 2) + (extra ? FAN_GAP / 2 : 0);
         const seed = (i * 7 + row * 13 + (extra ? 3 : 0)) % SHIRTS.length;
@@ -107,6 +109,22 @@ export class StandsView {
         this.fans.push({ x, y: fy, phase: i * 0.7 + row * 1.3 + (extra ? 0.4 : 0), body, head, arms, scarf, away, extra });
       }
     }
+  }
+
+  /**
+   * The usual or the bigger stands (amendment 20, FR-135). The fans are made again in the new rows; the front row stays
+   * where it is, so the bigger stands grow upward.
+   */
+  setStands(stands: Stands): void {
+    if (stands === this.stands) return;
+    this.stands = stands;
+    this.destroy();
+    this.addFans(false);
+    this.extrasMade = this.final;
+    if (this.final) this.addFans(true);
+    this.armsShown = false;
+    this.scarvesShown = false;
+    this.update(0);
   }
 
   /** The scarves in a new color (the locker room's scarf color). */

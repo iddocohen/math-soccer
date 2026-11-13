@@ -11,6 +11,8 @@
  * - `buy` takes the price and equips the item; `equip` chooses an owned or free item. Celebrations ("Jubel",
  *   amendment 13, FR-113) are bought and chosen like the other items.
  * - The shirt number is 1 to 99 and the shirt name up to 10 letters.
+ * - The stadium name (amendment 20, FR-135) is up to 14 letters, digits, spaces or hyphens; "Mathe-Arena" shows while it
+ *   is empty.
  *
  * Nothing here reaches target selection or the difficulty: looks never change the math (FR-043, plan "Rewards never
  * make the math easier").
@@ -19,19 +21,25 @@ import type { LockerRoom } from '../storage/schemas';
 import {
   ballDesign,
   celebrationOf,
+  floodlightOf,
   goalEffectOf,
   isFree,
   itemById,
   ITEM_KINDS,
   mascotOf,
   STARTER,
+  standsOf,
   trailOf,
+  weatherOf,
   type BallDesign,
   type Celebration,
+  type Floodlight,
   type GoalEffect,
   type ItemKind,
   type Mascot,
+  type Stands,
   type Trail,
+  type Weather,
 } from './items';
 
 /** Stars for a goal (FR-132). */
@@ -40,6 +48,9 @@ export const GOAL_STARS = 1;
 export const SHIRT_NUMBER_MIN = 1;
 export const SHIRT_NUMBER_MAX = 99;
 export const SHIRT_NAME_MAX = 10;
+/** The stadium name on the scoreboard (amendment 20, FR-135): up to 14 letters, "Mathe-Arena" for a new player. */
+export const STADIUM_NAME_MAX = 14;
+export const DEFAULT_STADIUM_NAME = 'Mathe-Arena';
 
 /**
  * The stars to award after `starsThisRound` changed from `seen` to `current`. A new round starts again at 0, so a
@@ -79,6 +90,9 @@ const FIELD = {
   trail: 'trail',
   goalEffect: 'goalEffect',
   mascot: 'mascot',
+  stands: 'stands',
+  floodlight: 'floodlight',
+  weather: 'weather',
 } as const satisfies Record<ItemKind, keyof LockerRoom>;
 
 /** The chosen item id of a kind. */
@@ -117,6 +131,22 @@ export function setShirtName(locker: LockerRoom, typed: string): LockerRoom {
   return { ...locker, owned: [...locker.owned], shirtName: cleanShirtName(typed) };
 }
 
+/** The typed stadium name with everything but letters, digits, spaces and hyphens removed, cut to 14 characters. */
+export function cleanStadiumName(typed: string): string {
+  return Array.from(typed.replace(/[^\p{L}\p{N} -]/gu, ''))
+    .slice(0, STADIUM_NAME_MAX)
+    .join('');
+}
+
+export function setStadiumName(locker: LockerRoom, typed: string): LockerRoom {
+  return { ...locker, owned: [...locker.owned], stadiumName: cleanStadiumName(typed) };
+}
+
+/** The name the scoreboard shows: the typed name, or "Mathe-Arena" while the field is empty. */
+export function stadiumNameShown(name: string): string {
+  return name.trim() === '' ? DEFAULT_STADIUM_NAME : name.trim();
+}
+
 /**
  * Stored data after the schema check: bought ids that are unknown, free or repeated are dropped, and a chosen item that
  * is unknown, of the wrong kind or not owned becomes the starter item of its kind.
@@ -149,6 +179,14 @@ export interface Look {
   goalEffect: GoalEffect;
   /** Stands left of the goal (FR-136). */
   mascot: Mascot;
+  /** The usual or the bigger stands (FR-135). */
+  stands: Stands;
+  /** Tints the floodlights' light cones (FR-135). */
+  floodlight: Floodlight;
+  /** The sky, the light and the overlay of every round (FR-138). */
+  weather: Weather;
+  /** The name on the scoreboard, never empty (FR-135). */
+  stadiumName: string;
 }
 
 export function lookOf(locker: LockerRoom): Look {
@@ -163,12 +201,17 @@ export function lookOf(locker: LockerRoom): Look {
     trail: trailOf(locker.trail),
     goalEffect: goalEffectOf(locker.goalEffect),
     mascot: mascotOf(locker.mascot),
+    stands: standsOf(locker.stands),
+    floodlight: floodlightOf(locker.floodlight),
+    weather: weatherOf(locker.weather),
+    stadiumName: stadiumNameShown(locker.stadiumName),
   };
 }
 
 /**
  * One string per drawn look of the player, the scarves and the ball, so a view redraws only when it changed. The
- * celebration and the goal effect are read at each goal; the scene follows the trail and the mascot itself.
+ * celebration and the goal effect are read at each goal; the scene follows the trail, the mascot, the stands, the
+ * floodlights and the weather itself.
  */
 export function lookKey(look: Look): string {
   return `${look.ball}|${look.shirtColor}|${look.shirtNumber}|${look.shirtName}|${look.scarfColor}`;

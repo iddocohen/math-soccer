@@ -24,6 +24,10 @@
  * room over the match. The icon never takes focus, so keys cannot press it, and it does not show on the round end.
  * `data-shirt` carries the chosen shirt color id for tests.
  *
+ * Scoreboard (amendment 20, FR-135): with `stadium` the stadium name shows on a scoreboard right of the goal counter,
+ * above the stands (`data-testid="scoreboard"`). It sits in the top bar's row, so it never covers a button or the
+ * column scale; on a narrow screen it shrinks and cuts the name with "…" before the buttons would move.
+ *
  * Home (amendment 14, FR-116): with `onHome` a house icon with the accessible name "Zum Start" sits next to pause. One
  * tap pauses the round and the app asks "Runde beenden?" (PauseScreen.tsx). The icon never takes focus.
  *
@@ -116,6 +120,8 @@ interface Props {
   settings: Pick<Settings, 'goalsPerRound' | 'showClock'>;
   /** The chosen shirt color id from the locker room (`data-shirt`). */
   shirt?: string;
+  /** The stadium name on the scoreboard next to the goal counter (amendment 20, FR-135); no scoreboard without it. */
+  stadium?: string;
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
   /** Opens the locker room over the match (FR-049); the icon shows only when this is given. */
@@ -138,6 +144,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   cup,
   ball = STARTER.ball,
   shirt = STARTER.shirt,
+  stadium,
   settings,
   gear,
   onLockerRoom,
@@ -195,6 +202,11 @@ export const MatchOverlay = memo(function MatchOverlay({
           <span className="goal-count" data-testid="goal-count">
             {goals}
           </span>
+          {stadium !== undefined && (
+            <span className="scoreboard" data-testid="scoreboard" title={stadium}>
+              {stadium}
+            </span>
+          )}
           {(state.roundType === 'untilHearts' || state.roundType === 'cup') && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
