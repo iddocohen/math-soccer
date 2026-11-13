@@ -114,7 +114,7 @@ import { MODE_INFO, START_KIND_INFO, roundTypeOf, type ControllerKind, type Matc
 import { placeWall, wallBlocks, wallClear, type Wall } from './wall';
 import { flightMsOf, KEEPER_RESULT_MS, KEEPER_SHOTS, keeperTarget, newShot, shotResult, type KeeperShot } from './keeper';
 import { addKick, emptyKicks, nextSide, shootoutWinner, type Kick, type ShootoutKicks } from './shootout';
-import { torwandHoles, torwandTarget, TORWAND_SHOTS } from './torwand';
+import { torwandHit, torwandHoles, torwandTarget, TORWAND_SHOTS } from './torwand';
 import { defaultFamilySetup, type FamilySetup } from './family';
 
 export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
@@ -536,7 +536,7 @@ export class MatchController {
   private roundSettings: Settings;
   /** True while saved target-shaping settings wait for the round to be back in 'aiming' (FR-052). */
   private newTargetPending = false;
-  /** Play time left of the landing feedback of the last miss; a pending new target waits for it. */
+  /** Play time left of the landing feedback of the last miss or decided shot; a pending new target waits for it. */
   private feedbackMs = 0;
 
   constructor(options: MatchControllerOptions) {
@@ -753,7 +753,7 @@ export class MatchController {
     if (hit) {
       // A shot at the answer of help step 4 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
-      const counts = s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
+      const counts = this.counts(s);
       const { attempt, levelUp } = this.scored(s, s.ball);
       this.set({
         ...s,
@@ -829,12 +829,14 @@ export class MatchController {
     if (shot === null || target === null) return;
     const result = shotResult(target.number, typed);
     const saved = result === 'saved';
-    const counts = s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
+    const counts = this.counts(s);
     let message: MatchMessage = { kind: 'saved' };
     if (result === 'wrong') message = { kind: 'conceded', number: target.number };
     else if (result === 'late') message = { kind: 'late', number: target.number };
     const decided = { ...shot, held: false, result, typed, resultLeftMs: KEEPER_RESULT_MS };
     const shown = saved ? null : { number: target.number, remainingMs: KEEPER_RESULT_MS };
+    // Settings saved now give their new target after the result, so they never drop a decided shot (FR-052).
+    this.feedbackMs = KEEPER_RESULT_MS;
     if (s.shootout !== null) {
       // The opponent's kick of the shootout: a save is his miss. Saves earn no stars here (FR-148).
       this.set({
@@ -948,7 +950,7 @@ export class MatchController {
   private torwandLanded(s: MatchState, torwand: TorwandState, ball: Ball, hit: boolean): void {
     const shots = Math.min(TORWAND_SHOTS, s.shots + 1);
     if (hit) {
-      const counts = s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
+      const counts = this.counts(s);
       const { attempt, levelUp } = this.scored(s, ball);
       this.set({
         ...s,
@@ -963,7 +965,7 @@ export class MatchController {
       });
       return;
     }
-    const decoy = torwand.holes.includes(ball.number);
+    const decoy = torwandHit(torwand.holes, s.target?.number ?? NaN, ball.number) === 'decoy';
     const missed: MatchState = {
       ...s,
       ball: { ...ball, outcome: decoy ? 'decoy' : 'miss' },
@@ -1012,6 +1014,14 @@ export class MatchController {
       return;
     }
     this.set(this.withNextTarget({ ...landed, phase: 'aiming' }));
+  }
+
+  /**
+   * True when a goal or a save at the target of `s` counts: before help step 4 showed the answer, or after it with
+   * "Punkt nach voller Hilfe" on (FR-025b).
+   */
+  private counts(s: MatchState): boolean {
+    return s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
   }
 
   /** Records the attempt at the target of `s` that `ball` just scored; returns it for `lastAttempt`, and a new level. */

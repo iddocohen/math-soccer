@@ -7,7 +7,8 @@
  *   it; P opens the cup's bracket screen ("Pokal", amendment 13, FR-105); K opens the locker room when it is on.
  *   `?start=time` in tests makes Enter and Space start the time challenge when it is allowed, `?start=cup` the next cup
  *   match without the bracket screen.
- * - Start screen, modes to unlock (amendment 21, FR-141): M "Mauer", T "Torwart", E "Elfmeter". A key does something
+ * - Start screen, modes to unlock (amendments 21 and 23, FR-141): M "Mauer", T "Torwart", E "Elfmeter", W "Torwand",
+ *   F "Papa gegen Kind". A key does something
  *   only while its button shows (`modeKeys`): an unlocked mode starts, a locked one opens the locker room at
  *   "Spielarten" (with the locker room on). An unlocked mode whose game is not built yet does nothing.
  * - Bracket screen (FR-106): Enter or Space start the highlighted match, Escape goes back to the start screen.
@@ -71,7 +72,7 @@ export interface KeyContext {
   modeKeys?: Partial<Record<UnlockMode, ModeKey>>;
 }
 
-/** The mode of a start screen key, M, T or E in either case; null for any other key. */
+/** The mode of a start screen key, M, T, E, W or F in either case; null for any other key. */
 function modeOfKey(key: string): UnlockMode | null {
   return UNLOCK_MODES.find((m) => MODE_OFFERS[m].key === key.toUpperCase() && key.length === 1) ?? null;
 }

@@ -14,7 +14,7 @@ export interface KeyboardOptions {
   timeChallenge?: boolean;
   lockerRoom?: boolean;
   enterStart?: StartKind;
-  /** What the mode keys M, T and E do on the start screen (amendment 21). */
+  /** What the mode keys M, T, E, W and F do on the start screen (amendments 21 and 23). */
   modeKeys?: KeyContext['modeKeys'];
   onAction: (action: KeyAction) => void;
 }

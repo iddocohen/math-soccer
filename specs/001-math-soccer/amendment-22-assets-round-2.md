@@ -44,7 +44,7 @@ Kept in code on purpose:
   Each sound has a synthesized fallback if a file is missing or fails to decode, as FR-059 does.
 - **FR-153**: Clips MUST be trimmed and mono:
   - short sounds under 2 s;
-  - loops about 15 s with a seamless loop point;
+  - loops about 15 s, its end joining its start without a click;
   - total added size under about 1.5 MB.
 
   They are added to the offline cache. The README asset table lists each asset with its source link and license.

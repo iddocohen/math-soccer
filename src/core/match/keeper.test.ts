@@ -201,6 +201,21 @@ describe('the child in goal (FR-143)', () => {
     expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: 10, goals: 5, starsThisRound: 5 * STARS.save, keeperShot: null, shown: null });
   });
 
+  it('settings saved while the last shot\'s result shows wait for it: the round still ends after 10 shots', () => {
+    const c = keeperRound();
+    for (let i = 0; i < KEEPER_SHOTS - 1; i++) {
+      shoot(c, c.getState().target!.number);
+      nextShot(c);
+    }
+    shoot(c, c.getState().target!.number);
+    expect(c.getState().keeperShot?.result).toBe('saved');
+    c.applySettings({ ...defaultSettings(), hintDisplay: 'onRequest' });
+    // The decided shot still shows; the new settings do not throw in an 11th shot.
+    expect(c.getState().keeperShot?.result).toBe('saved');
+    nextShot(c);
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: KEEPER_SHOTS, goals: KEEPER_SHOTS });
+  });
+
   it('its shots record no attempts, so they never move the child\'s level', () => {
     const attempts: AttemptRecord[] = [];
     const c = keeperRound(defaultSettings, { attempts });

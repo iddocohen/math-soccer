@@ -487,9 +487,10 @@ export function App() {
   useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null || matchLocker));
 
   // A waiting new version is applied only between rounds, on the start screen or the cup's bracket, never during a
-  // round (FR-051a, FR-103), and never while a parent screen or the transfer dialog is open (review R2).
+  // round (FR-051a, FR-103), and never while a parent screen or the transfer dialog is open (review R2). The start card
+  // of "Papa gegen Kind" holds it too, so a reload never drops the name being typed.
   const updateWaiting = useSyncExternalStore(swUpdate.subscribe, swUpdate.waiting);
-  const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed', transferOpen: transfer !== null });
+  const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed' || familyCard, transferOpen: transfer !== null });
   useEffect(() => {
     swUpdate.setStartScreen(updateAllowed);
   }, [updateAllowed]);
@@ -686,7 +687,8 @@ export function App() {
     // ended names its grown-up, also after a refresh restored it.
     const setup = state.family === null ? undefined : { name: state.family.name, level: state.family.level };
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round (with the card).
-    if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
+    // When the update fails, the rematch starts here with the same grown-up.
+    if (swUpdate.applyNow(kind, () => startMatch(kind, setup))) return;
     startMatch(kind, setup);
   };
   // FR-103: the round "Nochmal" asked for before the page reloaded with the new version.

@@ -631,8 +631,9 @@ export class MatchScene extends Phaser.Scene {
     const blocked = wallBlocks(layout, s.wall, n);
     const square = blocked ? this.wall.hitPoint(layout, n) : cellRect(layout, CHART_RECT, n);
     // On a square of a cutout that is not its last one the keeper waits aside (FR-126); a ball the wall stops never
-    // reaches him.
-    this.keeperInPlay = !isCutoutFill(s.target) && !blocked && s.torwand === null;
+    // reaches him. In a shootout every kick is a keeper shot, also on a cutout's first square (the controller scores it).
+    const fill = isCutoutFill(s.target) && s.shootout === null;
+    this.keeperInPlay = !fill && !blocked && s.torwand === null;
     // The defenders jump on every shot, highest when the ball reaches them (FR-142).
     this.wall.jump(blocked);
     // The same rule as the controller's: the target number scores, any other number is caught.
