@@ -6,7 +6,9 @@
  *   "Selbst ins Tor" first. Back on the start screen "Mauer" starts with M.
  * - In the match `data-mode="wall"` and `data-wall-cols` name the covered columns; the target and its hints are never
  *   in them. A shot at a number behind the wall is a miss with "Die Mauer! Hier ist N."; a goal moves the wall.
- * - "Selbst ins Tor" can be bought and says "kommt bald" until its game exists; "Spielarten erlauben" hides a button.
+ * - "Elfmeterschießen" can be bought after "Selbst ins Tor" and says "kommt bald" until its game exists; "Spielarten
+ *   erlauben" hides a button.
+ * - The defenders stand clear of the child's player (`data-wall-cols` avoids his columns 3 and 4 when it can).
  *
  * Every wait is on data-* state or text, never a fixed sleep.
  */
@@ -76,6 +78,10 @@ test('unlock "Mauer" with stars, then score past the wall and hit it once', asyn
   expect(cols.length).toBeLessThanOrEqual(4);
   await expect(page.locator('main.match')).toHaveAttribute('data-stadium-name', /.+/);
   await page.screenshot({ path: test.info().outputPath('wall.png') });
+  // Columns 3 and 4 lie behind the child's player; the wall stands beside him when the target leaves room.
+  const hints = ((await match.getAttribute('data-hints')) ?? '').split(',').filter(Boolean).map(Number);
+  const besideFree = [0, 1, 2, 5, 6, 7, 8, 9].some((c) => ![first, ...hints].some((n) => colOf(n) === c));
+  if (besideFree) for (const c of cols) expect([3, 4]).not.toContain(c);
 
   // A number behind the wall hits the wall: a miss, and the typed number's square is named.
   const behind = cols[0]! + 1 + 10 * 4;
@@ -94,7 +100,7 @@ test('unlock "Mauer" with stars, then score past the wall and hit it once', asyn
   await expect(scene).not.toHaveAttribute('data-wall-cols', cols.join(','));
 });
 
-test('"Selbst ins Tor" unlocks and says "kommt bald"; "Elfmeterschießen" follows it; the parent can hide a mode', async ({ page }) => {
+test('"Selbst ins Tor" unlocks; "Elfmeterschießen" follows it and says "kommt bald"; the parent can hide a mode', async ({ page }) => {
   await seedStorage(
     page,
     { [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 900, totalEarned: 900, modes: ['wall'] } },
@@ -113,16 +119,14 @@ test('"Selbst ins Tor" unlocks and says "kommt bald"; "Elfmeterschießen" follow
   await expect(page.getByTestId('locker-room')).toHaveAttribute('data-stars', '0');
   await page.keyboard.press('Escape');
 
-  // Bought, but their games come later: "kommt bald", and T and E start nothing.
-  for (const mode of ['keeper', 'shootout']) {
-    await expect(page.locator(`[data-start="${mode}"]`)).toHaveAttribute('data-mode-state', 'soon');
-    await expect(page.locator(`[data-start="${mode}"]`)).toContainText('kommt bald');
-  }
-  await page.keyboard.press('t');
+  // "Selbst ins Tor" is ready (amendment 21 part 2); "Elfmeterschießen" comes later: "kommt bald", and E starts nothing.
+  await expect(page.locator('[data-start="keeper"]')).toHaveAttribute('data-mode-state', 'ready');
+  await expect(page.locator('[data-start="shootout"]')).toHaveAttribute('data-mode-state', 'soon');
+  await expect(page.locator('[data-start="shootout"]')).toContainText('kommt bald');
   await page.keyboard.press('e');
   // The button is marked disabled for screen readers; a tap on it still does nothing.
-  await expect(page.locator('[data-start="keeper"]')).toHaveAttribute('aria-disabled', 'true');
-  await page.locator('[data-start="keeper"]').click({ force: true });
+  await expect(page.locator('[data-start="shootout"]')).toHaveAttribute('aria-disabled', 'true');
+  await page.locator('[data-start="shootout"]').click({ force: true });
   await expect(page.getByTestId('start')).toBeVisible();
 
   // "Spielarten erlauben": with "Freistoß mit Mauer" off, its button is gone and M does nothing.

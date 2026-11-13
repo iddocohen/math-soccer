@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from './defaults';
+import { KEEPER_SPEEDS } from '../match/keeper';
 
 /**
  * Structural schema of the stored settings, version 1 (stored under `mathsoccer.settings.v1`, data-model.md
@@ -48,6 +49,8 @@ export const settingsSchema = z.object({
    * while it is on here. Added with a default, so settings stored before it still load (no migration).
    */
   modesAllowed: z.object({ wall: z.boolean(), keeper: z.boolean(), shootout: z.boolean() }).default({ wall: true, keeper: true, shootout: true }),
+  /** "Schussgeschwindigkeit" of "Selbst ins Tor" (amendment 21, FR-144): langsam 10 s, mittel 8 s, schnell 5 s. */
+  keeperSpeed: z.enum(KEEPER_SPEEDS).default('medium'),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;

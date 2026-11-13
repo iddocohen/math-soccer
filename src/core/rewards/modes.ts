@@ -33,7 +33,7 @@ export interface ModeOffer {
 /** The modes in locker room order (FR-140). */
 export const MODE_OFFERS: Record<UnlockMode, ModeOffer> = {
   wall: { mode: 'wall', price: 200, requires: null, key: 'M', playable: true },
-  keeper: { mode: 'keeper', price: 300, requires: null, key: 'T', playable: false },
+  keeper: { mode: 'keeper', price: 300, requires: null, key: 'T', playable: true },
   shootout: { mode: 'shootout', price: 600, requires: 'keeper', key: 'E', playable: false },
 };
 

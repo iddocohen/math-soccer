@@ -22,6 +22,7 @@ import { SHAPE_IDS } from '../core/targets/shapes';
 import { qrMatrix, qrPath, type QrMatrix } from '../core/transfer/qr';
 import { encodeTransfer, type EncodedTransfer } from '../core/transfer/transfer';
 import { HINT_DISTANCES } from '../core/types';
+import { KEEPER_SPEEDS } from '../core/match/keeper';
 import { t } from '../i18n';
 import { BUILD_DATE, BUILD_VERSION } from './buildInfo';
 import { LevelExamples } from './LevelExamples';
@@ -316,6 +317,13 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Check label={O.modes.wall} {...flag('modesAllowed', 'wall')} />
           <Check label={O.modes.keeper} {...flag('modesAllowed', 'keeper')} />
           <Check label={O.modes.shootout} {...flag('modesAllowed', 'shootout')} />
+          {/* "Schussgeschwindigkeit" of "Selbst ins Tor" (FR-144). */}
+          <Select
+            label={L.keeperSpeed}
+            value={draft.keeperSpeed}
+            options={options(KEEPER_SPEEDS, O.keeperSpeed)}
+            onChange={(v) => set('keeperSpeed', v)}
+          />
         </Group>
 
         <Group title={S.groups.data}>

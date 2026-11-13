@@ -14,6 +14,8 @@
  * (Enter or Space) goes back to the bracket; after a loss "Nochmal" replays the match and "Zurück" goes to the bracket
  * (App.tsx passes the bracket as `onBack`). A won final sits low on the screen (`cup-final-won`), so the confetti,
  * the fireworks and the cup lift stay in view.
+ * "Selbst ins Tor" (amendment 21, FR-146): with `keeperShots` the result reads "7 von 10 gehalten" and the record
+ * "Dein Rekord: 8 gehalten"; `goals` are the saves.
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
  * Amendment 12 (FR-103): when a new version waits, a short neutral line "Neue Version, startet gleich" shows
  * (`data-testid="update-note"`); "Zurück" and "Nochmal" then apply it (App.tsx, swUpdate.ts).
@@ -51,12 +53,22 @@ interface Props {
   cup?: CupRoundResult | null;
   /** A new version waits and applies on "Zurück" or "Nochmal" (FR-103). */
   updateWaiting?: boolean;
+  /** "Selbst ins Tor": the shots of the round, and `goals` are the saves; null for the other modes. */
+  keeperShots?: number | null;
   onAgain: () => void;
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, onAgain, onBack }: Props) {
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, keeperShots = null, onAgain, onBack }: Props) {
   const text = t().roundEnd;
+  let result = challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs);
+  if (keeperShots !== null) result = text.keeperSummary(goals, keeperShots);
+  const best = record?.best ?? null;
+  let bestLine = '';
+  if (best !== null) {
+    if (keeperShots !== null) bestLine = text.keeperRecord(best.goals);
+    else bestLine = roundType === 'goalCount' ? text.recordTime(best.goals, best.timeMs) : text.record(best.goals);
+  }
   return (
     <div
       className={cup?.cupWon ? 'round-end cup-final-won' : 'round-end'}
@@ -67,7 +79,7 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
     >
       <h2>{text.cheer}</h2>
       <p className="round-result" data-testid="round-result">
-        {challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs)}
+        {result}
       </p>
       {cup && (
         <p className="cup-result" data-testid="cup-result" data-cup-won={cup.won}>
@@ -83,9 +95,9 @@ export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null,
         <p className="new-record" data-testid="new-record">
           {text.newRecord}
         </p>
-      ) : record?.best ? (
+      ) : best ? (
         <p className="record" data-testid="record">
-          {roundType === 'goalCount' ? text.recordTime(record.best.goals, record.best.timeMs) : text.record(record.best.goals)}
+          {bestLine}
         </p>
       ) : null}
       {updateWaiting && (

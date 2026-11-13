@@ -5,6 +5,7 @@
  * never contain a word from `forbiddenWords` (FR-023).
  */
 
+import type { KeeperSpeed } from '../core/match/keeper';
 import type { UnlockMode } from '../core/rewards/modes';
 import type { Level } from '../core/settings/defaults';
 
@@ -81,6 +82,8 @@ export const de = {
     lockerRoom: 'Kabine',
     goals: goalCount,
     goalsOf: (n: number, total: number) => `${n} von ${total} Toren`,
+    /** "Selbst ins Tor" (amendment 21, FR-146): the saves and the shot that flies now. */
+    keeperCount: (saves: number, shot: number, total: number) => `${saves} gehalten · Schuss ${shot} von ${total}`,
     hearts: (n: number) => `${n} Bälle übrig`,
     speaker: 'Vorlesen',
     numberPad: { label: 'Zahlenfeld', delete: 'Löschen', shoot: 'Schießen' },
@@ -96,6 +99,10 @@ export const de = {
     miss: (n: number) => `Hier ist ${n}. Nochmal!`,
     /** A shot at a number behind the wall of "Freistoß mit Mauer" (amendment 21, FR-142). */
     blocked: (n: number) => `Die Mauer! Hier ist ${n}.`,
+    /** "Selbst ins Tor" (amendment 21, FR-143): a save, a wrong number, a shot not answered in time. */
+    saved: 'Gehalten!',
+    conceded: (n: number) => `Tor! Hier war ${n}.`,
+    late: (n: number) => `Zu spät! Hier war ${n}.`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
     /** A goal that raised the difficulty level (FR-088). */
@@ -126,6 +133,9 @@ export const de = {
     newRecord: 'Neuer Rekord!',
     record: (n: number) => `Dein Rekord: ${n}`,
     recordTime: (goals: number, timeMs: number) => `Dein Rekord: ${goalCount(goals)} in ${clock(timeMs)}`,
+    /** "Selbst ins Tor" (amendment 21, FR-146): the saves of the round and the best. */
+    keeperSummary: (saves: number, shots: number) => `${saves} von ${shots} gehalten`,
+    keeperRecord: (saves: number) => `Dein Rekord: ${saves} gehalten`,
     stars: (n: number) => `+${starCount(n)}`,
     /** A new version waits (amendment 12, FR-103). */
     updateWaiting: 'Neue Version, startet gleich',
@@ -359,6 +369,8 @@ export const de = {
       timeChallengeAllowed: 'Zeit-Challenge erlauben',
       /** Amendment 21 (FR-141). */
       modesHint: 'Freigeschaltete Spielarten bekommen einen eigenen Knopf auf dem Startbildschirm. Ausgeschaltet ist der Knopf weg.',
+      /** "Selbst ins Tor" (amendment 21, FR-144). */
+      keeperSpeed: 'Schussgeschwindigkeit',
       timeChallengeMinutes: 'Dauer',
     },
     options: {
@@ -373,6 +385,8 @@ export const de = {
       numberPad: { auto: 'automatisch', always: 'immer', never: 'nie' },
       /** The modes to unlock (amendment 21), as named in the locker room. */
       modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen' } satisfies Record<UnlockMode, string>,
+      /** The flight time of the opponent's shot in "Selbst ins Tor" (FR-144); the first shot of a round is always slow. */
+      keeperSpeed: { slow: 'langsam (10 s)', medium: 'mittel (8 s)', fast: 'schnell (5 s)' } satisfies Record<KeeperSpeed, string>,
     },
     data: {
       export: 'Daten sichern',

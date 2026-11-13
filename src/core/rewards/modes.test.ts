@@ -65,11 +65,11 @@ describe('start buttons and startable modes (FR-141)', () => {
       { mode: 'keeper', key: 'T', state: 'locked', price: 300 },
       { mode: 'shootout', key: 'E', state: 'locked', price: 600 },
     ]);
-    const owned = withStars(0, ['wall', 'keeper']);
+    const owned = withStars(0, ['wall', 'keeper', 'shootout']);
     expect(modeButtons(owned, ALL, true).map((b) => [b.mode, b.state])).toEqual([
       ['wall', 'ready'],
-      ['keeper', 'soon'],
-      ['shootout', 'locked'],
+      ['keeper', 'ready'],
+      ['shootout', 'soon'],
     ]);
   });
 
@@ -85,8 +85,9 @@ describe('start buttons and startable modes (FR-141)', () => {
     const owned = withStars(0, ['wall', 'keeper', 'shootout']);
     expect(canStart('wall', owned, settings)).toBe(true);
     expect(canStart('wall', owned, { ...settings, modesAllowed: { ...ALL, wall: false } })).toBe(false);
-    // Built in amendment 21 parts 2 and 3.
-    expect(canStart('keeper', owned, settings)).toBe(false);
+    expect(canStart('keeper', owned, settings)).toBe(true);
+    expect(canStart('keeper', owned, { ...settings, modesAllowed: { ...ALL, keeper: false } })).toBe(false);
+    // Built in amendment 21 part 3.
     expect(canStart('shootout', owned, settings)).toBe(false);
     expect(canStart('play', emptyLockerRoom(), settings)).toBe(true);
     expect(canStart('time', emptyLockerRoom(), { ...settings, timeChallenge: { allowed: false, minutes: 2 } })).toBe(false);
@@ -94,6 +95,7 @@ describe('start buttons and startable modes (FR-141)', () => {
 
   it('"Nochmal" starts a round of the same kind again', () => {
     expect(startKindOf({ roundType: 'untilHearts', mode: 'wall' })).toBe('wall');
+    expect(startKindOf({ roundType: 'goalCount', mode: 'keeper' })).toBe('keeper');
     expect(startKindOf({ roundType: 'goalCount', mode: 'normal' })).toBe('play');
     expect(startKindOf({ roundType: 'time', mode: 'normal' })).toBe('time');
     expect(startKindOf({ roundType: 'cup', mode: 'normal' })).toBe('cup');

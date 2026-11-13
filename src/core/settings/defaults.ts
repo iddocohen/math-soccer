@@ -53,5 +53,6 @@ export function defaultSettings(): Settings {
     pointAfterFullHelp: true,
     rowColumnHelper: true,
     modesAllowed: { wall: true, keeper: true, shootout: true },
+    keeperSpeed: 'medium',
   };
 }

@@ -36,8 +36,16 @@ function fakeScene() {
     o.setAlpha = (a: number) => ((o.alpha = a), o);
     return o;
   };
+  const text = () => {
+    const o = shape();
+    o.text = '';
+    o.setOrigin = () => o;
+    o.setColor = () => o;
+    o.setText = (t: string) => ((o.text = t), o);
+    return o;
+  };
   const scene = {
-    add: { graphics: shape, ellipse: shape, container: shape },
+    add: { graphics: shape, ellipse: shape, container: shape, text },
     tweens: {
       addCounter: (c: { delay?: number; duration: number; onUpdate: FakeTween['onUpdate']; onComplete: () => void }) => {
         const tw: FakeTween = { start: now, delay: c.delay ?? 0, duration: c.duration, onUpdate: c.onUpdate, onComplete: c.onComplete, stopped: false };
@@ -259,5 +267,16 @@ describe('cup keeper quirks are looks only (amendment 13, FR-107)', () => {
     k.setTeam({ color: '#2b6fd6', trim: '#cfe6ff', quirk: 'cap' });
     k.setTeam(null);
     expect(k.quirk).toBeNull();
+  });
+});
+
+describe('the child in goal wears his kit (amendment 21, FR-143)', () => {
+  it('setKit shows the shirt number; null takes it off', () => {
+    const { k } = keeper();
+    expect(k.shirtNumber).toBe('');
+    k.setKit({ color: 0xe8b923, number: 7 });
+    expect(k.shirtNumber).toBe('7');
+    k.setKit(null);
+    expect(k.shirtNumber).toBe('');
   });
 });

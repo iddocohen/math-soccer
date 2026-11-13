@@ -10,6 +10,9 @@
  * - `caught(ms)`: after a miss the ball stays in the keeper's gloves, then fades and waits at the kick spot. On a square
  *   of a cutout without the keeper (amendment 18) it rests on the square the same way.
  * - `reset()`: the ball waits at the kick spot.
+ * - "Selbst ins Tor" (amendment 21): `roll(rect, k)` puts the opponent's ball `k` (0 to 1) of the way it rolls on the
+ *   grass toward the square before the shot is decided; it stays below the goal line, so it never covers a square.
+ *   `flyOn(rect, onArrive)` then flies it from where it is to the square in FLIGHT_MS.
  * - `flightPoint`: the ball's middle and drawn width while it flies to the square, null otherwise; the ball trail
  *   follows it (amendment 20, FR-134).
  *
@@ -32,6 +35,18 @@ export const FLIGHT_MS = 800;
 const ARC = 120;
 /** The ball shrinks to at most this part of its size at the goal, and smaller when the square is smaller. */
 const FAR_SCALE = 0.55;
+/** The opponent's rolling ball goes at most this part of the way to the square, and never past ROLL_TOP_Y. */
+const ROLL_SHARE = 0.35;
+/** A little below the goal line (y 800), so the rolling ball never covers the chart. */
+const ROLL_TOP_Y = 820;
+
+/** Where the rolling ball is `k` (0 to 1) of its way toward `to`, and its scale there (amendment 21). */
+export function rollPoint(to: { x: number; y: number }, k: number): { x: number; y: number; scale: number } {
+  const dy = KICK_SPOT.y - to.y;
+  const share = dy > 0 ? Math.min(ROLL_SHARE, (KICK_SPOT.y - ROLL_TOP_Y) / dy) : ROLL_SHARE;
+  const f = share * Math.max(0, Math.min(1, k));
+  return { x: KICK_SPOT.x + (to.x - KICK_SPOT.x) * f, y: KICK_SPOT.y - dy * f, scale: 1 - 0.2 * Math.max(0, Math.min(1, k)) };
+}
 
 export class BallView {
   private readonly scene: Phaser.Scene;
@@ -80,10 +95,34 @@ export class BallView {
 
   fly(to: Rect, onArrive: () => void): void {
     this.reset();
+    this.flyFrom({ x: KICK_SPOT.x, y: KICK_SPOT.y, scale: 1 }, to, onArrive);
+  }
+
+  /** The opponent's ball rolls on the grass, `k` of its way toward `to` (amendment 21). */
+  roll(to: Rect, k: number): void {
+    this.stop();
+    const p = rollPoint(center(to), k);
+    this.ball.setPosition(p.x, p.y).setAlpha(1).setDepth(BALL_DEPTH).setVisible(true);
+    this.setSize(p.scale);
+    if (this.picture.sprite) this.ball.setFrame(spinFrame(k * 0.5));
+    else this.ball.setRotation(k * 4);
+    this.placeShadow(p.x, p.y, p.scale);
+    this.shadow.setVisible(true);
+  }
+
+  /** Flies the ball from where it is now to `to` in FLIGHT_MS (amendment 21: after `roll`). */
+  flyOn(to: Rect, onArrive: () => void): void {
+    this.stop();
+    this.ball.setAlpha(1).setDepth(BALL_DEPTH).setVisible(true);
+    this.flyFrom({ x: this.ball.x, y: this.ball.y, scale: this.relativeScale() }, to, onArrive);
+  }
+
+  private flyFrom(from: { x: number; y: number; scale: number }, to: Rect, onArrive: () => void): void {
     const size = BALL_SIZE[this.kind];
     const endScale = Math.min(FAR_SCALE, (to.height * 0.85) / size, (to.width * 0.85) / size);
-    const x0 = KICK_SPOT.x;
-    const y0 = KICK_SPOT.y;
+    const startScale = from.scale;
+    const x0 = from.x;
+    const y0 = from.y;
     const { x: x1, y: y1 } = center(to);
     this.inFlight = true;
     this.tween = this.scene.tweens.addCounter({
@@ -96,7 +135,7 @@ export class BallView {
         const e = 1 - (1 - k) * (1 - k);
         const x = x0 + (x1 - x0) * e;
         const ground = y0 + (y1 - y0) * e;
-        const scale = 1 + (endScale - 1) * e;
+        const scale = startScale + (endScale - startScale) * e;
         this.ball.setPosition(x, ground - Math.sin(Math.PI * k) * ARC);
         this.setSize(scale);
         // The sprite spins through its frames; a drawn ball turns.

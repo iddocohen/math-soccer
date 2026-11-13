@@ -22,6 +22,9 @@
  *   or a glance to the left before each leap (looks left first). Quirks are looks only: his size, his waiting spot and
  *   his leaps stay the same, and the waiting keeper stays behind the grid (FR-120).
  *
+ * - "Selbst ins Tor" (amendment 21, FR-143): `setKit()` dresses him as the child: the shirt in the child's shirt color
+ *   with the shirt number on the chest. The kit wins over a cup team's colors.
+ *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the keeper.
  */
 import Phaser from 'phaser';
@@ -41,7 +44,8 @@ import {
   type KeeperPose,
 } from './keeperDive';
 import type { Quirk } from '../core/cup/teams';
-import { COLOR, hexColor } from './palette';
+import { COLOR, css, hexColor } from './palette';
+import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 
 export const KEEPER_PHASES = ['idle', 'diving', 'caught', 'beaten'] as const;
 export type KeeperPhase = (typeof KEEPER_PHASES)[number];
@@ -103,6 +107,12 @@ export interface KeeperTeam {
   quirk: Quirk;
 }
 
+/** The child's kit when he is the keeper (amendment 21): the shirt color and the shirt number. */
+export interface KeeperKit {
+  color: number;
+  number: number;
+}
+
 export class KeeperView {
   private readonly scene: Phaser.Scene;
   private readonly body: Phaser.GameObjects.Container;
@@ -117,8 +127,12 @@ export class KeeperView {
   private readonly extras: Phaser.GameObjects.Graphics;
   /** The eyes, which the keeper who looks left first turns before a leap. */
   private readonly eyes: Phaser.GameObjects.Graphics;
+  /** The shirt number on the chest of the child's kit. */
+  private readonly number: Phaser.GameObjects.Text;
   /** The cup opponent's colors and quirk; null outside the cup (the blue keeper). */
   private team: KeeperTeam | null = null;
+  /** The child's kit in "Selbst ins Tor"; null otherwise. */
+  private kit: KeeperKit | null = null;
   /** What the team's quirk changes in his moves; PLAIN outside the cup. */
   private profile: QuirkProfile = PLAIN;
   private pose: KeeperPose = HOME_POSE;
@@ -142,6 +156,9 @@ export class KeeperView {
     this.head = scene.add.graphics();
     this.extras = scene.add.graphics();
     this.eyes = scene.add.graphics();
+    this.number = scene.add
+      .text(0, -26, '', { fontFamily: GAME_FONT, fontStyle: String(GAME_FONT_WEIGHT), fontSize: '20px', color: css(COLOR.ink) })
+      .setOrigin(0.5, 0.5);
 
     this.leftArm = scene.add.graphics().setPosition(-SHOULDER.x, SHOULDER.y);
     this.rightArm = scene.add.graphics().setPosition(SHOULDER.x, SHOULDER.y);
@@ -151,7 +168,7 @@ export class KeeperView {
       .ellipse(HOME_POSE.x, GOAL_LINE, 70 * KEEPER_SCALE, 14 * KEEPER_SCALE, 0x000000, 0.28)
       .setDepth(WAITING_DEPTH - 0.01);
     this.body = scene.add
-      .container(0, 0, [this.leftArm, this.rightArm, this.legs, this.torso, this.head, this.eyes, this.extras])
+      .container(0, 0, [this.leftArm, this.rightArm, this.legs, this.torso, this.number, this.head, this.eyes, this.extras])
       .setDepth(WAITING_DEPTH)
       .setScale(KEEPER_SCALE);
     this.apply(HOME_POSE);
@@ -193,6 +210,18 @@ export class KeeperView {
     this.team = team ? { ...team } : null;
     this.profile = team ? QUIRK_PROFILE[team.quirk] : PLAIN;
     this.paint();
+  }
+
+  /** Dresses him in the child's kit with the shirt number (amendment 21); null takes the kit off again. */
+  setKit(kit: KeeperKit | null): void {
+    if (kit?.color === this.kit?.color && kit?.number === this.kit?.number) return;
+    this.kit = kit ? { ...kit } : null;
+    this.paint();
+  }
+
+  /** The shirt number he shows, '' without the child's kit. */
+  get shirtNumber(): string {
+    return this.number.text;
   }
 
   /** Stops any motion: the keeper waits in the middle until he hears the next squares. */
@@ -364,8 +393,16 @@ export class KeeperView {
 
   /** Draws the kit in the team colors (or the blue keeper's) and the quirk's look. */
   private paint(): void {
-    const jersey = this.team ? hexColor(this.team.color) : COLOR.keeperJersey;
-    const trim = this.team ? hexColor(this.team.trim) : COLOR.chalk;
+    let jersey = this.team ? hexColor(this.team.color) : COLOR.keeperJersey;
+    let trim = this.team ? hexColor(this.team.trim) : COLOR.chalk;
+    if (this.kit) {
+      jersey = this.kit.color;
+      trim = COLOR.chalk;
+    }
+    this.number.setText(this.kit ? String(this.kit.number) : '');
+    // A dark number on light shirts, a light one on dark shirts.
+    const light = ((jersey >> 16) & 0xff) * 0.299 + ((jersey >> 8) & 0xff) * 0.587 + (jersey & 0xff) * 0.114 > 150;
+    this.number.setColor(light ? css(COLOR.ink) : css(COLOR.chalk));
     const legs = this.legs.clear();
     legs.fillStyle(COLOR.skin, 1);
     legs.fillRect(-15, 12, 11, 14);

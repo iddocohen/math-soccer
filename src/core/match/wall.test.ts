@@ -9,7 +9,7 @@ import { LEVELS } from '../settings/defaults';
 import type { Target } from '../types';
 import { MatchController, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
-import { keptClearSquares, placeWall, wallBlocks, wallClear, wallColumns, WALL_DEFENDERS_MAX, WALL_DEFENDERS_MIN, type Wall } from './wall';
+import { keptClearSquares, placeWall, PLAYER_COLUMNS, wallBlocks, wallClear, wallColumns, WALL_DEFENDERS_MAX, WALL_DEFENDERS_MIN, type Wall } from './wall';
 
 const layout = layoutChart(1, 100);
 
@@ -90,6 +90,18 @@ describe('placeWall (FR-142)', () => {
       const after = placeWall(layout, target(45), createRng(seed), before)!;
       expect([after.from, after.to]).not.toEqual([before.from, before.to]);
     }
+  });
+
+  it('stands beside the columns of the child\'s player when a band fits there, and in front of him only when none does', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      // Target 18 with hints in columns 6 to 8: columns 0 to 2, 5 and 9 are free beside the player.
+      const wall = placeWall(layout, target(18), createRng(seed))!;
+      for (const c of wallColumns(wall)) expect(PLAYER_COLUMNS).not.toContain(c);
+    }
+    // Only columns 3 and 4 are free: the wall stands there.
+    const hints = [1, 2, 3, 6, 7, 8, 9, 10];
+    const crowded = placeWall(layout, { ...target(1, hints) }, createRng(4))!;
+    expect(wallColumns(crowded).every((c) => PLAYER_COLUMNS.includes(c))).toBe(true);
   });
 
   it('blocks exactly the numbers in its columns, in every row', () => {

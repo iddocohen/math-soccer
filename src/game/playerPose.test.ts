@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHART_RECT, KICK_SPOT, OVERLAY_LEFT, WORLD_HEIGHT } from '../core/match/world';
 import type { Rect } from '../core/types';
+import { PLAYER_COLUMNS } from '../core/match/wall';
 import { KEEPER_HEIGHT, KEEPER_SCALE } from './keeperDive';
 import { BALL_HALF_WIDTH, BODY, CUP_LIFT, KICKING, KICK_STEP_MS, KEEPER_DRAWN_HEIGHT, PLAYER_FEET, PLAYER_SCALE, playerBounds, STANDING } from './playerPose';
 
@@ -78,5 +79,16 @@ describe('the cup lift (amendment 19, FR-131)', () => {
   it('takes the upper arms up and out from the shoulders, and the forearms in to the cup', () => {
     expect(elbow.x).toBeGreaterThan(shoulder.x);
     expect(hand.x).toBeLessThan(elbow.x);
+  });
+});
+
+describe('the wall keeps clear of the player (amendment 21, FR-142)', () => {
+  it('PLAYER_COLUMNS are the chart columns the player stands in front of', () => {
+    const column = CHART_RECT.width / 10;
+    const half = BODY.halfWidth * PLAYER_SCALE;
+    const first = Math.floor((PLAYER_FEET.x - half - CHART_RECT.x) / column);
+    const last = Math.floor((PLAYER_FEET.x + half - CHART_RECT.x) / column);
+    const covered = Array.from({ length: last - first + 1 }, (_, i) => first + i);
+    expect(PLAYER_COLUMNS).toEqual(covered);
   });
 });

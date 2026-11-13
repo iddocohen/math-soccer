@@ -65,6 +65,11 @@
  * Mauer" starts with "Mauer" or M; `data-mode` on the match names the match mode and `data-wall-cols` lists the columns
  * the wall covers ('' without a wall). Its bests are kept apart (`recordKey` with the mode).
  *
+ * Amendment 21 part 2 (T114): "Selbst ins Tor" starts with "Torwart" or T. The match carries `data-shots` (shots
+ * decided), `data-saves`, `data-shot-target` (the number of the square the ball flies at, '' between shots),
+ * `data-shot-state` and `data-opponent` (the cup team that shoots). The round end reads "N von 10 gehalten", and its
+ * best is the most saves (`recordKey` with the mode 'keeper').
+ *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
  * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
@@ -88,6 +93,7 @@ import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult } from '../core/records/records';
 import { canStart, isControllerKind, startKindOf } from '../core/match/rounds';
 import { wallColumns } from '../core/match/wall';
+import { KEEPER_SHOTS, keeperOpponent } from '../core/match/keeper';
 import { modeButtons } from '../core/rewards/modes';
 import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
@@ -269,6 +275,17 @@ function createApp() {
     seenMessage = message;
   });
   return { persistence, controller, sfx, speaker, settings, restored, restoredCup, saves };
+}
+
+/**
+ * The opponent's shot of "Selbst ins Tor" for tests (`data-shot-state`): `flying`, `held` by help, or how it was
+ * decided (`saved`, `wrong`, `late`); empty in the other modes and after the round.
+ */
+function shotState(s: MatchView): string {
+  const shot = s.keeperShot;
+  if (shot === null) return '';
+  if (shot.result !== null) return shot.result;
+  return shot.held ? 'held' : 'flying';
 }
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
@@ -736,6 +753,11 @@ export function App() {
       data-stadium-name={stadiumNameShown(locker.stadiumName)}
       data-mode={state.mode}
       data-wall-cols={state.wall ? wallColumns(state.wall).join(',') : ''}
+      data-shots={state.mode === 'keeper' ? state.shots : ''}
+      data-saves={state.mode === 'keeper' ? state.goals : ''}
+      data-shot-target={state.keeperShot?.result === null ? (state.target?.number ?? '') : ''}
+      data-shot-state={shotState(state)}
+      data-opponent={state.mode === 'keeper' ? keeperOpponent(state.seed).id : ''}
       onPointerDown={skipCelebration}
     >
       <div className="game-parent" ref={gameParent} />
@@ -780,6 +802,7 @@ export function App() {
           cup={state.roundType === 'cup' ? cupResult : null}
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
+          keeperShots={state.mode === 'keeper' ? KEEPER_SHOTS : null}
           onAgain={playAgain}
           onBack={() => setScreen(state.roundType === 'cup' ? 'cup' : 'start')}
         />

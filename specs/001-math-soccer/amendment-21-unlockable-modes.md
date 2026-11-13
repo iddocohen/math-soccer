@@ -30,6 +30,7 @@
   - The target and its hints are always in the free part.
   - A shot at a number behind the wall hits the wall, with the soft "ohhh". The square of the typed number still flashes, so the child sees where the number is (FR-003).
   - The wall moves to new columns after each goal.
+  - The defenders are drawn taller than the keeper and smaller than the child's player, standing on the grass in front of the goal line under the covered columns, beside the child's player whenever the free columns allow it; they are drawn behind the grid, so they never cover a number, a hint or the target.
 
   Targets come from the child's current level. Rounds follow the parent's round type.
 

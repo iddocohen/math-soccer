@@ -37,6 +37,12 @@
  *   the columns behind it. A shot at a number behind the wall flies to the wall instead of the square; the keeper does
  *   not dive, the defenders jump, and the "ohhh" plays as after a caught ball. The square of the typed number lights up
  *   from the controller's shown square, as after any miss.
+ * - "Selbst ins Tor" (amendment 21, FR-143 to FR-145): the keeper wears the child's kit and shirt number, and the
+ *   player at the kick spot is the opponent, drawn in a cup team's colors (`keeperOpponent`). On each new shot he kicks
+ *   and the ball rolls slowly on the grass toward the target square, which flashes with a countdown ring (ShotView);
+ *   both follow the shot's time left on every frame and stop while help holds the shot. When the shot is decided the
+ *   ball flies to the square: on a save the keeper dives there and holds it and the fans cheer; on a wrong number he
+ *   dives to the typed square and the ball goes into the net with the "ohhh"; too late, he leaps and falls short.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -51,6 +57,8 @@ import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } fr
 import { isCutoutFill } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
 import { WallView } from './WallView';
+import { ShotView } from './ShotView';
+import { keeperOpponent } from '../core/match/keeper';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -150,6 +158,8 @@ export interface MatchSceneOptions {
 const FILL_REST_MS = 250;
 
 const GRASS_TEXTURE = 'grass';
+/** The shirt number of the opponent who shoots in "Selbst ins Tor". */
+const OPPONENT_NUMBER = 9;
 /** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
 const GRASS_TILE_SCALE = 0.5;
 
@@ -169,6 +179,13 @@ export class MatchScene extends Phaser.Scene {
   private mascot!: MascotView;
   private weather!: WeatherView;
   private wall!: WallView;
+  private shot!: ShotView;
+  /** The target count of the opponent's shot the scene shows; -1 before the first. */
+  private shotCount = -1;
+  /** True once the scene played how the current shot was decided. */
+  private shotDecided = false;
+  /** The part of its way the rolling ball has gone, as drawn: it follows the shot's time left smoothly. */
+  private shotK = 0;
   private backdrop!: Phaser.GameObjects.Image;
   private extras: SceneExtras = {
     trail: 'none',
@@ -220,7 +237,7 @@ export class MatchScene extends Phaser.Scene {
     this.backdrop = this.add.image(0, 0, this.backdropTexture(look)).setOrigin(0, 0).setDepth(0);
     this.weather = new WeatherView(this);
     this.weather.setWeather(look.weather);
-    this.lookKey = lookKey(look);
+    this.lookKey = '';
     this.stands = new StandsView(this, look.scarfColor);
     this.stands.setStands(look.stands);
     this.goal = new GoalView(this);
@@ -235,6 +252,10 @@ export class MatchScene extends Phaser.Scene {
     this.goalEffect = new GoalEffectView(this);
     this.mascot = new MascotView(this, (mood) => this.setExtras({ mascotMood: mood }));
     this.wall = new WallView(this);
+    this.shot = new ShotView(this);
+    this.shotCount = -1;
+    this.shotDecided = false;
+    this.shotK = 0;
     this.extrasKey = '';
     this.cupMatch = null;
     this.prev = null;
@@ -256,6 +277,7 @@ export class MatchScene extends Phaser.Scene {
     this.goalEffect.update(delta);
     this.mascot.update(delta);
     this.weather.update(delta);
+    this.followShot(delta);
     if (this.trail.showing !== this.extras.trailShowing || this.goalEffect.running !== this.extras.goalEffectPlaying) {
       this.setExtras({ trailShowing: this.trail.showing, goalEffectPlaying: this.goalEffect.running });
     }
@@ -298,6 +320,8 @@ export class MatchScene extends Phaser.Scene {
       this.goalEffect.clear();
       this.mascot.calm();
       this.startCup(s);
+      this.shotCount = -1;
+      this.shot.hide();
     }
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
     if (s.target) {
@@ -319,12 +343,75 @@ export class MatchScene extends Phaser.Scene {
 
     if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
 
+    if (s.mode === 'keeper') this.drawShot(s, layout);
+    else this.shot.hide();
     if (s.phase === 'ballInFlight' && s.ball && !this.flying) this.kick(s.ball.number);
     // After the celebration the next target shows and the ball waits at the kick spot again.
     if (s.phase === 'aiming' && s.ball === null && this.ballInNet) {
       this.ballInNet = false;
       this.ball.reset();
     }
+  }
+
+  /**
+   * The opponent's shot of "Selbst ins Tor": a new shot is kicked, a decided one plays its end. The rolling ball and the
+   * countdown ring follow the time left in `followShot`.
+   */
+  private drawShot(s: MatchView, layout: ChartLayout): void {
+    const shot = s.keeperShot;
+    if (shot === null || s.target === null) {
+      this.shot.hide();
+      return;
+    }
+    if (this.shotCount !== s.targetCount) {
+      this.shotCount = s.targetCount;
+      this.shotDecided = false;
+      this.shotK = 1 - shot.leftMs / shot.totalMs;
+      this.ballInNet = false;
+      this.ball.reset();
+      this.player.kick();
+      this.options.sounds?.kick();
+    }
+    if (shot.result === null || this.shotDecided) return;
+    this.shotDecided = true;
+    this.shot.hide();
+    const target = cellRect(layout, CHART_RECT, s.target.number);
+    const typed = shot.typed !== null ? cellRect(layout, CHART_RECT, shot.typed) : null;
+    if (shot.result === 'saved') this.keeper.dive(target, 'catch');
+    else if (typed !== null) this.keeper.dive(typed, 'catch');
+    else this.keeper.dive(target, 'beaten');
+    const saved = shot.result === 'saved';
+    this.ball.flyOn(target, () => {
+      if (saved) {
+        this.keeper.catchBall();
+        this.ball.caught(HOLD_MS);
+        this.stands.cheer();
+        this.options.sounds?.cheer();
+        this.mascot.cheer();
+        return;
+      }
+      this.keeper.beaten();
+      this.goal.bulge(center(target));
+      this.ballInNet = true;
+      this.ball.intoNet();
+      this.stands.ohh();
+      this.options.sounds?.ohh();
+      this.mascot.coverEyes();
+    });
+  }
+
+  /** Every frame: the rolling ball and the countdown ring of a shot in flight follow its time left (FR-144). */
+  private followShot(delta: number): void {
+    const s = this.controller.getState();
+    const shot = s.keeperShot;
+    if (s.mode !== 'keeper' || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
+    const goal = 1 - shot.leftMs / shot.totalMs;
+    // The controller's time moves in steps of a tick; the drawing eases toward it.
+    this.shotK += (goal - this.shotK) * Math.min(1, delta / 250);
+    const rect = cellRect(this.layoutOf(s), CHART_RECT, s.target.number);
+    this.ball.roll(rect, this.shotK);
+    this.shot.show(rect, 1 - this.shotK, shot.held || s.helpChartOpen);
+    this.shot.update(delta);
   }
 
   /**
@@ -382,7 +469,7 @@ export class MatchScene extends Phaser.Scene {
   /** Shows the current look on the player, the scarves and the ball of the chart size of `layout`. */
   private refreshLook(layout: ChartLayout): void {
     const look = this.currentLook();
-    this.applyLook(look);
+    this.applyLook(look, this.controller.getState());
     this.ball.setLook(ballKind(layout), look.ball);
     this.trail.setTrail(look.trail);
     this.mascot.setMascot(look.mascot);
@@ -404,12 +491,18 @@ export class MatchScene extends Phaser.Scene {
     return this.layout;
   }
 
-  /** Redraws the shirt and recolors the scarves when the look changed. */
-  private applyLook(look: Look): void {
-    const key = lookKey(look);
+  /**
+   * Redraws the shirt and recolors the scarves when the look changed. In "Selbst ins Tor" the child is the keeper in his
+   * kit, and the player at the kick spot wears the opponent's colors (amendment 21).
+   */
+  private applyLook(look: Look, s: MatchView): void {
+    const keeperMode = s.started && s.mode === 'keeper';
+    const opponent = keeperMode ? keeperOpponent(s.seed) : null;
+    const key = `${lookKey(look)}|${opponent?.id ?? ''}`;
     if (key === this.lookKey) return;
     this.lookKey = key;
-    this.player.setLook(look);
+    this.player.setLook(opponent ? { ...look, shirtColor: hexColor(opponent.color), shirtNumber: OPPONENT_NUMBER, shirtName: opponent.name } : look);
+    this.keeper.setKit(keeperMode ? { color: look.shirtColor, number: look.shirtNumber } : null);
     this.stands.setScarfColor(look.scarfColor);
   }
 

@@ -1,11 +1,14 @@
 /**
  * The wall of "Freistoß mit Mauer" (amendment 21, FR-142): 3 to 5 defenders stand shoulder to shoulder on the grass in
- * front of the goal, below the chart, over the band of columns the wall covers (core/match/wall.ts). A light wash in
+ * front of the goal line, lined up under the band of columns the wall covers (core/match/wall.ts). They are drawn
+ * taller than the keeper and smaller than the child's player, because they stand between the two. A light wash in
  * the wall's kit color over those columns of the chart shows which numbers are behind the wall; it lies under the grid,
  * so the square of a typed number still lights up over it.
  *
  * - The defenders wear a neutral kit: red, or blue when the child's shirt is red-like, so they never look like his team.
- *   Their arms are folded in front, as in a real wall. Their heads stay below the chart, so they never cover a number.
+ *   Their arms are folded in front, as in a real wall. Their upper bodies reach into the chart's lower rows, so like the
+ *   waiting keeper (FR-120) they are drawn behind the grid: every number, hint and the target stay readable over them.
+ *   The wall never stands in the columns of the child's player when it can avoid them (`PLAYER_COLUMNS`).
  * - `hitPoint(n)`: where a shot at `n` meets the wall, at the chest of the defender nearest to its column.
  * - `bump()`: the defenders jump a little when the ball hits them.
  */
@@ -14,19 +17,23 @@ import { COLUMNS, cellOf, type ChartLayout } from '../core/chart/layout';
 import type { Wall } from '../core/match/wall';
 import { CHART_RECT } from '../core/match/world';
 import type { DeepReadonly, Rect } from '../core/types';
-import { BALL_IN_NET_DEPTH, BOARD_DEPTH, POSTS_DEPTH } from './GoalView';
+import { BOARD_DEPTH } from './GoalView';
 import { COLOR } from './palette';
-import { PLAYER_DEPTH } from './PlayerView';
+import { WAITING_DEPTH } from './KeeperView';
+import { KEEPER_DRAWN_HEIGHT, PLAYER_SCALE, BODY } from './playerPose';
 
-/** Under the grid, over the ball in the net. */
-const SHADE_DEPTH = (BALL_IN_NET_DEPTH + BOARD_DEPTH) / 2;
-/** In front of the posts and the keeper, behind the player and the ball. */
-export const WALL_DEPTH = (POSTS_DEPTH + PLAYER_DEPTH) / 2;
-/** Where the defenders' feet stand: between the goal line (y 800) and the kick spot (y 940). */
-export const WALL_FEET_Y = 902;
-/** A defender from the feet to the top of the head; the head stays below the chart's bottom edge (y 750). */
-export const DEFENDER_HEIGHT = 150;
-const DEFENDER_WIDTH = 62;
+/** Under the grid and the defenders, over the waiting keeper and the ball in the net. */
+const SHADE_DEPTH = WAITING_DEPTH + (BOARD_DEPTH - WAITING_DEPTH) * 0.25;
+/** Behind the grid, so no number is covered, and in front of the waiting keeper, who stands further back (FR-120). */
+export const WALL_DEPTH = WAITING_DEPTH + (BOARD_DEPTH - WAITING_DEPTH) * 0.6;
+/** Where the defenders' feet stand: on the grass in front of the goal line (y 800), behind the kick spot (y 940). */
+export const WALL_FEET_Y = 880;
+/** A defender from the feet to the top of the head: between the keeper and the child's player (amendment 21). */
+export const DEFENDER_HEIGHT = Math.round(KEEPER_DRAWN_HEIGHT * 1.15);
+/** The child's player is this tall; the defenders stay smaller. */
+export const PLAYER_HEIGHT = BODY.height * PLAYER_SCALE;
+const DEFENDER_WIDTH_MIN = 60;
+const DEFENDER_WIDTH_MAX = 110;
 /** The defenders' shirt colors: red, or blue when the child wears a red-like shirt. */
 const KITS = [0xc94f4f, 0x3e6fb0] as const;
 const BUMP_MS = 160;
@@ -79,9 +86,9 @@ export class WallView {
     this.shade.lineBetween(left, CHART_RECT.y, left, CHART_RECT.y + CHART_RECT.height);
     this.shade.lineBetween(left + width, CHART_RECT.y, left + width, CHART_RECT.y + CHART_RECT.height);
     const xs = defenderXs(wall);
-    // Shoulder to shoulder: a little wider than the space between two defenders, at most DEFENDER_WIDTH.
-    const spacing = xs.length > 1 ? xs[1]! - xs[0]! : DEFENDER_WIDTH;
-    const size = Math.min(DEFENDER_WIDTH, Math.max(36, spacing + 8));
+    // Shoulder to shoulder: a little wider than the space between two defenders, so their shoulders overlap.
+    const spacing = xs.length > 1 ? xs[1]! - xs[0]! : DEFENDER_WIDTH_MAX;
+    const size = defenderWidth(spacing);
     for (const x of xs) this.defenders.add(drawDefender(this.scene, x, WALL_FEET_Y, size, kit));
   }
 
@@ -104,6 +111,11 @@ export class WallView {
   get showing(): boolean {
     return this.wall !== null;
   }
+}
+
+/** A defender's width for `spacing` between two defenders' middles. */
+export function defenderWidth(spacing: number): number {
+  return Math.min(DEFENDER_WIDTH_MAX, Math.max(DEFENDER_WIDTH_MIN, spacing * 1.3));
 }
 
 /** One defender seen from the front, feet at (`x`, `feet`): legs, shorts, shirt, folded arms and head. */
@@ -135,9 +147,10 @@ function drawDefender(scene: Phaser.Scene, x: number, feet: number, width: numbe
   g.fillRoundedRect(-w * 0.42, -h * 0.6, w * 0.84, h * 0.07, 4);
   // Head and hair.
   g.fillStyle(COLOR.skin, 1);
-  g.fillCircle(0, -h * 0.9, w * 0.24);
+  const head = Math.min(w * 0.3, h * 0.08);
+  g.fillCircle(0, -h * 0.9, head);
   g.fillStyle(COLOR.hair, 1);
-  g.slice(0, -h * 0.9, w * 0.25, Math.PI, 0, false);
+  g.slice(0, -h * 0.9, head + 1, Math.PI, 0, false);
   g.fillPath();
   return g;
 }

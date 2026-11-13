@@ -8,6 +8,8 @@
  *   no room for that, the band gets narrower (down to one column) with the same defenders. When no column is free at
  *   all, the target has no wall.
  * - A shot at a number in a covered column hits the wall (`wallBlocks`): a miss.
+ * - The wall keeps clear of the columns in front of which the child's player stands (`PLAYER_COLUMNS`), so he never
+ *   hides a defender. Only when no band fits beside him does it stand there.
  * - After a goal the wall moves: a new band is drawn, another one than before. When only the old band fits at the
  *   full width, a narrower band elsewhere is taken; only when no other band fits at all does the wall stay.
  */
@@ -17,6 +19,12 @@ import type { DeepReadonly, Target } from '../types';
 
 export const WALL_DEFENDERS_MIN = 3;
 export const WALL_DEFENDERS_MAX = 5;
+
+/**
+ * The chart columns the child's player stands in front of at the kick spot (src/game/playerPose.ts `PLAYER_FEET`; a
+ * unit test there checks they match). The wall avoids them when it can.
+ */
+export const PLAYER_COLUMNS: readonly number[] = [3, 4];
 
 export interface Wall {
   /** The first and the last chart column the wall covers, 0 to 9, `from <= to`. */
@@ -53,13 +61,29 @@ export function wallClear(layout: ChartLayout, wall: DeepReadonly<Wall>, target:
 
 /**
  * A wall for `target`: 3 to 5 defenders over the widest band of free columns up to N - 1 columns that differs from
- * `previous`. Null when every column holds a square to keep clear.
+ * `previous`, beside the columns in `avoid` when such a band exists. Null when every column holds a square to keep
+ * clear.
  */
-export function placeWall(layout: ChartLayout, target: DeepReadonly<Target>, rng: Rng, previous: DeepReadonly<Wall> | null = null): Wall | null {
+export function placeWall(
+  layout: ChartLayout,
+  target: DeepReadonly<Target>,
+  rng: Rng,
+  previous: DeepReadonly<Wall> | null = null,
+  avoid: readonly number[] = PLAYER_COLUMNS,
+): Wall | null {
   const busy = new Set(keptClearSquares(target).map((n) => cellOf(layout, n).col));
   const defenders = rng.int(WALL_DEFENDERS_MIN, WALL_DEFENDERS_MAX);
+  // A band that moves beside the player first, then one that moves in front of him; when none moves, the wall stays.
+  const free = new Set([...busy, ...avoid]);
+  return bandFor(free, defenders, rng, previous, true) ?? bandFor(busy, defenders, rng, previous, true) ?? bandFor(busy, defenders, rng, previous, false);
+}
+
+/**
+ * The widest band of columns without `busy` ones for `defenders` that differs from `previous`; with `mustMove` false,
+ * the widest band there is when none differs. Null when there is none.
+ */
+function bandFor(busy: ReadonlySet<number>, defenders: number, rng: Rng, previous: DeepReadonly<Wall> | null, mustMove: boolean): Wall | null {
   const same = (b: Wall) => previous !== null && b.from === previous.from && b.to === previous.to;
-  // The widest band that moves; when no band moves, the widest band there is.
   let fallback: Wall[] = [];
   for (let width = defenders - 1; width >= 1; width--) {
     const bands = freeBands(busy, width, defenders);
@@ -67,7 +91,7 @@ export function placeWall(layout: ChartLayout, target: DeepReadonly<Target>, rng
     if (moved.length > 0) return rng.pick(moved);
     if (fallback.length === 0) fallback = bands;
   }
-  return fallback.length > 0 ? rng.pick(fallback) : null;
+  return !mustMove && fallback.length > 0 ? rng.pick(fallback) : null;
 }
 
 /** Every band of `width` neighboring columns with none of the `busy` columns. */

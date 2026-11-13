@@ -3,6 +3,7 @@ import { STARTER } from '../rewards/items';
 import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from '../settings/defaults';
 import { PATTERNS } from '../targets/patterns';
 import { MATCH_MODES } from '../match/rounds';
+import { KEEPER_SHOTS } from '../match/keeper';
 import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
 /**
@@ -244,12 +245,26 @@ export const roundSchema = z
       .object({ from: z.number().int().min(0).max(9), to: z.number().int().min(0).max(9), defenders: z.number().int().min(3).max(5) })
       .nullable()
       .default(null),
+    /** "Selbst ins Tor" (amendment 21, FR-143): the shots decided so far; 0 in the other modes. Added with a default. */
+    shots: z.number().int().min(0).max(KEEPER_SHOTS).default(0),
+    /** The opponent's shot at the current target in "Selbst ins Tor"; null in the other modes. Added with a default. */
+    keeperShot: z
+      .object({
+        totalMs: z.number().positive(),
+        leftMs: z.number().min(0),
+        held: z.boolean(),
+        result: z.enum(['saved', 'wrong', 'late']).nullable(),
+        typed: z.number().int().nullable(),
+        resultLeftMs: z.number().min(0),
+      })
+      .nullable()
+      .default(null),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);
 export type StoredRound = z.infer<typeof roundSchema>;
 
-/** Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, and a wall belongs to the wall mode. */
+/** Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, a wall belongs to the wall mode and a shot at the child in goal to the keeper mode. */
 function roundRules(
   r: {
     phase: string;
@@ -260,6 +275,7 @@ function roundRules(
     cupMatch: unknown;
     mode: string;
     wall: { from: number; to: number } | null;
+    keeperShot: unknown;
     target: { number: number; queue?: Array<{ number: number }>; cutout?: { squares: number[] } } | null;
   },
   ctx: z.RefinementCtx,
@@ -270,6 +286,7 @@ function roundRules(
   if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
   if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
   if (r.wall !== null && (r.mode !== 'wall' || r.wall.from > r.wall.to)) issue('a wall stands only in the wall mode, left to right', 'wall');
+  if (r.keeperShot !== null && r.mode !== 'keeper') issue('a shot at the child in goal belongs to the keeper mode', 'keeperShot');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number), ...(r.target.cutout?.squares ?? [])] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

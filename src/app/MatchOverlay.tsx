@@ -39,6 +39,7 @@
 import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
+import { KEEPER_SHOTS } from '../core/match/keeper';
 import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
@@ -78,6 +79,12 @@ export function messageText(message: MatchMessage | null): string {
       return f.miss(message.number);
     case 'blocked':
       return f.blocked(message.number);
+    case 'saved':
+      return f.saved;
+    case 'conceded':
+      return f.conceded(message.number);
+    case 'late':
+      return f.late(message.number);
     case 'heartLost':
       return f.heartLost;
   }
@@ -161,12 +168,17 @@ export const MatchOverlay = memo(function MatchOverlay({
   const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
   const lit = litLabels(state);
-  const goals =
+  let goals =
     state.roundType === 'goalCount'
       ? text.match.goalsOf(state.goals, settings.goalsPerRound)
       : state.cupMatch !== null
         ? text.match.goalsOf(state.goals, state.cupMatch.goals)
         : text.match.goals(state.goals);
+  // "Selbst ins Tor" (amendment 21): the saves and the shot that flies now, out of KEEPER_SHOTS.
+  if (state.mode === 'keeper') {
+    const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
+    goals = text.match.keeperCount(state.goals, Math.max(1, shot), KEEPER_SHOTS);
+  }
   return (
     <div
       className="overlay"
@@ -209,7 +221,7 @@ export const MatchOverlay = memo(function MatchOverlay({
               {stadium}
             </span>
           )}
-          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && (
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
