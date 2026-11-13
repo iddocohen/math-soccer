@@ -10,6 +10,8 @@
  * - `caught(ms)`: after a miss the ball stays in the keeper's gloves, then fades and waits at the kick spot. On a square
  *   of a cutout without the keeper (amendment 18) it rests on the square the same way.
  * - `reset()`: the ball waits at the kick spot.
+ * - `flightPoint`: the ball's middle and drawn width while it flies to the square, null otherwise; the ball trail
+ *   follows it (amendment 20, FR-134).
  *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the ball.
  */
@@ -39,6 +41,8 @@ export class BallView {
   private design: BallDesign;
   private picture: BallPicture;
   private tween: Phaser.Tweens.Tween | null = null;
+  /** True from the kick until the ball reaches the square. */
+  private inFlight = false;
 
   constructor(scene: Phaser.Scene, kind: BallKind, design: BallDesign) {
     this.scene = scene;
@@ -81,6 +85,7 @@ export class BallView {
     const x0 = KICK_SPOT.x;
     const y0 = KICK_SPOT.y;
     const { x: x1, y: y1 } = center(to);
+    this.inFlight = true;
     this.tween = this.scene.tweens.addCounter({
       from: 0,
       to: 1,
@@ -101,6 +106,7 @@ export class BallView {
       },
       onComplete: () => {
         this.tween = null;
+        this.inFlight = false;
         this.ball.setPosition(x1, y1);
         this.setSize(endScale);
         if (this.picture.sprite) this.ball.setFrame(spinFrame(1));
@@ -148,9 +154,15 @@ export class BallView {
     return this.tween !== null;
   }
 
+  /** The ball's middle and drawn width while it flies to the square; null otherwise. */
+  get flightPoint(): { x: number; y: number; size: number } | null {
+    return this.inFlight ? { x: this.ball.x, y: this.ball.y, size: this.ball.displayWidth } : null;
+  }
+
   stop(): void {
     this.tween?.stop();
     this.tween = null;
+    this.inFlight = false;
   }
 
   /** Scales the ball to `scale` times its BALL_SIZE (1 at the kick spot). */

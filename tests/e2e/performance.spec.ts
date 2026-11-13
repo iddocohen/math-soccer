@@ -3,7 +3,8 @@
 /**
  * Frame rate (T066, plan "Performance Goals"): in a 1 to 200 round (20 rows) and a 0 to 1000 round (the largest chart),
  * the frame rate while the ball flies (`data-phase="ballInFlight"`) averages at least 55 frames per second, and the
- * match is ready within 3 seconds of Enter on the start screen.
+ * match is ready within 3 seconds of Enter on the start screen. A third round adds a fire trail, fireworks and the lion
+ * (amendment 20, T111), so the trail's and the effect's particles are measured too.
  *
  * Frame rates depend on the machine being idle, so this spec runs in its own Playwright project `performance`, after
  * every other project has finished (playwright.config.ts). `pnpm exec playwright test --project=performance --no-deps`
@@ -13,7 +14,8 @@ import type { Page } from '@playwright/test';
 import { expect, seedStorage, targetNumber, test, typeAndShoot } from './fixtures';
 import { defaultSettings } from '../../src/core/settings/defaults';
 import type { Settings } from '../../src/core/settings/schema';
-import { SETTINGS_KEY } from '../../src/core/storage/storage';
+import { emptyLockerRoom } from '../../src/core/storage/schemas';
+import { LOCKER_ROOM_KEY, SETTINGS_KEY } from '../../src/core/storage/storage';
 
 test.describe.configure({ mode: 'default' });
 
@@ -23,9 +25,19 @@ declare global {
   }
 }
 
-const ROUNDS: Array<{ name: string; range: Settings['range'] }> = [
+/** The fire trail, fireworks and the lion, owned and chosen. */
+const EXTRAS = {
+  ...emptyLockerRoom(),
+  owned: ['trail.fire', 'goalEffect.fireworks', 'mascot.lion'],
+  trail: 'trail.fire',
+  goalEffect: 'goalEffect.fireworks',
+  mascot: 'mascot.lion',
+};
+
+const ROUNDS: Array<{ name: string; range: Settings['range']; locker?: typeof EXTRAS }> = [
   { name: '1 to 200', range: { preset: 'custom', min: 1, max: 200 } },
   { name: '0 to 1000', range: { preset: '0-1000', min: 0, max: 1000 } },
+  { name: '1 to 100 with a fire trail, fireworks and the lion', range: { preset: '1-100', min: 1, max: 100 }, locker: EXTRAS },
 ];
 
 /** The WebGL renderer's name, to tell a graphics card from software drawing. */
@@ -40,7 +52,10 @@ function renderer(page: Page): Promise<string> {
 for (const round of ROUNDS) {
   test(`a ${round.name} round is ready within 3 s of Enter, and the ball flies at 55 frames per second or more`, async ({ page }) => {
     test.setTimeout(90_000);
-    await seedStorage(page, { [SETTINGS_KEY]: { ...defaultSettings(), range: round.range, roundType: 'goalCount', goalsPerRound: 5 } });
+    await seedStorage(page, {
+      [SETTINGS_KEY]: { ...defaultSettings(), range: round.range, roundType: 'goalCount', goalsPerRound: 5 },
+      ...(round.locker ? { [LOCKER_ROOM_KEY]: round.locker } : {}),
+    });
     await page.addInitScript(() => {
       // Every animation frame while the ball flies, by its requestAnimationFrame timestamp.
       window.__shotFrames = [];

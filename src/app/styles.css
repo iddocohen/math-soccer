@@ -871,6 +871,27 @@ button:focus-visible {
   background: var(--pitch);
 }
 
+.locker-previews {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The small stadium for trails, goal effects and mascots (amendment 20, FR-139). */
+.locker-extras-preview {
+  margin: 0;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--night);
+  line-height: 0;
+}
+
+.locker-extras-preview svg {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .locker-groups {
   flex: 1 1 320px;
   display: flex;

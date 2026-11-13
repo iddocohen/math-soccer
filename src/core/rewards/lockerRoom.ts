@@ -16,7 +16,23 @@
  * make the math easier").
  */
 import type { LockerRoom } from '../storage/schemas';
-import { ballDesign, celebrationOf, isFree, itemById, STARTER, type BallDesign, type Celebration, type ItemKind } from './items';
+import {
+  ballDesign,
+  celebrationOf,
+  goalEffectOf,
+  isFree,
+  itemById,
+  ITEM_KINDS,
+  mascotOf,
+  STARTER,
+  trailOf,
+  type BallDesign,
+  type Celebration,
+  type GoalEffect,
+  type ItemKind,
+  type Mascot,
+  type Trail,
+} from './items';
 
 /** Stars for a goal (FR-132). */
 export const GOAL_STARS = 1;
@@ -55,7 +71,15 @@ export function canBuy(locker: LockerRoom, id: string): boolean {
 }
 
 /** The locker room field that holds the chosen item of a kind. */
-const FIELD = { ball: 'ball', shirt: 'shirtColor', scarf: 'scarfColor', celebration: 'celebration' } as const satisfies Record<ItemKind, keyof LockerRoom>;
+const FIELD = {
+  ball: 'ball',
+  shirt: 'shirtColor',
+  scarf: 'scarfColor',
+  celebration: 'celebration',
+  trail: 'trail',
+  goalEffect: 'goalEffect',
+  mascot: 'mascot',
+} as const satisfies Record<ItemKind, keyof LockerRoom>;
 
 /** The chosen item id of a kind. */
 export function chosen(locker: LockerRoom, kind: ItemKind): string {
@@ -104,7 +128,9 @@ export function cleanLockerRoom(locker: LockerRoom): LockerRoom {
     const item = itemById(id);
     return item && item.kind === kind && (item.price === 0 || owned.includes(id)) ? id : STARTER[kind];
   };
-  return { ...locker, owned, ball: pick('ball'), shirtColor: pick('shirt'), scarfColor: pick('scarf'), celebration: pick('celebration') };
+  const cleaned: LockerRoom = { ...locker, owned };
+  for (const kind of ITEM_KINDS) cleaned[FIELD[kind]] = pick(kind);
+  return cleaned;
 }
 
 /** What the scene draws from the locker room. */
@@ -117,6 +143,12 @@ export interface Look {
   scarfColor: number;
   /** Played after every goal (FR-114). */
   celebration: Celebration;
+  /** Drawn behind the ball in flight (amendment 20, FR-134). */
+  trail: Trail;
+  /** Played on every goal (FR-137). */
+  goalEffect: GoalEffect;
+  /** Stands left of the goal (FR-136). */
+  mascot: Mascot;
 }
 
 export function lookOf(locker: LockerRoom): Look {
@@ -128,10 +160,16 @@ export function lookOf(locker: LockerRoom): Look {
     shirtName: locker.shirtName,
     scarfColor: color(locker.scarfColor, STARTER.scarf),
     celebration: celebrationOf(locker.celebration),
+    trail: trailOf(locker.trail),
+    goalEffect: goalEffectOf(locker.goalEffect),
+    mascot: mascotOf(locker.mascot),
   };
 }
 
-/** One string per drawn look, so a view redraws only when the look changed; the celebration is read at each goal. */
+/**
+ * One string per drawn look of the player, the scarves and the ball, so a view redraws only when it changed. The
+ * celebration and the goal effect are read at each goal; the scene follows the trail and the mascot itself.
+ */
 export function lookKey(look: Look): string {
   return `${look.ball}|${look.shirtColor}|${look.shirtNumber}|${look.shirtName}|${look.scarfColor}`;
 }

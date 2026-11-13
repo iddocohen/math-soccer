@@ -2,7 +2,24 @@
 import { describe, expect, it } from 'vitest';
 import { LOCKER_ROOM } from '../storage/storage';
 import { emptyLockerRoom } from '../storage/schemas';
-import { BALL_DESIGNS, CELEBRATIONS, ITEMS, ITEM_KINDS, PRICE_RANGES, STARTER, ballDesign, celebrationOf, isFree, itemById } from './items';
+import {
+  BALL_DESIGNS,
+  CELEBRATIONS,
+  GOAL_EFFECTS,
+  ITEMS,
+  ITEM_KINDS,
+  MASCOTS,
+  PRICE_RANGES,
+  STARTER,
+  TRAILS,
+  ballDesign,
+  celebrationOf,
+  goalEffectOf,
+  isFree,
+  itemById,
+  mascotOf,
+  trailOf,
+} from './items';
 import {
   award,
   buy,
@@ -33,6 +50,9 @@ describe('items', () => {
       shirt: { min: 20, max: 60 },
       scarf: { min: 20, max: 60 },
       celebration: { min: 50, max: 150 },
+      trail: { min: 40, max: 120 },
+      goalEffect: { min: 60, max: 120 },
+      mascot: { min: 80, max: 150 },
     });
     for (const kind of ITEM_KINDS) {
       const prices = ITEMS.filter((i) => i.kind === kind && i.price > 0).map((i) => i.price);
@@ -48,13 +68,22 @@ describe('items', () => {
   });
 
   it('gives the classic ball, the yellow and white shirts and the yellow scarves for free', () => {
-    expect(ITEMS.filter((i) => i.price === 0).map((i) => i.id)).toEqual(['ball.classic', 'shirt.yellow', 'shirt.white', 'scarf.yellow', 'celebration.armsUp']);
+    expect(ITEMS.filter((i) => i.price === 0).map((i) => i.id)).toEqual([
+      'ball.classic',
+      'shirt.yellow',
+      'shirt.white',
+      'scarf.yellow',
+      'celebration.armsUp',
+      'trail.none',
+      'goalEffect.none',
+      'mascot.none',
+    ]);
     for (const id of Object.values(STARTER)) expect(isFree(id)).toBe(true);
   });
 
   it('has one ball item per ball design, and colors for shirts and scarves', () => {
     expect(ITEMS.filter((i) => i.kind === 'ball').map((i) => ballDesign(i.id))).toEqual([...BALL_DESIGNS]);
-    for (const item of ITEMS) expect(item.color === null).toBe(item.kind === 'ball' || item.kind === 'celebration');
+    for (const item of ITEMS) expect(item.color !== null).toBe(item.kind === 'shirt' || item.kind === 'scarf');
     expect(ballDesign('ball.nothing')).toBe('classic');
     expect(ballDesign('shirt.gold')).toBe('classic');
   });
@@ -177,6 +206,9 @@ describe('look', () => {
       shirtName: 'Mia',
       scarfColor: 0xe8b923,
       celebration: 'armsUp',
+      trail: 'none',
+      goalEffect: 'none',
+      mascot: 'none',
     });
     expect(lookKey(lookOf(l))).not.toBe(lookKey(lookOf(emptyLockerRoom())));
   });
@@ -226,5 +258,62 @@ describe('celebrations (amendment 13, FR-113)', () => {
     const noCelebration: Record<string, unknown> = { ...stored };
     delete noCelebration.celebration;
     expect(LOCKER_ROOM.parse(noCelebration)).toBeNull();
+  });
+});
+
+describe('trails, goal effects and mascots (amendment 20)', () => {
+  it('has the groups with "Ohne" free and chosen by default, and the others within their price ranges', () => {
+    const names = (kind: string) => ITEMS.filter((i) => i.kind === kind).map((i) => i.id.slice(kind.length + 1));
+    expect(names('trail').sort()).toEqual([...TRAILS].sort());
+    expect(names('goalEffect').sort()).toEqual([...GOAL_EFFECTS].sort());
+    expect(names('mascot').sort()).toEqual([...MASCOTS].sort());
+    expect(PRICE_RANGES.trail).toEqual({ min: 40, max: 120 });
+    expect(PRICE_RANGES.goalEffect).toEqual({ min: 60, max: 120 });
+    expect(PRICE_RANGES.mascot).toEqual({ min: 80, max: 150 });
+    expect(emptyLockerRoom()).toMatchObject({ trail: 'trail.none', goalEffect: 'goalEffect.none', mascot: 'mascot.none' });
+    expect(lookOf(emptyLockerRoom())).toMatchObject({ trail: 'none', goalEffect: 'none', mascot: 'none' });
+  });
+
+  it('buys and chooses an item of each group, and chooses "Ohne" again for free', () => {
+    let l = award(emptyLockerRoom(), 400);
+    l = buy(l, 'trail.fire');
+    l = buy(l, 'goalEffect.fireworks');
+    l = buy(l, 'mascot.lion');
+    expect(l).toMatchObject({ stars: 400 - 95 - 90 - 150, trail: 'trail.fire', goalEffect: 'goalEffect.fireworks', mascot: 'mascot.lion' });
+    expect(lookOf(l)).toMatchObject({ trail: 'fire', goalEffect: 'fireworks', mascot: 'lion' });
+    for (const kind of ['trail', 'goalEffect', 'mascot'] as const) {
+      const none = equip(l, kind, `${kind}.none`);
+      expect(chosen(none, kind)).toBe(`${kind}.none`);
+      expect(none.stars).toBe(l.stars);
+    }
+    expect(equip(l, 'mascot', 'trail.fire')).toBe(l);
+    expect(equip(l, 'mascot', 'mascot.dog')).toBe(l);
+  });
+
+  it('does not buy without the stars', () => {
+    const poor = award(emptyLockerRoom(), 149);
+    expect(buy(poor, 'mascot.lion')).toBe(poor);
+    expect(starsNeeded(poor, 'mascot.lion')).toBe(1);
+    expect(canBuy(poor, 'trail.rainbow')).toBe(true);
+  });
+
+  it('reads the names of ids, and none for anything else', () => {
+    expect(trailOf('trail.rainbow')).toBe('rainbow');
+    expect(trailOf('ball.rainbow')).toBe('none');
+    expect(goalEffectOf('goalEffect.lightShow')).toBe('lightShow');
+    expect(goalEffectOf('goalEffect.thunder')).toBe('none');
+    expect(mascotOf('mascot.penguin')).toBe('penguin');
+    expect(mascotOf('mascot.cat')).toBe('none');
+  });
+
+  it('loads a locker room stored before amendment 20 with no trail, effect or mascot, and drops ones not owned', () => {
+    const old: Record<string, unknown> = { ...emptyLockerRoom(), stars: 9, owned: ['ball.gold'], ball: 'ball.gold' };
+    delete old.trail;
+    delete old.goalEffect;
+    delete old.mascot;
+    expect(LOCKER_ROOM.parse(old)).toMatchObject({ stars: 9, ball: 'ball.gold', trail: 'trail.none', goalEffect: 'goalEffect.none', mascot: 'mascot.none' });
+    expect(LOCKER_ROOM.parse({ ...emptyLockerRoom(), mascot: 'mascot.lion' })).toMatchObject({ mascot: 'mascot.none' });
+    const stored = { ...emptyLockerRoom(), owned: ['mascot.lion', 'trail.stars'], mascot: 'mascot.lion', trail: 'trail.stars' };
+    expect(LOCKER_ROOM.parse(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
   });
 });

@@ -24,6 +24,11 @@
  *   shows his quirk (FR-107). The final fills the stand, and the crowd chants the shirt name with clapping; a won final
  *   brings confetti, fireworks over the stands, the player lifting the cup, a cheer and the chant again (FR-110).
  *   `onCupShow` hears what shows (`data-keeper-quirk`, `data-cup-show` for tests).
+ * - Amendment 20: the ball trail chosen in the locker room follows the ball on every shot and fades within 0.4 s after
+ *   it lands (FR-134). The goal effect plays for about 1 s on every goal with the celebration, in every game type, but
+ *   not in the cup final, which has its own show (FR-137, FR-110). The mascot stands left of the goal, cheers on a
+ *   goal and covers its eyes on a miss (FR-136). `onExtras` hears what shows (`data-trail`, `data-goal-effect`,
+ *   `data-mascot` and their states for tests).
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -39,7 +44,10 @@ import { isCutoutFill } from '../core/types';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
-import { BallView } from './BallView';
+import { BALL_DEPTH, BallView } from './BallView';
+import { ensureFxTextures, GoalEffectView, TrailView } from './EffectsView';
+import { MascotView } from './MascotView';
+import type { MascotMood } from './mascot';
 import { GoalView } from './GoalView';
 import { HelperView } from './HelperView';
 import { FinalShow } from './FinalShow';
@@ -47,7 +55,7 @@ import { HOLD_MS, KeeperView, type KeeperPhase } from './KeeperView';
 import { squaresToKeepClear } from './keeperDive';
 import { lookKey, lookOf, type Look } from '../core/rewards/lockerRoom';
 import { emptyLockerRoom } from '../core/storage/schemas';
-import type { Celebration } from '../core/rewards/items';
+import type { Celebration, GoalEffect, Mascot, Trail } from '../core/rewards/items';
 import { celebrationMs } from './celebrationPose';
 import { COLOR, css, hexColor } from './palette';
 import { PlayerView } from './PlayerView';
@@ -87,6 +95,18 @@ export interface CupShow {
   won: boolean;
 }
 
+/** What the scene shows of the trail, the goal effect and the mascot (amendment 20), for `data-*` attributes in tests. */
+export interface SceneExtras {
+  trail: Trail;
+  goalEffect: GoalEffect;
+  mascot: Mascot;
+  /** True while trail particles show. */
+  trailShowing: boolean;
+  /** True while the goal effect plays. */
+  goalEffectPlaying: boolean;
+  mascotMood: MascotMood;
+}
+
 export interface MatchSceneOptions {
   sounds?: MatchSounds;
   /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch") and the row and column helper. */
@@ -104,6 +124,8 @@ export interface MatchSceneOptions {
   onCupShow?: (show: CupShow) => void;
   /** Hears the goal celebration that starts, and null when it ends or is skipped. */
   onCelebration?: (celebration: Celebration | null) => void;
+  /** Hears what shows of the trail, the goal effect and the mascot, whenever it changes. */
+  onExtras?: (extras: SceneExtras) => void;
 }
 
 /** How long the ball rests on a filled square of a cutout before it fades, uncovering the square's number. */
@@ -125,6 +147,12 @@ export class MatchScene extends Phaser.Scene {
   private player!: PlayerView;
   private ball!: BallView;
   private finalShow!: FinalShow;
+  private trail!: TrailView;
+  private goalEffect!: GoalEffectView;
+  private mascot!: MascotView;
+  private extras: SceneExtras = { trail: 'none', goalEffect: 'none', mascot: 'none', trailShowing: false, goalEffectPlaying: false, mascotMood: 'idle' };
+  /** The extras last reported to `onExtras`, as one string. */
+  private extrasKey = '';
   /** The cup match of the round; null outside the cup. */
   private cupMatch: CupScene | null = null;
   private prev: MatchView | null = null;
@@ -156,6 +184,7 @@ export class MatchScene extends Phaser.Scene {
 
   create(): void {
     ensureTextures(this);
+    ensureFxTextures(this);
     this.drawBackdrop();
     const look = this.currentLook();
     this.lookKey = lookKey(look);
@@ -167,6 +196,11 @@ export class MatchScene extends Phaser.Scene {
     const s = this.controller.getState();
     this.ball = new BallView(this, ballKind(this.layoutOf(s)), look.ball);
     this.finalShow = new FinalShow(this);
+    // Just under the ball, so the trail is drawn behind it.
+    this.trail = new TrailView(this, BALL_DEPTH - 0.5);
+    this.goalEffect = new GoalEffectView(this);
+    this.mascot = new MascotView(this, (mood) => this.setExtras({ mascotMood: mood }));
+    this.extrasKey = '';
     this.cupMatch = null;
     this.prev = null;
     this.flying = false;
@@ -181,7 +215,23 @@ export class MatchScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    if (!this.pausedNow) this.stands.update(delta);
+    if (this.pausedNow) return;
+    this.stands.update(delta);
+    this.trail.update(delta, this.ball.flightPoint);
+    this.goalEffect.update(delta);
+    this.mascot.update(delta);
+    if (this.trail.showing !== this.extras.trailShowing || this.goalEffect.running !== this.extras.goalEffectPlaying) {
+      this.setExtras({ trailShowing: this.trail.showing, goalEffectPlaying: this.goalEffect.running });
+    }
+  }
+
+  /** Changes what shows of the extras and tells `onExtras` when anything changed. */
+  private setExtras(change: Partial<SceneExtras>): void {
+    this.extras = { ...this.extras, ...change };
+    const key = JSON.stringify(this.extras);
+    if (key === this.extrasKey) return;
+    this.extrasKey = key;
+    this.options.onExtras?.(this.extras);
   }
 
   private teardown(): void {
@@ -208,6 +258,9 @@ export class MatchScene extends Phaser.Scene {
       this.ball.reset();
       this.keeper.reset();
       this.stands.calm();
+      this.trail.clear();
+      this.goalEffect.clear();
+      this.mascot.calm();
       this.startCup(s);
     }
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
@@ -294,6 +347,9 @@ export class MatchScene extends Phaser.Scene {
     const look = this.currentLook();
     this.applyLook(look);
     this.ball.setLook(ballKind(layout), look.ball);
+    this.trail.setTrail(look.trail);
+    this.mascot.setMascot(look.mascot);
+    this.setExtras({ trail: look.trail, goalEffect: look.goalEffect, mascot: look.mascot });
   }
 
   /** The chart layout of the range of `s`. */
@@ -342,6 +398,9 @@ export class MatchScene extends Phaser.Scene {
       this.keeper.beaten();
       this.stands.cheer();
       this.options.sounds?.cheer();
+      // The cup final has its own show instead of the goal effect (FR-137, FR-110).
+      if (!this.cupMatch?.final) this.goalEffect.play(this.currentLook().goalEffect);
+      this.mascot.cheer();
       this.startCelebration(s.roundType === 'time');
     } else if (s.ball?.outcome === 'filled') {
       // The ball rests on the filled square a moment and fades, so the square's new number shows soon (FR-125).
@@ -352,6 +411,7 @@ export class MatchScene extends Phaser.Scene {
       // Without the keeper the ball rests on the square of the typed number instead of in his gloves.
       if (this.keeperInPlay) this.keeper.catchBall();
       this.ball.caught(HOLD_MS);
+      this.mascot.coverEyes();
       this.stands.ohh();
       this.options.sounds?.ohh();
     }

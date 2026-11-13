@@ -13,6 +13,10 @@
  * "Jubel" (amendment 13, FR-113): the goal celebrations. A tap on one plays it on the preview player (also before it is
  * bought), besides choosing or buying it as with the other items. The preview shows `data-celebration` while it plays.
  *
+ * "Ballspur", "Tor-Effekt" and "Maskottchen" (amendment 20, FR-134, FR-136, FR-137, FR-139): ball trails, goal effects
+ * and mascots, bought and chosen like the other items. A tap on one plays it on the small stadium preview beside the
+ * player (src/app/LockerExtras.tsx), also before it is bought.
+ *
  * The trophy shelf (amendment 13, FR-111) shows every won cup as "Pokal 1", "Pokal 2" and so on
  * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
  *
@@ -23,7 +27,19 @@
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
 import { COLOR, css } from '../game/palette';
 import { CELEBRATION_MS, poseAt, REST, armPoints, HEART_CENTER, TURN_CENTER_Y, type CelebrationPose } from '../game/celebrationPose';
-import { BALL_COLORS, ballDesign, celebrationOf, ITEMS, type BallDesign, type Celebration, type ItemKind, type LockerItem } from '../core/rewards/items';
+import {
+  BALL_COLORS,
+  ballDesign,
+  celebrationOf,
+  goalEffectOf,
+  ITEMS,
+  mascotOf,
+  trailOf,
+  type BallDesign,
+  type Celebration,
+  type ItemKind,
+  type LockerItem,
+} from '../core/rewards/items';
 import {
   buy,
   canBuy,
@@ -40,6 +56,7 @@ import {
 import type { LockerRoom as LockerData } from '../core/storage/schemas';
 import { t } from '../i18n';
 import { TrophyIcon } from './CupBracket';
+import { ExtrasPreview, GoalEffectIcon, MascotIcon, TrailIcon, type ExtrasPlay } from './LockerExtras';
 
 interface Props {
   locker: LockerData;
@@ -101,7 +118,15 @@ function CelebrationIcon({ celebration, shirt }: { celebration: Celebration; shi
   );
 }
 
-const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration'> = { ball: 'ball', shirt: 'shirt', scarf: 'fans', celebration: 'celebration' };
+const GROUP: Record<ItemKind, 'ball' | 'shirt' | 'fans' | 'celebration' | 'trail' | 'goalEffect' | 'mascot'> = {
+  ball: 'ball',
+  shirt: 'shirt',
+  scarf: 'fans',
+  celebration: 'celebration',
+  trail: 'trail',
+  goalEffect: 'goalEffect',
+  mascot: 'mascot',
+};
 
 /** True for colors where dark text reads better than light text. */
 function isLight(color: number): boolean {
@@ -230,6 +255,9 @@ function Preview({ look, label, play }: { look: Look; label: string; play: { cel
 function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): ReactElement {
   if (item.kind === 'ball') return <BallIcon design={ballDesign(item.id)} />;
   if (item.kind === 'celebration') return <CelebrationIcon celebration={celebrationOf(item.id)} shirt={shirt} />;
+  if (item.kind === 'trail') return <TrailIcon trail={trailOf(item.id)} />;
+  if (item.kind === 'goalEffect') return <GoalEffectIcon effect={goalEffectOf(item.id)} />;
+  if (item.kind === 'mascot') return <MascotIcon mascot={mascotOf(item.id)} />;
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
@@ -238,6 +266,7 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   const [question, setQuestion] = useState<LockerItem | null>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
+  const [extrasPlay, setExtrasPlay] = useState<ExtrasPlay | null>(null);
   const look = lookOf(locker);
   const latest = useRef({ question, onBack });
   latest.current = { question, onBack };
@@ -256,6 +285,11 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
   const choose = (item: LockerItem) => {
     // A celebration plays on the preview with every tap, also before it is bought (FR-113).
     if (item.kind === 'celebration') setPlay((p) => ({ celebration: celebrationOf(item.id), n: (p?.n ?? 0) + 1 }));
+    // A trail, a goal effect or a mascot plays on the small stadium, also before it is bought (FR-139).
+    const n = (extrasPlay?.n ?? 0) + 1;
+    if (item.kind === 'trail') setExtrasPlay({ kind: 'trail', name: trailOf(item.id), n });
+    if (item.kind === 'goalEffect') setExtrasPlay({ kind: 'goalEffect', name: goalEffectOf(item.id), n });
+    if (item.kind === 'mascot') setExtrasPlay({ kind: 'mascot', name: mascotOf(item.id), n });
     if (isOwned(locker, item.id)) onChange(equip(locker, item.kind, item.id));
     else if (canBuy(locker, item.id)) setQuestion(item);
   };
@@ -313,7 +347,10 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
         </button>
       </header>
       <div className="locker-body">
-        <Preview look={look} label={L.preview} play={play} />
+        <div className="locker-previews">
+          <Preview look={look} label={L.preview} play={play} />
+          <ExtrasPreview mascot={look.mascot} ball={look.ball} play={extrasPlay} label={L.extrasPreview} />
+        </div>
         <div className="locker-groups">
           {(['ball', 'shirt'] as const).map((kind) => (
             <section key={kind} className="locker-group" aria-label={L.groups[GROUP[kind]]}>
@@ -365,6 +402,12 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
             <h2>{L.groups.celebration}</h2>
             {items('celebration')}
           </section>
+          {(['trail', 'goalEffect', 'mascot'] as const).map((kind) => (
+            <section key={kind} className="locker-group" aria-label={L.groups[GROUP[kind]]}>
+              <h2>{L.groups[GROUP[kind]]}</h2>
+              {items(kind)}
+            </section>
+          ))}
           <section className="locker-group" aria-label={L.groups.trophies}>
             <h2>{L.groups.trophies}</h2>
             <ul className="trophy-shelf" data-testid="trophy-shelf" data-trophies={trophies.length}>

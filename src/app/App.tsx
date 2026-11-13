@@ -54,6 +54,10 @@
  * "Zum Start"; the home button pauses and asks "Runde beenden?" with the same two buttons. "Zum Start" goes through
  * `abandonRound`: the controller drops the round (MatchController.abandon) and the start screen shows.
  *
+ * Amendment 20 (T111): `data-trail`, `data-goal-effect` and `data-mascot` on the match name the trail, the goal effect
+ * and the mascot the scene shows; `data-trail-showing`, `data-goal-effect-playing` and `data-mascot-mood` say what they
+ * do right now.
+ *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
  * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
@@ -82,7 +86,7 @@ import { applyBaseline, clearRound, loadRound, saveRound } from '../core/storage
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import type { Digit } from '../core/match/entry';
 import type { GameHandle } from '../game/createGame';
-import type { CupScene, CupShow } from '../game/MatchScene';
+import type { CupScene, CupShow, SceneExtras } from '../game/MatchScene';
 import type { KeeperPhase } from '../game/KeeperView';
 import { resetMessage, t } from '../i18n';
 import { START_KINDS, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
@@ -337,6 +341,8 @@ export function App() {
   const [cupShow, setCupShow] = useState<CupShow | null>(null);
   // The goal celebration that plays (FR-114), as `data-celebration` for tests.
   const [celebration, setCelebration] = useState<Celebration | null>(null);
+  // What the scene shows of the trail, the goal effect and the mascot (amendment 20), as `data-*` attributes for tests.
+  const [extras, setExtras] = useState<SceneExtras | null>(null);
   // The match intro card of a cup match: "Gruppenspiel 1 gegen FC Blitz" (T102).
   const [intro, setIntro] = useState<{ stage: number; team: CupTeam } | null>(null);
   const introShown = useRef(false);
@@ -362,6 +368,7 @@ export function App() {
           cup: () => cupScene.current,
           onCupShow: setCupShow,
           onCelebration: setCelebration,
+          onExtras: setExtras,
         });
         gameHandle.current = handle;
       },
@@ -692,7 +699,18 @@ export function App() {
   };
 
   return (
-    <main className="match" lang="de" data-celebration={celebration ?? ''} onPointerDown={skipCelebration}>
+    <main
+      className="match"
+      lang="de"
+      data-celebration={celebration ?? ''}
+      data-trail={extras?.trail ?? ''}
+      data-trail-showing={extras?.trailShowing === true}
+      data-goal-effect={extras?.goalEffect ?? ''}
+      data-goal-effect-playing={extras?.goalEffectPlaying === true}
+      data-mascot={extras?.mascot ?? ''}
+      data-mascot-mood={extras?.mascotMood ?? ''}
+      onPointerDown={skipCelebration}
+    >
       <div className="game-parent" ref={gameParent} />
       <MatchOverlay
         state={state}

@@ -118,10 +118,14 @@ export const lockerRoomSchema = z.object({
   shirtName: z.string().max(10).regex(/^[\p{L} -]*$/u),
   scarfColor: z.string(),
   celebration: z.string(),
+  // Amendment 20: added with defaults, so a locker room stored before them still loads (no migration).
+  trail: z.string().default(STARTER.trail),
+  goalEffect: z.string().default(STARTER.goalEffect),
+  mascot: z.string().default(STARTER.mascot),
 });
 export type LockerRoom = z.infer<typeof lockerRoomSchema>;
 
-/** A new player: no stars, the starter items, shirt number 10, no name and the celebration "Arme hoch". */
+/** A new player: no stars, the starter items, shirt number 10, no name, the celebration "Arme hoch", and no trail, goal effect or mascot. */
 export function emptyLockerRoom(): LockerRoom {
   return {
     version: 1,
@@ -134,6 +138,9 @@ export function emptyLockerRoom(): LockerRoom {
     shirtName: '',
     scarfColor: STARTER.scarf,
     celebration: STARTER.celebration,
+    trail: STARTER.trail,
+    goalEffect: STARTER.goalEffect,
+    mascot: STARTER.mascot,
   };
 }
 
