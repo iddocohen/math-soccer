@@ -8,6 +8,7 @@
  *   so he never covers a chart square (FR-056), and he stays left of the ball and of the help line, the typed number and
  *   the message (`OVERLAY_LEFT`).
  * - On the kick he takes one short step toward the ball and leans into it, then steps back (`KICK_STEP`, `KICK_LEAN`).
+ * - After a won cup final he raises both arms and holds the cup from below above his head (`CUP_LIFT`, FR-110, FR-131).
  */
 import { CHART_RECT, KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
@@ -41,6 +42,21 @@ export const KICK_STEP_MS = 150;
 export const PLAYER_FEET = {
   x: KICK_SPOT.x - BALL_HALF_WIDTH - BALL_CLEARANCE - KICK_STEP - (BODY.halfWidth + BODY.height * KICK_LEAN) * PLAYER_SCALE,
   y: CHART_RECT.y + CHART_RECT.height + HEAD_CLEARANCE + BODY.height * PLAYER_SCALE,
+} as const;
+
+/**
+ * The cup lift (FR-110, amendment 19 FR-131) in figure units, for the right arm; the left arm mirrors it. Both upper
+ * arms go up and out from the shoulders, the forearms come in, and the hands hold the cup's base from below, above the
+ * hair top (-BODY.height). The cup stands on the hands: `cupBottom` is the lower edge of its base, `cupHeight` its
+ * height from the handles' bowl to the base, and `baseHalfWidth` half the base's width.
+ */
+export const CUP_LIFT = {
+  shoulder: { x: 38, y: -186 },
+  elbow: { x: 54, y: -250 },
+  hand: { x: 30, y: -304 },
+  cupBottom: -308,
+  cupHeight: 90,
+  baseHalfWidth: 30,
 } as const;
 
 export interface PlayerPose {

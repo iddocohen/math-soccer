@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { LOCKER_ROOM } from '../storage/storage';
 import { emptyLockerRoom } from '../storage/schemas';
-import { BALL_DESIGNS, CELEBRATIONS, ITEMS, ITEM_KINDS, STARTER, ballDesign, celebrationOf, isFree, itemById } from './items';
+import { BALL_DESIGNS, CELEBRATIONS, ITEMS, ITEM_KINDS, PRICE_RANGES, STARTER, ballDesign, celebrationOf, isFree, itemById } from './items';
 import {
   award,
   buy,
@@ -27,10 +27,24 @@ describe('items', () => {
     for (const item of ITEMS) expect(item.id.startsWith(`${item.kind}.`)).toBe(true);
   });
 
-  it('costs 0 for free items and 5 to 40 stars otherwise', () => {
-    for (const item of ITEMS) expect(item.price === 0 || (item.price >= 5 && item.price <= 40)).toBe(true);
-    expect(ITEMS.some((i) => i.price === 5)).toBe(true);
-    expect(ITEMS.some((i) => i.price === 40)).toBe(true);
+  it('costs 0 for free items, and otherwise a price within its kind\'s range (amendment 19, FR-133)', () => {
+    expect(PRICE_RANGES).toEqual({
+      ball: { min: 30, max: 120 },
+      shirt: { min: 20, max: 60 },
+      scarf: { min: 20, max: 60 },
+      celebration: { min: 50, max: 150 },
+    });
+    for (const kind of ITEM_KINDS) {
+      const prices = ITEMS.filter((i) => i.kind === kind && i.price > 0).map((i) => i.price);
+      for (const price of prices) {
+        expect(price).toBeGreaterThanOrEqual(PRICE_RANGES[kind].min);
+        expect(price).toBeLessThanOrEqual(PRICE_RANGES[kind].max);
+      }
+      // The cheapest item costs the range's lowest price and the most special its highest, in locker room order.
+      expect(prices[0]).toBe(PRICE_RANGES[kind].min);
+      expect(prices[prices.length - 1]).toBe(PRICE_RANGES[kind].max);
+      expect([...prices].sort((a, b) => a - b)).toEqual(prices);
+    }
   });
 
   it('gives the classic ball, the yellow and white shirts and the yellow scarves for free', () => {
@@ -47,8 +61,8 @@ describe('items', () => {
 });
 
 describe('stars', () => {
-  it('gives 2 stars per goal (amendment 05)', () => {
-    expect(GOAL_STARS).toBe(2);
+  it('gives 1 star per goal (amendment 19, FR-132)', () => {
+    expect(GOAL_STARS).toBe(1);
   });
 
   it('awards only stars not yet seen in the round, and nothing when a new round starts at 0', () => {
@@ -70,23 +84,23 @@ describe('stars', () => {
 });
 
 describe('buy and equip', () => {
-  const rich = () => award(emptyLockerRoom(), 25);
+  const rich = () => award(emptyLockerRoom(), 200);
 
   it('buys an item for its price and equips it; the total ever earned stays', () => {
     const l = buy(rich(), 'ball.gold');
-    expect(l).toMatchObject({ stars: 5, totalEarned: 25, owned: ['ball.gold'], ball: 'ball.gold' });
+    expect(l).toMatchObject({ stars: 125, totalEarned: 200, owned: ['ball.gold'], ball: 'ball.gold' });
     expect(chosen(l, 'ball')).toBe('ball.gold');
   });
 
   it('does not buy without enough stars, twice, a free item or an unknown item', () => {
-    const poor = award(emptyLockerRoom(), 4);
+    const poor = award(emptyLockerRoom(), 29);
     expect(canBuy(poor, 'ball.blue')).toBe(false);
     expect(buy(poor, 'ball.blue')).toBe(poor);
     expect(starsNeeded(poor, 'ball.blue')).toBe(1);
     const once = buy(rich(), 'shirt.red');
     expect(buy(once, 'shirt.red')).toBe(once);
-    expect(buy(rich(), 'shirt.white').stars).toBe(25);
-    expect(buy(rich(), 'ball.square').stars).toBe(25);
+    expect(buy(rich(), 'shirt.white').stars).toBe(200);
+    expect(buy(rich(), 'ball.square').stars).toBe(200);
   });
 
   it('equips owned and free items of the slot only', () => {
@@ -134,6 +148,20 @@ describe('stored locker room', () => {
     expect(LOCKER_ROOM.parse({ ...emptyLockerRoom(), shirtName: 'Ab<1>' })).toBeNull();
   });
 
+  it('keeps the star balance and the items bought at the old prices when it loads (amendment 19, FR-133)', () => {
+    const before = {
+      ...emptyLockerRoom(),
+      stars: 87,
+      totalEarned: 240,
+      owned: ['ball.rainbow', 'shirt.orange', 'scarf.purple', 'celebration.backflip'],
+      ball: 'ball.rainbow',
+      shirtColor: 'shirt.orange',
+      scarfColor: 'scarf.purple',
+      celebration: 'celebration.backflip',
+    };
+    expect(LOCKER_ROOM.parse(JSON.parse(JSON.stringify(before)))).toEqual(before);
+  });
+
   it('starts with no stars, the starter items and shirt number 10', () => {
     expect(emptyLockerRoom()).toMatchObject({ stars: 0, owned: [], ball: 'ball.classic', shirtColor: 'shirt.yellow', scarfColor: 'scarf.yellow', shirtNumber: 10 });
   });
@@ -141,7 +169,7 @@ describe('stored locker room', () => {
 
 describe('look', () => {
   it('turns the chosen items into the colors and the ball design the scene draws', () => {
-    const l = { ...buy(award(emptyLockerRoom(), 40), 'ball.flames'), shirtColor: 'shirt.white', shirtName: 'Mia', shirtNumber: 7 };
+    const l = { ...buy(award(emptyLockerRoom(), 100), 'ball.flames'), shirtColor: 'shirt.white', shirtName: 'Mia', shirtNumber: 7 };
     expect(lookOf(l)).toEqual({
       ball: 'flames',
       shirtColor: itemById('shirt.white')!.color,
@@ -155,20 +183,20 @@ describe('look', () => {
 });
 
 describe('celebrations (amendment 13, FR-113)', () => {
-  it('has the group "Jubel": "Arme hoch" free and chosen by default, the others for 10 to 30 stars', () => {
+  it('has the group "Jubel": "Arme hoch" free and chosen by default, the others for 50 to 150 stars', () => {
     const items = ITEMS.filter((i) => i.kind === 'celebration');
     expect(items.map((i) => celebrationOf(i.id)).sort()).toEqual([...CELEBRATIONS].sort());
     expect(itemById('celebration.armsUp')!.price).toBe(0);
     for (const item of items.filter((i) => i.id !== 'celebration.armsUp')) {
-      expect(item.price).toBeGreaterThanOrEqual(10);
-      expect(item.price).toBeLessThanOrEqual(30);
+      expect(item.price).toBeGreaterThanOrEqual(50);
+      expect(item.price).toBeLessThanOrEqual(150);
     }
     expect(emptyLockerRoom().celebration).toBe('celebration.armsUp');
     expect(lookOf(emptyLockerRoom()).celebration).toBe('armsUp');
   });
 
   it('buys a celebration for its price and chooses it; another tap chooses an owned one again', () => {
-    const bought = buy(award(emptyLockerRoom(), 12), 'celebration.slide');
+    const bought = buy(award(emptyLockerRoom(), 52), 'celebration.slide');
     expect(bought).toMatchObject({ stars: 2, owned: ['celebration.slide'], celebration: 'celebration.slide' });
     expect(lookOf(bought).celebration).toBe('slide');
     const back = equip(bought, 'celebration', 'celebration.armsUp');
@@ -177,7 +205,7 @@ describe('celebrations (amendment 13, FR-113)', () => {
   });
 
   it('does not buy or choose a celebration without the stars, and not one of another kind', () => {
-    const poor = award(emptyLockerRoom(), 29);
+    const poor = award(emptyLockerRoom(), 149);
     expect(canBuy(poor, 'celebration.backflip')).toBe(false);
     expect(buy(poor, 'celebration.backflip')).toBe(poor);
     expect(equip(poor, 'celebration', 'celebration.backflip')).toBe(poor);

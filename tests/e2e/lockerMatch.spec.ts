@@ -13,7 +13,7 @@ test('open the locker room from a running round, equip a ball, close, and the ro
     page,
     {
       [SETTINGS_KEY]: defaultSettings(),
-      [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 25, totalEarned: 25 },
+      [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 100, totalEarned: 100 },
     },
     { once: true },
   );

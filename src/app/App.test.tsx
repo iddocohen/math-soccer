@@ -304,9 +304,9 @@ describe('App parent screens (T041 to T046)', () => {
     const result = screen.getByTestId('cup-result');
     expect(result.textContent).toBe('Der Pokal wurde neu gestartet.');
     expect(result.getAttribute('data-cup-won')).toBe('false');
-    // 2 stars per goal and no bonus for the match; the reset cleared the stars of the first goal.
-    expect(screen.getByTestId('round-stars').textContent).toBe(t().roundEnd.stars(6));
-    expect((JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number }).stars).toBe(4);
+    // 1 star per goal and no bonus for the match; the reset cleared the star of the first goal.
+    expect(screen.getByTestId('round-stars').textContent).toBe(t().roundEnd.stars(3));
+    expect((JSON.parse(localStorage.getItem(LOCKER_ROOM_KEY)!) as { stars: number }).stars).toBe(2);
     expect(JSON.parse(localStorage.getItem(CUP_KEY)!)).toMatchObject({ cup: 1, stage: 0, tries: 0, scores: [] });
 
     expect(screen.queryByRole('button', { name: 'Nochmal' })).toBeNull();
@@ -355,24 +355,24 @@ function storedLocker(): { stars: number; totalEarned: number; ball: string } {
 }
 
 describe('App: stars and locker room (US6)', () => {
-  it('awards 2 stars per goal at once, none again after a refresh, and shows them on the round end and the start screen', async () => {
+  it('awards 1 star per goal at once, none again after a refresh, and shows them on the round end and the start screen', async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...defaultSettings(), roundType: 'goalCount', goalsPerRound: 2 }));
     const first = render(<App />);
     fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(game.controller).not.toBeNull());
     scoreGoal();
-    expect(storedLocker().stars).toBe(2);
+    expect(storedLocker().stars).toBe(1);
     first.unmount();
     game.controller = null;
 
     render(<App />);
     await waitFor(() => expect(game.controller).not.toBeNull());
-    expect(storedLocker().stars).toBe(2);
+    expect(storedLocker().stars).toBe(1);
     scoreGoal();
-    expect(storedLocker()).toMatchObject({ stars: 4, totalEarned: 4 });
-    expect(screen.getByTestId('round-stars').textContent).toBe('+4 Sterne');
+    expect(storedLocker()).toMatchObject({ stars: 2, totalEarned: 2 });
+    expect(screen.getByTestId('round-stars').textContent).toBe('+2 Sterne');
     fireEvent.click(screen.getByText('Zurück'));
-    expect(screen.getByTestId('star-total').textContent).toBe('★ 4');
+    expect(screen.getByTestId('star-total').textContent).toBe('★ 2');
   });
 
   it('a miss takes no star away', async () => {
@@ -388,19 +388,19 @@ describe('App: stars and locker room (US6)', () => {
   });
 
   it('K opens the locker room; buying and choosing a ball stores it, Escape goes back, and the match shows the ball', async () => {
-    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 100, totalEarned: 100 }));
     render(<App />);
     fireEvent.keyDown(window, { key: 'k' });
     const room = screen.getByTestId('locker-room');
-    expect(room.getAttribute('data-stars')).toBe('25');
-    expect(screen.getByTestId('item-ball.rainbow').textContent).toContain('noch 15 Sterne');
+    expect(room.getAttribute('data-stars')).toBe('100');
+    expect(screen.getByTestId('item-ball.rainbow').textContent).toContain('noch 20 Sterne');
     expect(screen.getByTestId('item-ball.rainbow').getAttribute('data-locked')).toBe('true');
     fireEvent.click(screen.getByTestId('item-ball.rainbow'));
     expect(screen.queryByTestId('buy-question')).toBeNull();
     fireEvent.click(screen.getByTestId('item-ball.gold'));
-    expect(screen.getByTestId('buy-question').textContent).toContain('Für 20 Sterne kaufen?');
+    expect(screen.getByTestId('buy-question').textContent).toContain('Für 75 Sterne kaufen?');
     fireEvent.click(screen.getByText('Ja'));
-    expect(storedLocker()).toMatchObject({ stars: 5, ball: 'ball.gold' });
+    expect(storedLocker()).toMatchObject({ stars: 25, ball: 'ball.gold' });
     expect(screen.getByTestId('item-ball.gold').getAttribute('data-chosen')).toBe('true');
     fireEvent.change(screen.getByTestId('shirt-number'), { target: { value: '7' } });
     fireEvent.change(screen.getByTestId('shirt-name'), { target: { value: 'Mia123' } });
@@ -408,7 +408,7 @@ describe('App: stars and locker room (US6)', () => {
     // Keys typed into the fields never start a round.
     expect(screen.queryByTestId('match')).toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.getByTestId('star-total').textContent).toBe('★ 5');
+    expect(screen.getByTestId('star-total').textContent).toBe('★ 25');
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(screen.getByTestId('match').getAttribute('data-ball')).toBe('ball.gold');
     await waitFor(() => expect(game.controller).not.toBeNull());
@@ -552,7 +552,7 @@ describe('App: locker room from the match (amendment 01, FR-049)', () => {
   }
 
   it('one tap on "Kabine" opens the locker room over the match and pauses; keys do nothing in the match', async () => {
-    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 100, totalEarned: 100 }));
     const match = await startMatch();
     fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
     expect(screen.getByTestId('locker-room')).toBeTruthy();
@@ -568,7 +568,7 @@ describe('App: locker room from the match (amendment 01, FR-049)', () => {
   });
 
   it('equipping a ball and "Zurück" closes the locker room; the round continues with the new ball at once', async () => {
-    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 25, totalEarned: 25 }));
+    localStorage.setItem(LOCKER_ROOM_KEY, JSON.stringify({ ...emptyLockerRoom(), stars: 100, totalEarned: 100 }));
     const match = await startMatch();
     fireEvent.click(screen.getByRole('button', { name: 'Kabine' }));
     fireEvent.click(screen.getByTestId('item-ball.gold'));

@@ -3,7 +3,8 @@
  * The locker room items (FR-043, data-model.md "LockerRoom"). Pure data, no React or Phaser.
  *
  * Four kinds: ball designs, shirt colors, scarf colors and goal celebrations ("Jubel", amendment 13, FR-113). Each kind
- * has free items, owned from the start, and items that cost 5 to 40 stars (celebrations 10 to 30). The free items are
+ * has free items, owned from the start, and items that cost stars (amendment 19, FR-133): ball designs 30 to 120,
+ * shirt and scarf colors 20 to 60, celebrations 50 to 150, spread from the cheapest to the most special item. The free items are
  * the classic ball, the yellow and the white shirt, the yellow scarves and the celebration "Arme hoch".
  *
  * Decision (T057): data-model.md names the white shirt as the free starter shirt. The game's own color is the yellow
@@ -41,7 +42,7 @@ export interface LockerItem {
   /** `<kind>.<name>`, for example `ball.gold`. */
   id: string;
   kind: ItemKind;
-  /** Price in stars: 0 for a free item, otherwise 5 to 40. */
+  /** Price in stars: 0 for a free item, otherwise within its kind's range in PRICE_RANGES. */
   price: number;
   /** A shirt or scarf color as 0xRRGGBB; null for a ball design or a celebration. */
   color: number | null;
@@ -54,34 +55,42 @@ const celebration = (name: Celebration, price: number): LockerItem => ({ id: `ce
 
 export const ITEMS: readonly LockerItem[] = [
   ball('classic', 0),
-  ball('blue', 5),
-  ball('stars', 15),
-  ball('gold', 20),
-  ball('flames', 30),
-  ball('rainbow', 40),
+  ball('blue', 30),
+  ball('stars', 55),
+  ball('gold', 75),
+  ball('flames', 100),
+  ball('rainbow', 120),
   shirt('yellow', 0, 0xe8b923),
   shirt('white', 0, 0xf4f6ef),
-  shirt('red', 5, 0xc94f4f),
-  shirt('blue', 5, 0x3e6fb0),
-  shirt('green', 10, 0x4f9c5f),
-  shirt('pink', 10, 0xe07fb0),
-  shirt('black', 20, 0x22262b),
-  shirt('orange', 20, 0xf08a24),
+  shirt('red', 20, 0xc94f4f),
+  shirt('blue', 25, 0x3e6fb0),
+  shirt('green', 35, 0x4f9c5f),
+  shirt('pink', 45, 0xe07fb0),
+  shirt('black', 50, 0x22262b),
+  shirt('orange', 60, 0xf08a24),
   scarf('yellow', 0, 0xe8b923),
-  scarf('red', 5, 0xc94f4f),
-  scarf('blue', 5, 0x3e6fb0),
-  scarf('green', 10, 0x4f9c5f),
-  scarf('white', 10, 0xf4f6ef),
-  scarf('purple', 20, 0x8a5cc2),
+  scarf('red', 20, 0xc94f4f),
+  scarf('blue', 30, 0x3e6fb0),
+  scarf('green', 40, 0x4f9c5f),
+  scarf('white', 50, 0xf4f6ef),
+  scarf('purple', 60, 0x8a5cc2),
   celebration('armsUp', 0),
-  celebration('slide', 10),
-  celebration('dance', 15),
-  celebration('airplane', 15),
-  celebration('heart', 20),
-  celebration('backflip', 30),
+  celebration('slide', 50),
+  celebration('dance', 75),
+  celebration('airplane', 100),
+  celebration('heart', 125),
+  celebration('backflip', 150),
 ];
 
 export const ITEM_KINDS: readonly ItemKind[] = ['ball', 'shirt', 'scarf', 'celebration'];
+
+/** The lowest and highest price of the items that are not free, per kind (amendment 19, FR-133). */
+export const PRICE_RANGES: Record<ItemKind, { min: number; max: number }> = {
+  ball: { min: 30, max: 120 },
+  shirt: { min: 20, max: 60 },
+  scarf: { min: 20, max: 60 },
+  celebration: { min: 50, max: 150 },
+};
 
 /** The items a new player wears. */
 export const STARTER = { ball: 'ball.classic', shirt: 'shirt.yellow', scarf: 'scarf.yellow', celebration: 'celebration.armsUp' } as const satisfies Record<ItemKind, string>;

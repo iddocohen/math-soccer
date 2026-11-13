@@ -67,9 +67,12 @@ export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
 
-/** Stars for a filled square of a cutout, and the bonus for the whole cutout on its last square (amendment 18, FR-125, FR-126). */
-export const FILL_STARS = 1;
-export const CUTOUT_BONUS_STARS = 3;
+/**
+ * Stars for a filled square of a cutout, and the bonus for the whole cutout on its last square (amendment 18, FR-125,
+ * FR-126). Amendment 19 (FR-132) lowered them: a filled square earns nothing, the whole cutout earns its bonus.
+ */
+export const FILL_STARS = 0;
+export const CUTOUT_BONUS_STARS = 2;
 
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 const SAVE_TIME_EVERY_MS = 1000;

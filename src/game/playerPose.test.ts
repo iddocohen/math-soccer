@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CHART_RECT, KICK_SPOT, OVERLAY_LEFT, WORLD_HEIGHT } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { KEEPER_HEIGHT, KEEPER_SCALE } from './keeperDive';
-import { BALL_HALF_WIDTH, BODY, KICKING, KICK_STEP_MS, KEEPER_DRAWN_HEIGHT, PLAYER_FEET, PLAYER_SCALE, playerBounds, STANDING } from './playerPose';
+import { BALL_HALF_WIDTH, BODY, CUP_LIFT, KICKING, KICK_STEP_MS, KEEPER_DRAWN_HEIGHT, PLAYER_FEET, PLAYER_SCALE, playerBounds, STANDING } from './playerPose';
 
 function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -53,5 +53,30 @@ describe('the player (amendment 08)', () => {
     expect(KICKING.lean).toBeGreaterThan(0);
     expect(2 * KICK_STEP_MS).toBeGreaterThanOrEqual(250);
     expect(2 * KICK_STEP_MS).toBeLessThanOrEqual(350);
+  });
+});
+
+describe('the cup lift (amendment 19, FR-131)', () => {
+  const { shoulder, elbow, hand } = CUP_LIFT;
+
+  it('raises both arms: the elbows above the shoulders and the hands above the elbows', () => {
+    expect(elbow.y).toBeLessThan(shoulder.y);
+    expect(hand.y).toBeLessThan(elbow.y);
+  });
+
+  it('holds the hands above the head (the hair top at -BODY.height)', () => {
+    expect(hand.y).toBeLessThan(-BODY.height);
+  });
+
+  it('holds the cup from below: the hands sit at the lower corners of the base and the cup stands above them', () => {
+    expect(Math.abs(hand.x - CUP_LIFT.baseHalfWidth)).toBeLessThanOrEqual(2);
+    expect(hand.y).toBeGreaterThan(CUP_LIFT.cupBottom);
+    expect(hand.y - CUP_LIFT.cupBottom).toBeLessThanOrEqual(12);
+    expect(CUP_LIFT.cupBottom - CUP_LIFT.cupHeight).toBeLessThan(hand.y);
+  });
+
+  it('takes the upper arms up and out from the shoulders, and the forearms in to the cup', () => {
+    expect(elbow.x).toBeGreaterThan(shoulder.x);
+    expect(hand.x).toBeLessThan(elbow.x);
   });
 });

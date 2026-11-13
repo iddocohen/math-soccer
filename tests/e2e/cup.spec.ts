@@ -137,8 +137,9 @@ test('the final: full stand and chant; the win brings confetti, fireworks and th
   await expect(match).toHaveAttribute('data-cup-show', 'won');
   await expect(page.getByTestId('cup-result')).toHaveText(text.cup.cupWon(1));
   await expect(page.getByTestId('round-end')).toHaveClass(/cup-final-won/);
-  // 3 goals of 2 stars, the match bonus of 5 and the cup bonus of 20.
-  await expect(page.getByTestId('round-stars')).toHaveText(text.roundEnd.stars(3 * 2 + 5 + 20));
+  // 3 goals of 1 star, the match bonus of 3 and the cup bonus of 10 (amendment 19, FR-132).
+  await expect(page.getByTestId('round-stars')).toHaveText(text.roundEnd.stars(3 * 1 + 3 + 10));
+  // The player still holds the cup up while the round end shows (amendment 19, FR-131).
   await page.screenshot({ path: testInfo.outputPath('cup-final.png') });
 
   // "Weiter" goes to the bracket of the next cup.

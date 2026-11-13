@@ -195,7 +195,7 @@ function memoryStore(): RoundStore & { round: StoredRound | null } {
 }
 
 describe('goals and misses (US1)', () => {
-  it('a correct number gives a goal, 2 stars, and a new target after the celebration', () => {
+  it('a correct number gives a goal, 1 star, and a new target after the celebration', () => {
     const c = fixed();
     shootAndLand(c, 46);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, target: { number: 46 } });
@@ -1079,7 +1079,7 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     return { c, records };
   }
 
-  it('a correct square earns 1 star, lights up and the next square is the target at once, without a goal', () => {
+  it('a correct square earns no star (amendment 19), lights up and the next square is the target at once, without a goal', () => {
     const { c } = cutoutController();
     c.start();
     shootAndLand(c, 46);
@@ -1094,7 +1094,7 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     expect(isCutoutFill(c.getState().target as Target)).toBe(true);
   });
 
-  it('the last square is a goal with the celebration and the 3 bonus stars; one goal for the whole cutout', () => {
+  it('the last square is a goal with the celebration, 1 goal star and 2 bonus stars; one goal for the whole cutout', () => {
     const { c } = cutoutController();
     c.start();
     shootAndLand(c, 46);
@@ -1104,6 +1104,9 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     expect(isCutoutFill(c.getState().target as Target)).toBe(false);
     shootAndLand(c, 48);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, ball: { outcome: 'goal' }, starsThisRound: 2 * FILL_STARS + GOAL_STARS + CUTOUT_BONUS_STARS });
+    // Amendment 19 (FR-132): squares earn nothing, the whole cutout 1 + 2 stars.
+    expect(c.getState().starsThisRound).toBe(3);
+    expect({ FILL_STARS, CUTOUT_BONUS_STARS }).toEqual({ FILL_STARS: 0, CUTOUT_BONUS_STARS: 2 });
     c.celebrationDone();
     expect(c.getState()).toMatchObject({ phase: 'aiming', goals: 1, target: { number: 12 } });
   });

@@ -12,7 +12,7 @@ import { LOCKER_ROOM_KEY, SETTINGS_KEY } from '../../src/core/storage/storage';
 const settings = { ...defaultSettings(), roundType: 'goalCount' as const, goalsPerRound: 5 };
 
 test.beforeEach(async ({ page }) => {
-  await seedStorage(page, { [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 12, totalEarned: 12 } });
+  await seedStorage(page, { [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 52, totalEarned: 52 } });
   await page.goto('/?seed=11');
 });
 
@@ -21,7 +21,7 @@ test('buy and choose "Rutschen" in the locker room, and it plays after a goal', 
   const jubel = page.getByRole('region', { name: 'Jubel' });
   await expect(jubel.getByRole('heading', { name: 'Jubel' })).toBeVisible();
   await expect(page.getByTestId('item-celebration.armsUp')).toHaveAttribute('data-chosen', 'true');
-  await expect(page.getByTestId('item-celebration.backflip')).toContainText('noch 18 Sterne');
+  await expect(page.getByTestId('item-celebration.backflip')).toContainText('noch 98 Sterne');
 
   // A tap on a celebration plays it on the preview player, also before it is bought.
   await page.getByTestId('item-celebration.slide').click();

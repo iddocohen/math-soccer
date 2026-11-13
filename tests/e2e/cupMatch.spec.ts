@@ -30,7 +30,7 @@ async function scoreGoals(page: Page, match: Locator, n: number): Promise<void> 
   }
 }
 
-test('P and Enter start group game 1 at the start level; 3 goals win it and move the cup on with 5 bonus stars (FR-105, FR-108, FR-112)', async ({ page }) => {
+test('P and Enter start group game 1 at the start level; 3 goals win it and move the cup on with 3 bonus stars (FR-105, FR-108, FR-112, FR-132)', async ({ page }) => {
   await seedStorage(page, { [SETTINGS_KEY]: cupSettings });
   await page.goto('/?seed=3');
   const cupButton = page.locator('[data-start="cup"]');
@@ -52,8 +52,8 @@ test('P and Enter start group game 1 at the start level; 3 goals win it and move
   const result = page.getByTestId('cup-result');
   await expect(result).toHaveText(text.cup.won(text.cup.onTo.group2));
   await expect(result).toHaveAttribute('data-cup-won', 'true');
-  // 3 goals of 2 stars and the match bonus of 5.
-  await expect(page.getByTestId('round-stars')).toHaveText(text.roundEnd.stars(3 * 2 + 5));
+  // 3 goals of 1 star and the match bonus of 3 (amendment 19, FR-132).
+  await expect(page.getByTestId('round-stars')).toHaveText(text.roundEnd.stars(3 * 1 + 3));
   await expect(page.getByTestId('record')).toHaveCount(0);
   expect(await storedCup(page)).toMatchObject({ cup: 1, stage: 1, tries: 0, scores: [{ goals: 3, against: 0 }] });
 
@@ -62,7 +62,7 @@ test('P and Enter start group game 1 at the start level; 3 goals win it and move
   await expect(page.getByTestId('cup-bracket')).toHaveAttribute('data-cup-stage', '1');
   await page.keyboard.press('Escape');
   await expect(cupButton).toHaveAttribute('data-cup-stage', '1');
-  await expect(page.getByTestId('star-total')).toHaveText(text.start.stars(11));
+  await expect(page.getByTestId('star-total')).toHaveText(text.start.stars(6));
 });
 
 test('a loss says "Knapp!" with the same opponent and keeps the match; "Nochmal" replays it (FR-108)', async ({ page }) => {

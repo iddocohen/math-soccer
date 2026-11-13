@@ -25,9 +25,9 @@ export { CUP_MATCHES };
 export const CUP_STAGES = ['group1', 'group2', 'quarterFinal', 'semiFinal', 'final'] as const;
 export type CupStage = (typeof CUP_STAGES)[number];
 
-/** Stars for a won match and, on top, for a won cup (FR-112). */
-export const MATCH_WIN_STARS = 5;
-export const CUP_WIN_STARS = 20;
+/** Stars for a won match and, on top, for a won cup (FR-112, lowered by amendment 19, FR-132). */
+export const MATCH_WIN_STARS = 3;
+export const CUP_WIN_STARS = 10;
 
 /** After this many lost tries of the same match, it plays one level easier (FR-109). */
 export const EASIER_AFTER_TRIES = 2;

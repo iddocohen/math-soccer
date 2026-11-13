@@ -3,7 +3,7 @@
  * Stars and the locker room (FR-042, FR-043, data-model.md "LockerRoom"). Pure functions; the app stores the result
  * under `mathsoccer.lockerroom.v1` (src/core/storage/storage.ts).
  *
- * - Stars: 2 per goal (`GOAL_STARS`, amendment 05). The match controller counts them in `starsThisRound`; the app
+ * - Stars: 1 per goal (`GOAL_STARS`, amendment 05, lowered by amendment 19, FR-132). The match controller counts them in `starsThisRound`; the app
  *   gives every new star to the locker room as soon as it is earned (`newStars`), so a refresh loses none and counts
  *   none twice.
  * - `award` adds stars to the balance and the total ever earned. Only `buy` takes stars away; nothing in the game does
@@ -18,8 +18,8 @@
 import type { LockerRoom } from '../storage/schemas';
 import { ballDesign, celebrationOf, isFree, itemById, STARTER, type BallDesign, type Celebration, type ItemKind } from './items';
 
-/** Stars for a goal. */
-export const GOAL_STARS = 2;
+/** Stars for a goal (FR-132). */
+export const GOAL_STARS = 1;
 
 export const SHIRT_NUMBER_MIN = 1;
 export const SHIRT_NUMBER_MAX = 99;

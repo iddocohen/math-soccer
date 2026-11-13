@@ -4,7 +4,8 @@
  * the keeper because he is closer to the viewer, and the bottom edge of the screen cuts off his lower legs. Where he
  * stands and how large he is comes from src/game/playerPose.ts; his head stays below the chart (FR-056, FR-083).
  * `kick()` takes one short step toward the ball and back (FR-084).
- * After a won cup final, `liftCup()` raises both arms with a gold cup over his head (amendment 13, FR-110).
+ * After a won cup final, `liftCup()` raises both arms with a gold cup over his head (amendment 13, FR-110); the
+ * hanging arms hide for the whole lift, so only the raised arms show (amendment 19, FR-131).
  * After a goal, `celebrate()` plays the celebration chosen in the locker room (FR-113, FR-114): the figure moves and
  * turns, and the arms are drawn again on every frame from the pose keyframes in src/game/celebrationPose.ts.
  * Drawn with shapes in code (FR-048); the locker room (US6) changes the shirt color, the number and the name above it
@@ -16,7 +17,7 @@ import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 import { COLOR, css } from './palette';
 import type { Celebration } from '../core/rewards/items';
 import { armPoints, HEART_CENTER, poseAt, TURN_CENTER_Y, type CelebrationPose } from './celebrationPose';
-import { BODY, KICKING, KICK_STEP_MS, PLAYER_FEET, PLAYER_SCALE } from './playerPose';
+import { BODY, CUP_LIFT, KICKING, KICK_STEP_MS, PLAYER_FEET, PLAYER_SCALE } from './playerPose';
 
 export const PLAYER_DEPTH = 6;
 
@@ -149,6 +150,7 @@ export class PlayerView {
     this.lifting = true;
     this.drawTrophy();
     this.trophy.setVisible(true);
+    this.restArms.setVisible(false);
     this.scene.tweens.killTweensOf(this.container);
     this.container.setPosition(PLAYER_FEET.x, PLAYER_FEET.y).setRotation(0);
     this.scene.tweens.add({ targets: this.container, y: PLAYER_FEET.y - 14, duration: 320, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -158,6 +160,7 @@ export class PlayerView {
     if (!this.lifting) return;
     this.lifting = false;
     this.trophy.setVisible(false);
+    this.restArms.setVisible(true);
     this.scene.tweens.killTweensOf(this.container);
     this.container.setPosition(PLAYER_FEET.x, PLAYER_FEET.y).setRotation(0);
   }
@@ -192,7 +195,7 @@ export class PlayerView {
     tween?.remove();
     this.poseArms.setVisible(false);
     this.heart.setVisible(false);
-    this.restArms.setVisible(true);
+    this.restArms.setVisible(!this.lifting);
     if (!this.lifting) this.container.setPosition(PLAYER_FEET.x, PLAYER_FEET.y).setRotation(0);
   }
 
@@ -242,25 +245,31 @@ export class PlayerView {
     h.fillTriangle(-2 * r, r * 0.35, 2 * r, r * 0.35, 0, 2.4 * r);
   }
 
-  /** Both arms up in the shirt's sleeves, the hands on a gold cup above the head. */
+  /** Both arms raised in the shirt's sleeves, the hands holding a gold cup from below above the head (CUP_LIFT). */
   private drawTrophy(): void {
     const g = this.trophy.clear();
-    const shoulderY = SHIRT.top + 14;
-    const handY = HEAD.y - HEAD.radius - 40;
+    const { shoulder, elbow, hand } = CUP_LIFT;
     for (const side of [-1, 1]) {
-      const sx = side * (SHIRT.halfWidth - 8);
-      const hx = side * 34;
-      g.fillStyle(this.shirtColor, 1);
-      g.fillTriangle(sx - 12, shoulderY, sx + 12, shoulderY, (sx + hx) / 2, (shoulderY + handY) / 2);
-      g.lineStyle(20, COLOR.skin, 1);
-      g.lineBetween((sx + hx) / 2, (shoulderY + handY) / 2, hx, handY);
+      const s = { x: side * shoulder.x, y: shoulder.y };
+      const e = { x: side * elbow.x, y: elbow.y };
+      const h = { x: side * hand.x, y: hand.y };
+      const sleeveEnd = { x: (s.x + e.x) / 2, y: (s.y + e.y) / 2 };
+      // The sleeve over the upper arm, then the bare arm up to the hand.
+      g.lineStyle(26, this.shirtColor, 1);
+      g.lineBetween(s.x, s.y, sleeveEnd.x, sleeveEnd.y);
+      g.lineStyle(16, COLOR.skin, 1);
+      g.lineBetween(sleeveEnd.x, sleeveEnd.y, e.x, e.y);
+      g.lineBetween(e.x, e.y, h.x, h.y);
       g.fillStyle(COLOR.skin, 1);
-      g.fillCircle(hx, handY, 12);
+      g.fillCircle(e.x, e.y, 8);
+      g.fillStyle(this.shirtColor, 1);
+      g.fillCircle(s.x, s.y, 14);
     }
-    // The cup: a bowl with two handles on a stem and a base.
+    // The cup on the hands: a bowl with two handles on a stem and a base.
     const gold = COLOR.gold;
     const shade = 0xc9971a;
-    const top = handY - 70;
+    const top = CUP_LIFT.cupBottom - CUP_LIFT.cupHeight;
+    const base = CUP_LIFT.baseHalfWidth;
     g.lineStyle(8, gold, 1);
     g.strokeCircle(-44, top + 26, 16);
     g.strokeCircle(44, top + 26, 16);
@@ -268,9 +277,12 @@ export class PlayerView {
     g.fillRoundedRect(-40, top, 80, 58, { tl: 6, tr: 6, bl: 36, br: 36 });
     g.fillStyle(shade, 1);
     g.fillRect(-9, top + 56, 18, 22);
-    g.fillRoundedRect(-30, top + 76, 60, 14, 4);
+    g.fillRoundedRect(-base, top + 76, base * 2, CUP_LIFT.cupBottom - (top + 76), 4);
     g.fillStyle(0xffffff, 0.45);
     g.fillRoundedRect(-28, top + 8, 12, 34, 5);
+    // The hands over the base's lower corners, so they hold it from below.
+    g.fillStyle(COLOR.skin, 1);
+    for (const side of [-1, 1]) g.fillCircle(side * CUP_LIFT.hand.x, CUP_LIFT.hand.y, 12);
   }
 
   destroy(): void {

@@ -100,18 +100,18 @@ describe('match results (FR-108, FR-111, FR-112)', () => {
     expect(recordMatch(r.cup, { won: false, goals: 0, against: 3 }, NOW).cup).toMatchObject({ stage: 1, tries: 2 });
   });
 
-  it('a win records the score, moves to the next match, clears the tries and gives 5 stars', () => {
+  it('a win records the score, moves to the next match, clears the tries and gives 3 stars (amendment 19, FR-132)', () => {
     const r = recordMatch(cupAt({ stage: 0, tries: 2 }), { won: true, goals: 5, against: 1 }, NOW);
     expect(r).toEqual({ cup: cupAt({ stage: 1, tries: 0, scores: [{ goals: 5, against: 1 }] }), stars: MATCH_WIN_STARS, cupWon: false });
-    expect(MATCH_WIN_STARS).toBe(5);
+    expect(MATCH_WIN_STARS).toBe(3);
   });
 
-  it('a won final puts the cup on the trophy shelf, starts the next cup and gives 5 + 20 stars', () => {
+  it('a won final puts the cup on the trophy shelf, starts the next cup and gives 3 + 10 stars (amendment 19, FR-132)', () => {
     const final = cupAt({ cup: 2, stage: 4, scores: Array(4).fill({ goals: 5, against: 0 }), trophies: [{ cup: 1, at: '2026-11-01T10:00:00.000Z' }] });
     const r = recordMatch(final, { won: true, goals: 5, against: 2 }, NOW);
     expect(r.cupWon).toBe(true);
     expect(r.stars).toBe(MATCH_WIN_STARS + CUP_WIN_STARS);
-    expect(CUP_WIN_STARS).toBe(20);
+    expect(CUP_WIN_STARS).toBe(10);
     expect(r.cup).toEqual({
       version: 1,
       cup: 3,
@@ -125,7 +125,7 @@ describe('match results (FR-108, FR-111, FR-112)', () => {
     });
   });
 
-  it('a whole cup won in a row: five matches, the trophy and 45 bonus stars', () => {
+  it('a whole cup won in a row: five matches, the trophy and 25 bonus stars', () => {
     let cup = emptyCup();
     let stars = 0;
     for (let i = 0; i < 5; i++) {
@@ -134,6 +134,7 @@ describe('match results (FR-108, FR-111, FR-112)', () => {
       stars += r.stars;
     }
     expect(stars).toBe(5 * MATCH_WIN_STARS + CUP_WIN_STARS);
+    expect(stars).toBe(25);
     expect(cup).toMatchObject({ cup: 2, stage: 0, trophies: [{ cup: 1 }] });
   });
 
