@@ -247,19 +247,10 @@ export type PlayKind = Play['kind'];
 export type Wait = { reason: 'afterMiss'; ms: number } | { reason: 'turnCard' };
 
 /** A ball in flight: the typed number, no outcome yet. */
-export interface FlyingBall {
-  number: number;
-  outcome: null;
-  /** Play time of the shot (`elapsedMs`), for the attempt record. */
-  atMs: number;
-}
+export type FlyingBall = Ball & { outcome: null };
 
 /** A ball that arrived, with its outcome. */
-export interface LandedBall {
-  number: number;
-  outcome: NonNullable<Ball['outcome']>;
-  atMs: number;
-}
+export type LandedBall = Ball & { outcome: NonNullable<Ball['outcome']> };
 
 /**
  * The fields that depend on the phase (review H4): a ball without an outcome exists exactly in 'ballInFlight', the
@@ -999,24 +990,26 @@ export class MatchController {
       });
       return;
     }
+    this.missedWithWait(s, ball, 'miss', { play: withKicks(s.play, addKick(kicks, 'miss')), message: { kind: 'kickMissed', number: ball.number } });
+  }
+
+  /**
+   * A missed kick of the shootout or a missed shot at the board: the attempt is recorded, and the square shows its
+   * number while the round waits SHOWN_MS of play time (`afterMiss`). `rest` adds what the mode changes. The wait also
+   * holds back a waiting settings change until the next turn or target (FR-052).
+   */
+  private missedWithWait(s: StateIn<'ballInFlight'>, ball: FlyingBall, outcome: 'miss' | 'decoy', rest: Pick<MatchFields, 'message'> & Partial<Pick<MatchFields, 'play' | 'shots'>>): void {
     const missed: StateIn<'aiming'> = {
       ...s,
       phase: 'aiming',
-      ball: { ...ball, outcome: 'miss' },
+      ball: { ...ball, outcome },
       targetMisses: s.targetMisses + 1,
       missTimes: [...s.missTimes, ball.atMs].slice(-MISS_TIMES_KEPT),
       lastGuess: ball.number,
       helpChartOpen: false,
     };
     this.recordAttempt(missed, { solved: false, endedAt: ball.atMs });
-    // The wait also holds back a waiting settings change until the next turn (FR-052).
-    this.set({
-      ...missed,
-      shown: { number: ball.number, remainingMs: SHOWN_MS },
-      play: withKicks(s.play, addKick(kicks, 'miss')),
-      wait: { reason: 'afterMiss', ms: SHOWN_MS },
-      message: { kind: 'kickMissed', number: ball.number },
-    });
+    this.set({ ...missed, ...rest, shown: { number: ball.number, remainingMs: SHOWN_MS }, wait: { reason: 'afterMiss', ms: SHOWN_MS } });
   }
 
   /**
@@ -1060,24 +1053,7 @@ export class MatchController {
       return;
     }
     const decoy = torwandHit(holes, s.target?.number ?? NaN, ball.number) === 'decoy';
-    const missed: StateIn<'aiming'> = {
-      ...s,
-      phase: 'aiming',
-      ball: { ...ball, outcome: decoy ? 'decoy' : 'miss' },
-      targetMisses: s.targetMisses + 1,
-      missTimes: [...s.missTimes, ball.atMs].slice(-MISS_TIMES_KEPT),
-      lastGuess: ball.number,
-      helpChartOpen: false,
-    };
-    this.recordAttempt(missed, { solved: false, endedAt: ball.atMs });
-    // The wait also holds back a waiting settings change until the next target (FR-052).
-    this.set({
-      ...missed,
-      shots,
-      shown: { number: ball.number, remainingMs: SHOWN_MS },
-      wait: { reason: 'afterMiss', ms: SHOWN_MS },
-      message: { kind: decoy ? 'decoy' : 'board', number: ball.number },
-    });
+    this.missedWithWait(s, ball, decoy ? 'decoy' : 'miss', { shots, message: { kind: decoy ? 'decoy' : 'board', number: ball.number } });
   }
 
   /** "Torwandschießen" after a shot: the next target with new holes, or the end after TORWAND_SHOTS shots (FR-157). */

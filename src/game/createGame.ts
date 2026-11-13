@@ -60,7 +60,9 @@ export function createGame(parent: HTMLElement, controller: MatchController, opt
     removeScene();
     game.loop.sleep();
   };
-  // The game boots after a frame; a match left before it ran is put to sleep after its first step.
+  // The game boots after a frame; a match left before it ran is put to sleep after its first frame. Not in POST_STEP:
+  // the scene manager is still processing then, so the removal would be queued and would remove the next match's
+  // scene when the loop wakes.
   const sleepIfLeft = () => {
     if (!active) sleep();
   };
@@ -82,7 +84,7 @@ export function createGame(parent: HTMLElement, controller: MatchController, opt
       if (!active) return;
       active = false;
       if (game.isRunning) sleep();
-      else game.events.once(Phaser.Core.Events.POST_STEP, sleepIfLeft);
+      else game.events.once(Phaser.Core.Events.POST_RENDER, sleepIfLeft);
     },
     showLook: () => {
       if (active) scene.showLook();
