@@ -13,8 +13,17 @@
 /** The drawn shape: a soft dot, a five-point star, a confetti piece, or a light beam standing on its foot. */
 export type ParticleShape = 'dot' | 'star' | 'piece' | 'beam';
 
+/**
+ * The particle images of amendment 22 (FR-149), from the Kenney Particle Pack (src/assets.ts `PARTICLE_FILES`): a small
+ * soft twinkle, a sharp four-point star, a bright sparkle, a fire puff, a flash and a ring of light.
+ */
+export type ParticleImage = 'twinkle' | 'star' | 'sparkle' | 'fire' | 'flare' | 'light';
+
 export interface ParticleInit {
+  /** The shape drawn in code; it also stands in for `image` while the image is not loaded. */
   shape: ParticleShape;
+  /** The particle image to draw instead of the shape, tinted with `tint` (amendment 22). */
+  image?: ParticleImage;
   x: number;
   y: number;
   /** Speed in world pixels per second. */

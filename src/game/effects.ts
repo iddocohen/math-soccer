@@ -11,13 +11,29 @@
  *
  * Sizes are scales of the particle textures, which are `PARTICLE_TEXTURE_SIZE` pixels wide (the beam is
  * BEAM_SIZE).
+ *
+ * Amendment 22 (FR-149): the sparkles, stars and fire trails, the fireworks and the light show's blinking lights draw
+ * the Kenney particle images (`image`), tinted with the particle's color; `imageScale` turns a shape's scale into the
+ * image's. The light beams, the rainbow and the confetti stay drawn in code.
  */
 import type { GoalEffect, Trail } from '../core/rewards/items';
 import { STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
-import type { ParticleInit } from './particles';
+import type { ParticleImage, ParticleInit } from './particles';
 
 /** The dot, star and confetti textures are this many pixels wide. */
 export const PARTICLE_TEXTURE_SIZE = 32;
+/** The particle images (amendment 22) are this many pixels wide. */
+export const PARTICLE_IMAGE_SIZE = 64;
+/**
+ * How much of its width each particle image fills with its visible middle, so an image drawn for a particle looks
+ * about as big as the drawn shape it replaces. The rays of the stars and the flash's glow reach further out.
+ */
+export const IMAGE_FILL: Record<ParticleImage, number> = { twinkle: 0.3, star: 0.6, sparkle: 0.22, fire: 0.7, flare: 0.15, light: 0.6 };
+
+/** The scale of a particle's image for the scale `scale` of its drawn shape (amendment 22). */
+export function imageScale(image: ParticleImage, scale: number): number {
+  return (scale * PARTICLE_TEXTURE_SIZE) / (PARTICLE_IMAGE_SIZE * IMAGE_FILL[image]);
+}
 /** The light beam texture: narrow at its foot, wide at its top. */
 export const BEAM_SIZE = { width: 140, height: 460 } as const;
 /** A confetti piece in the texture: a rectangle this wide and high, centered. */
@@ -81,6 +97,7 @@ export function trailParticle(trail: ShownTrail, x: number, y: number, ballSize:
       const size = scaleFor(ballSize * (0.3 + rand() * 0.3));
       return {
         shape: 'dot',
+        image: 'twinkle',
         x: x + spread(rand, ballSize * 0.5),
         y: y + spread(rand, ballSize * 0.5),
         vx: spread(rand, 40),
@@ -97,6 +114,7 @@ export function trailParticle(trail: ShownTrail, x: number, y: number, ballSize:
       const size = scaleFor(ballSize * 0.75);
       return {
         shape: 'star',
+        image: 'star',
         x: x + spread(rand, ballSize * 0.3),
         y: y + spread(rand, ballSize * 0.3),
         life: style.life,
@@ -113,6 +131,7 @@ export function trailParticle(trail: ShownTrail, x: number, y: number, ballSize:
       const size = scaleFor(ballSize * (1.1 + rand() * 0.4));
       return {
         shape: 'dot',
+        image: 'fire',
         x: x + spread(rand, ballSize * 0.15),
         y: y + spread(rand, ballSize * 0.15),
         vx: spread(rand, 25),
@@ -173,12 +192,13 @@ export function goalEffectParticles(effect: ShownGoalEffect, rand: () => number)
   if (effect === 'fireworks') {
     FIREWORK_BURSTS.forEach((b, i) => {
       const tint = SHOW_COLORS[(i * 2) % SHOW_COLORS.length]!;
-      back.push({ shape: 'dot', x: b.x, y: b.y, delay: b.delay, life: 220, size: scaleFor(70), endSize: scaleFor(100), alpha: 0.8, tint: 0xffffff, glow: true });
+      back.push({ shape: 'dot', image: 'flare', x: b.x, y: b.y, delay: b.delay, life: 220, size: scaleFor(70), endSize: scaleFor(100), alpha: 0.8, tint: 0xffffff, glow: true });
       for (let k = 0; k < FIREWORK_SPARKS; k++) {
         const angle = (k / FIREWORK_SPARKS) * Math.PI * 2;
         const speed = 180 + rand() * 50;
         back.push({
           shape: 'dot',
+          image: 'sparkle',
           x: b.x,
           y: b.y,
           vx: Math.cos(angle) * speed,
@@ -237,6 +257,7 @@ export function goalEffectParticles(effect: ShownGoalEffect, rand: () => number)
     for (let k = 0; k < BLINK_LIGHTS; k++) {
       back.push({
         shape: 'dot',
+        image: 'light',
         x: 60 + rand() * (WORLD_WIDTH - 120),
         y: 40 + rand() * (STANDS_BOTTOM - 60),
         delay: rand() * (GOAL_EFFECT_MS - 220),

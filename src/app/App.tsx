@@ -87,7 +87,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Settings } from '../core/settings/schema';
-import { createSfx } from '../audio/sfx';
+import { createSfx, matchAmbience } from '../audio/sfx';
 import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf, type CupMatch } from '../core/cup/cup';
@@ -554,6 +554,15 @@ export function App() {
   const roundOver = screen === 'match' && state.phase === 'roundOver';
   const gameScreen = keyScreenOf(screen, roundOver, state.paused, intro !== null);
 
+  // The quiet loops under a running match (amendment 22, FR-151): the crowd murmur always, the rain in rain weather.
+  // Both stop while the round is paused, after it ends and away from the match; sfx checks the crowd switch.
+  const { murmur, rain } = matchAmbience(screen === 'match' && state.started && !state.paused && !roundOver, extras?.weather);
+  const crowdOn = settings().sound.crowd;
+  useEffect(() => {
+    sfx.ambience({ murmur, rain });
+  }, [sfx, murmur, rain, crowdOn]);
+  useEffect(() => () => sfx.ambience({ murmur: false, rain: false }), [sfx]);
+
   // The intro card shows about 1.5 s; it goes earlier with Enter, Space, a tap or the first typed digit.
   useEffect(() => {
     if (intro === null) return;
@@ -727,6 +736,7 @@ export function App() {
         onBack={() => setScreen('start')}
         trophies={persistence.cup().trophies}
         focus={lockerGroup}
+        sounds={sfx}
       />
     );
   }
@@ -844,7 +854,7 @@ export function App() {
         />
       )}
       {intro !== null && !roundOver && !state.paused && <CupIntro stage={intro.stage} team={intro.team} onSkip={() => setIntro(null)} />}
-      {matchLocker && <LockerRoom locker={locker} onChange={saveLocker} onBack={closeMatchLocker} trophies={persistence.cup().trophies} />}
+      {matchLocker && <LockerRoom locker={locker} onChange={saveLocker} onBack={closeMatchLocker} trophies={persistence.cup().trophies} sounds={sfx} />}
       {parentScreens}
     </main>
   );

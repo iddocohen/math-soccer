@@ -86,12 +86,15 @@ interface Props {
   trophies?: ReadonlyArray<{ cup: number }>;
   /** A group to scroll to when the locker room opens: "Spielarten" after a tap on a locked mode (FR-141). */
   focus?: 'modes' | null;
+  /** The coin after a purchase and the fanfare after an unlocked mode (amendment 22, FR-150). */
+  sounds?: { coin(): void; fanfare(): void };
 }
 
-/** The question before stars are spent: its text, and the locker room after "Ja". */
+/** The question before stars are spent: its text, the locker room after "Ja", and the sound "Ja" plays. */
 interface Question {
   text: string;
   apply: (locker: LockerData) => LockerData;
+  sound: 'coin' | 'fanfare';
 }
 
 /**
@@ -329,7 +332,7 @@ function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): Reac
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
-export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = null }: Props): ReactElement {
+export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = null, sounds }: Props): ReactElement {
   const L = t().lockerRoom;
   const [question, setQuestion] = useState<Question | null>(null);
   const [modePlay, setModePlay] = useState<Record<UnlockMode, number>>({ wall: 0, keeper: 0, shootout: 0 });
@@ -372,17 +375,20 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = nu
     if (item.kind === 'floodlight') setStadiumPlay({ kind: 'floodlight', name: floodlightOf(item.id), n: m });
     if (item.kind === 'weather') setStadiumPlay({ kind: 'weather', name: weatherOf(item.id), n: m });
     if (isOwned(locker, item.id)) onChange(equip(locker, item.kind, item.id));
-    else if (canBuy(locker, item.id)) setQuestion({ text: L.buyQuestion(item.price), apply: (l) => buy(l, item.id) });
+    else if (canBuy(locker, item.id)) setQuestion({ text: L.buyQuestion(item.price), apply: (l) => buy(l, item.id), sound: 'coin' });
   };
 
   const chooseMode = (mode: UnlockMode) => {
     setModePlay((p) => ({ ...p, [mode]: p[mode] + 1 }));
     const lock = modeLock(locker, mode);
-    if (lock.kind === 'affordable') setQuestion({ text: L.unlockQuestion(lock.price), apply: (l) => unlockMode(l, mode) });
+    if (lock.kind === 'affordable') setQuestion({ text: L.unlockQuestion(lock.price), apply: (l) => unlockMode(l, mode), sound: 'fanfare' });
   };
 
   const answer = (yes: boolean) => {
-    if (yes && question) onChange(question.apply(locker));
+    if (yes && question) {
+      onChange(question.apply(locker));
+      sounds?.[question.sound]();
+    }
     setQuestion(null);
   };
 

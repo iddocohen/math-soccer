@@ -53,6 +53,8 @@ test('buy a fire trail, fireworks and the lion; they show in the match, on a goa
   for (const id of ['trail.fire', 'goalEffect.fireworks', 'mascot.lion']) {
     await page.getByTestId(`item-${id}`).click();
     await expect(preview).toHaveAttribute('data-playing', id);
+    // The fire trail and the fireworks draw the particle images, tinted (amendment 22, FR-149).
+    if (id !== 'mascot.lion') await expect(preview.locator('[data-image]').first()).toBeAttached();
     await page.getByTestId('buy-question').getByRole('button', { name: 'Ja' }).click();
     await expect(page.getByTestId(`item-${id}`)).toHaveAttribute('data-chosen', 'true');
   }

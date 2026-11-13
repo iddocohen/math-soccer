@@ -1,11 +1,14 @@
 // Adapted from math-tank src/audio/sfx.test.ts.
 import { describe, expect, it } from 'vitest';
 import { chantPattern } from '../core/cup/chant';
-import { createSfx, MAX_GAIN, OHH_CLIP_SECONDS, OHH_SECONDS, type AudioContextLike, type ClipName, type SoundSwitches } from './sfx';
+import { CLIP_FILES } from '../assets';
+import { CLIP_SWITCH, createSfx, LOOP_GAIN, matchAmbience, MAX_GAIN, OHH_CLIP_SECONDS, OHH_SECONDS, type AudioContextLike, type ClipName, type SoundSwitches } from './sfx';
 
 /** Minimal Web Audio stand-in that records started sources and gain values. */
 function fakeContext(decode: (data: ArrayBuffer) => Promise<AudioBuffer> = () => Promise.reject(new Error('no decoder'))) {
-  const started: Array<{ kind: 'osc' | 'noise'; at: number; type?: string; buffer?: unknown }> = [];
+  const started: Array<{ kind: 'osc' | 'noise'; at: number; type?: string; buffer?: unknown; loop?: boolean }> = [];
+  /** The looping sources started, and whether each was stopped since. */
+  const loops: Array<{ buffer: unknown; stopped: boolean }> = [];
   const gains: number[] = [];
   const silent: number[] = [];
   let state: AudioContextState = 'suspended';
@@ -42,19 +45,30 @@ function fakeContext(decode: (data: ArrayBuffer) => Promise<AudioBuffer> = () =>
     },
     createBuffer: (_c: number, length: number) => ({ length, getChannelData: () => new Float32Array(length) }),
     createBufferSource: () => {
+      const loop = { buffer: null as unknown, stopped: false };
       const src = {
         ...node(),
         buffer: null as unknown,
+        loop: false,
         // The one-sample silent buffer of the unlock is counted apart from the sounds.
-        start: (at: number) => ((src.buffer as { length?: number } | null)?.length === 1 ? silent.push(at) : started.push({ kind: 'noise', at, buffer: src.buffer })),
-        stop() {},
+        start: (at: number) => {
+          if ((src.buffer as { length?: number } | null)?.length === 1) return silent.push(at);
+          if (src.loop) {
+            loop.buffer = src.buffer;
+            loops.push(loop);
+          }
+          return started.push({ kind: 'noise', at, buffer: src.buffer, loop: src.loop });
+        },
+        stop() {
+          loop.stopped = true;
+        },
       };
       return src;
     },
     decodeAudioData: decode,
     createBiquadFilter: () => ({ ...node(), type: 'lowpass', frequency: param([]), Q: param([]) }),
   };
-  return { ctx: ctx as unknown as AudioContextLike, started, gains, silent };
+  return { ctx: ctx as unknown as AudioContextLike, started, gains, silent, loops };
 }
 
 /**
@@ -324,7 +338,7 @@ describe('sfx', () => {
       expect(fetched).toEqual([]);
       await sfx.unlock();
       await sfx.unlock();
-      expect([...fetched].sort()).toEqual(['/assets/cheer.mp3', '/assets/clap.mp3', '/assets/kick.mp3', '/assets/ohh.mp3']);
+      expect([...fetched].sort()).toEqual(Object.keys(CLIP_SWITCH).map((name) => `/assets/${name}.mp3`).sort());
     });
 
     it('plays the recorded kick, cheer and clapping instead of the synthesized sounds', async () => {
@@ -389,6 +403,99 @@ describe('sfx', () => {
       sfx.cheer();
       sfx.clap();
       expect(f.started.filter((s) => s.kind === 'noise')).toHaveLength(2 + 6);
+    });
+
+    describe('amendment 22 sounds (FR-150 to FR-153)', () => {
+      const EFFECTS = ['whistle', 'catch', 'wall', 'coin', 'fanfare'] as const;
+      const CROWD = ['firework', 'pop', 'rain', 'murmur'] as const;
+      /** Plays every new short sound once. */
+      const playAll = (sfx: ReturnType<typeof createSfx>) => {
+        sfx.whistle();
+        sfx.keeperCatch();
+        sfx.wallHit();
+        sfx.coin();
+        sfx.fanfare();
+        sfx.fireworks();
+        sfx.pop();
+      };
+
+      it('every new sound maps to its switch: whistle, catch, wall, coin, fanfare to effects; firework, pop, rain, murmur to the crowd', () => {
+        for (const name of EFFECTS) expect(CLIP_SWITCH[name]).toBe('effects');
+        for (const name of CROWD) expect(CLIP_SWITCH[name]).toBe('crowd');
+        // Every clip has a bundled file.
+        expect(Object.keys(CLIP_FILES).sort()).toEqual(Object.keys(CLIP_SWITCH).sort());
+      });
+
+      it('plays the recorded clip of each new sound', async () => {
+        const { f, sfx, clips } = setupClips();
+        await sfx.unlock();
+        playAll(sfx);
+        expect(clips().map((c) => c.clip)).toEqual(['whistle', 'catch', 'wall', 'coin', 'fanfare', 'firework', 'pop']);
+        expect(f.started.filter((s) => s.kind === 'osc')).toEqual([]);
+        expect(Math.max(...f.gains)).toBeLessThanOrEqual(MAX_GAIN);
+      });
+
+      it('the effects switch silences whistle, catch, wall, coin and fanfare; the crowd switch silences firework and pop', async () => {
+        const noEffects = setupClips({ effects: false });
+        await noEffects.sfx.unlock();
+        playAll(noEffects.sfx);
+        expect(noEffects.clips().map((c) => c.clip)).toEqual(['firework', 'pop']);
+        const noCrowd = setupClips({ crowd: false });
+        await noCrowd.sfx.unlock();
+        playAll(noCrowd.sfx);
+        expect(noCrowd.clips().map((c) => c.clip)).toEqual(['whistle', 'catch', 'wall', 'coin', 'fanfare']);
+      });
+
+      it('each new sound falls back to a synthesized sound when its clip fails to decode', async () => {
+        const { f, sfx, clips } = setupClips({}, [...EFFECTS, ...CROWD]);
+        await sfx.unlock();
+        const each: Array<() => void> = [sfx.whistle, sfx.keeperCatch, sfx.wallHit, sfx.coin, sfx.fanfare, sfx.fireworks, sfx.pop];
+        for (const play of each) {
+          const before = f.started.length;
+          play();
+          expect(f.started.length).toBeGreaterThan(before);
+        }
+        expect(clips()).toEqual([]);
+        expect(Math.max(...f.gains)).toBeLessThanOrEqual(MAX_GAIN);
+      });
+
+      it('the murmur loops quietly while wanted and stops when the round pauses', async () => {
+        const { f, sfx } = setupClips();
+        await sfx.unlock();
+        sfx.ambience(matchAmbience(true, 'evening'));
+        expect(f.loops.map((l) => (l.buffer as { clip: ClipName }).clip)).toEqual(['murmur']);
+        expect(Math.max(...f.gains)).toBeLessThanOrEqual(LOOP_GAIN.murmur);
+        // The same wish again starts nothing new.
+        sfx.ambience(matchAmbience(true, 'evening'));
+        expect(f.loops).toHaveLength(1);
+        sfx.ambience(matchAmbience(false, 'evening'));
+        expect(f.loops[0]!.stopped).toBe(true);
+      });
+
+      it('the rain loop plays only with rain weather, and both loops follow the crowd switch', async () => {
+        expect(matchAmbience(true, 'rain')).toEqual({ murmur: true, rain: true });
+        expect(matchAmbience(true, 'snow')).toEqual({ murmur: true, rain: false });
+        expect(matchAmbience(false, 'rain')).toEqual({ murmur: false, rain: false });
+        const { f, sfx, switches } = setupClips();
+        await sfx.unlock();
+        sfx.ambience(matchAmbience(true, 'rain'));
+        expect(f.loops.map((l) => (l.buffer as { clip: ClipName }).clip).sort()).toEqual(['murmur', 'rain']);
+        sfx.ambience(matchAmbience(true, 'snow'));
+        expect(f.loops.find((l) => (l.buffer as { clip: ClipName }).clip === 'rain')!.stopped).toBe(true);
+        switches.crowd = false;
+        sfx.ambience(matchAmbience(true, 'rain'));
+        expect(f.loops.every((l) => l.stopped)).toBe(true);
+      });
+
+      it('a loop wanted before audio runs starts after the unlock, synthesized when its clip fails', async () => {
+        const { f, sfx } = setupClips({}, ['murmur']);
+        sfx.ambience(matchAmbience(true, 'evening'));
+        expect(f.loops).toEqual([]);
+        await sfx.unlock();
+        expect(f.loops).toHaveLength(1);
+        // The stand-in is the noise buffer, not a clip.
+        expect(f.loops[0]!.buffer).not.toHaveProperty('clip');
+      });
     });
   });
 });

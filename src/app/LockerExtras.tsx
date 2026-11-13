@@ -6,16 +6,19 @@
  * - The preview ("Vorschau") is a small stadium in world units with the chosen mascot beside the goal. A tap on an item
  *   plays it there, also before it is bought, as a celebration plays on the player (FR-113): a trail follows a shot
  *   to the goal, an effect plays over the stands with the mascot cheering, and a mascot appears and cheers.
+ * - Amendment 22 (FR-149): a particle with an image draws the Kenney particle image, tinted by filling a rectangle of
+ *   its color through a mask of the image, as the match tints it.
  * - For tests: `data-testid="extras-preview"` with `data-mascot` (the mascot shown) and `data-playing` (the item id
  *   while it plays, empty otherwise).
  */
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactElement } from 'react';
+import { assetUrl, PARTICLE_FILES } from '../assets';
 import { createRng } from '../core/rng';
 import { CHART_RECT, GOAL_FRAME, KICK_SPOT, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import { BALL_COLORS, type BallDesign, type GoalEffect, type Mascot, type Trail } from '../core/rewards/items';
-import { BEAM_SIZE, goalEffectParticles, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_FADE_MS, TRAIL_STYLE, trailParticle } from '../game/effects';
+import { BEAM_SIZE, goalEffectParticles, imageScale, PARTICLE_IMAGE_SIZE, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_FADE_MS, TRAIL_STYLE, trailParticle } from '../game/effects';
 import { ARM_LENGTH, ARM_WIDTH, MASCOT_ART, MASCOT_CHEER_MS, MASCOT_FEET, MASCOT_SCALE, mascotPose, PAW_RADIUS, SHOULDER, type MascotPose, type MascotShape, type ShownMascot } from '../game/mascot';
-import { particleAt, particleEnd, type ParticleInit } from '../game/particles';
+import { particleAt, particleEnd, type ParticleImage, type ParticleInit } from '../game/particles';
 import { css } from '../game/palette';
 
 /** What a tap plays on the preview. `n` counts the taps, so a second tap on the same item plays it again. */
@@ -92,12 +95,42 @@ const STAR_POINTS = Array.from({ length: 10 }, (_, i) => {
 
 const deg = (rad: number) => (rad * 180) / Math.PI;
 
-/** One particle at one moment, in world units. */
-function ParticleSvg({ p, ms }: { p: ParticleInit; ms: number }): ReactElement | null {
+/** One mask per particle image, centered on 0, 0; `ParticleSvg` fills its color through it. */
+function ImageMasks({ prefix }: { prefix: string }): ReactElement {
+  const half = PARTICLE_IMAGE_SIZE / 2;
+  return (
+    <defs>
+      {(Object.keys(PARTICLE_FILES) as ParticleImage[]).map((image) => (
+        <mask key={image} id={`${prefix}-${image}`}>
+          <image href={assetUrl(PARTICLE_FILES[image])} x={-half} y={-half} width={PARTICLE_IMAGE_SIZE} height={PARTICLE_IMAGE_SIZE} />
+        </mask>
+      ))}
+    </defs>
+  );
+}
+
+/** One particle at one moment, in world units. `masks` is the id prefix of the preview's ImageMasks. */
+function ParticleSvg({ p, ms, masks }: { p: ParticleInit; ms: number; masks: string }): ReactElement | null {
   const s = particleAt(p, ms);
   if (s === null) return null;
   const fill = css(p.tint);
   const size = s.scale * PARTICLE_TEXTURE_SIZE;
+  if (p.image !== undefined) {
+    const half = PARTICLE_IMAGE_SIZE / 2;
+    return (
+      <rect
+        x={-half}
+        y={-half}
+        width={PARTICLE_IMAGE_SIZE}
+        height={PARTICLE_IMAGE_SIZE}
+        fill={fill}
+        opacity={s.alpha}
+        mask={`url(#${masks}-${p.image})`}
+        data-image={p.image}
+        transform={`translate(${s.x} ${s.y}) rotate(${deg(s.rotation)}) scale(${imageScale(p.image, s.scale)})`}
+      />
+    );
+  }
   switch (p.shape) {
     case 'dot':
       return <circle cx={s.x} cy={s.y} r={size * 0.38} fill={fill} opacity={s.alpha} />;
@@ -183,15 +216,18 @@ export function ExtrasPreview({ mascot, ball, play, label }: PreviewProps): Reac
   const cheering = playing !== null && playing.kind !== 'trail';
   const pose = cheering ? mascotPose('cheer', t!) : IDLE;
   const shot = playing?.kind === 'trail' ? ballAt(t!) : null;
+  // useId gives colons, which a url(#…) reference does not take.
+  const masks = `fx${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   return (
     <figure className="locker-extras-preview" data-testid="extras-preview" data-mascot={shown} data-playing={playing ? `${playing.kind}.${playing.name}` : ''} aria-label={label}>
       <svg width="320" height="200" viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`} aria-hidden="true">
+        <ImageMasks prefix={masks} />
         <rect x={0} y={0} width={WORLD_WIDTH} height={STANDS_BOTTOM + 30} fill="#13263a" />
         {[0, 1, 2, 3].map((row) => (
           <rect key={row} x={0} y={74 + row * 48} width={WORLD_WIDTH} height={44} fill={row % 2 ? '#22384c' : '#1d3044'} />
         ))}
         <rect x={0} y={STANDS_BOTTOM + 30} width={WORLD_WIDTH} height={WORLD_HEIGHT - STANDS_BOTTOM - 30} fill="#2c6b37" />
-        {t !== null && timed.filter((x) => !x.front).map((x, i) => <ParticleSvg key={`b${i}`} p={x.p} ms={t - x.at} />)}
+        {t !== null && timed.filter((x) => !x.front).map((x, i) => <ParticleSvg key={`b${i}`} p={x.p} ms={t - x.at} masks={masks} />)}
         <rect x={GOAL_FRAME.x} y={GOAL_FRAME.y} width={GOAL_FRAME.width} height={GOAL_FRAME.height} fill="#0e1a14" stroke="#f4f6ef" strokeWidth={22} />
         <rect x={CHART_RECT.x} y={CHART_RECT.y} width={CHART_RECT.width} height={CHART_RECT.height} fill="#f4f6ef" opacity={0.85} rx={12} />
         {shown !== 'none' && (
@@ -199,7 +235,7 @@ export function ExtrasPreview({ mascot, ball, play, label }: PreviewProps): Reac
             <MascotFigure mascot={shown} pose={pose} />
           </g>
         )}
-        {t !== null && timed.filter((x) => x.front).map((x, i) => <ParticleSvg key={`f${i}`} p={x.p} ms={t - x.at} />)}
+        {t !== null && timed.filter((x) => x.front).map((x, i) => <ParticleSvg key={`f${i}`} p={x.p} ms={t - x.at} masks={masks} />)}
         {shot && t! < SHOT.ms && <circle cx={shot.x} cy={shot.y} r={shot.size / 2} fill={css(BALL_COLORS[ball].fill)} stroke="#12202c" strokeWidth={3} />}
       </svg>
     </figure>

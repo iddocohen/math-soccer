@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../core/rng';
 import { CHART_RECT } from '../core/match/world';
-import { EFFECT_CAPACITY, GOAL_EFFECT_MS, goalEffectParticles, TRAIL_CAPACITY, TRAIL_FADE_MS, TRAIL_STYLE, trailCount, trailParticle, type ShownGoalEffect, type ShownTrail } from './effects';
-import { particleAt, particleEnd } from './particles';
+import { EFFECT_CAPACITY, GOAL_EFFECT_MS, goalEffectParticles, IMAGE_FILL, imageScale, PARTICLE_IMAGE_SIZE, PARTICLE_TEXTURE_SIZE, TRAIL_CAPACITY, TRAIL_FADE_MS, TRAIL_STYLE, trailCount, trailParticle, type ShownGoalEffect, type ShownTrail } from './effects';
+import { particleAt, particleEnd, type ParticleImage } from './particles';
+import { PARTICLE_FILES } from '../assets';
 
 const rand = () => {
   const rng = createRng(3);
@@ -84,6 +85,35 @@ describe('goal effects (FR-137)', () => {
         const s = particleAt(p, ms);
         if (s) expect(s.y).toBeLessThan(CHART_RECT.y + 40);
       }
+    }
+  });
+});
+
+describe('particle images (amendment 22, FR-149)', () => {
+  it('the sparkles, stars and fire trails use their images; the rainbow stays drawn', () => {
+    const r = rand();
+    const imageOf = (trail: ShownTrail) => new Set(Array.from({ length: 20 }, (_, n) => trailParticle(trail, 500, 500, 40, n, r).image));
+    expect(imageOf('sparkles')).toEqual(new Set(['twinkle']));
+    expect(imageOf('stars')).toEqual(new Set(['star']));
+    expect(imageOf('fire')).toEqual(new Set(['fire']));
+    expect(imageOf('rainbow')).toEqual(new Set([undefined]));
+  });
+
+  it('fireworks and the light show use the images, the light beams and the confetti stay drawn', () => {
+    const images = (effect: ShownGoalEffect) => {
+      const { back, front } = goalEffectParticles(effect, rand());
+      return [...back, ...front].map((p) => `${p.shape}:${p.image ?? '-'}`);
+    };
+    expect(new Set(images('fireworks'))).toEqual(new Set(['dot:flare', 'dot:sparkle']));
+    expect(new Set(images('lightShow'))).toEqual(new Set(['beam:-', 'dot:light']));
+    expect(new Set(images('confetti'))).toEqual(new Set(['piece:-']));
+  });
+
+  it('every image has a bundled file, and imageScale draws its visible middle as wide as the shape it replaces', () => {
+    expect(Object.keys(PARTICLE_FILES).sort()).toEqual(Object.keys(IMAGE_FILL).sort());
+    for (const image of Object.keys(IMAGE_FILL) as ParticleImage[]) {
+      const scale = 0.8;
+      expect(imageScale(image, scale) * PARTICLE_IMAGE_SIZE * IMAGE_FILL[image]).toBeCloseTo(scale * PARTICLE_TEXTURE_SIZE);
     }
   });
 });

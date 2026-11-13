@@ -1,6 +1,10 @@
 /**
  * The ball trail and the goal effect in the match (amendment 20, FR-134, FR-137). The looks come from effects.ts and
- * the motion from particles.ts; this file only draws them with Phaser images on generated textures (no image files).
+ * the motion from particles.ts; this file only draws them with Phaser images.
+ *
+ * - The shapes are generated textures. The particle images of amendment 22 (FR-149) are bundled files that the scene
+ *   loads in its preload (`loadParticleImages`); a particle with an image draws it, tinted, and falls back to its
+ *   shape when the file did not load.
  *
  * - Each layer is a ParticlePool of images: an image is made the first time its slot is used and is reused for every
  *   later particle, so a shot or a goal makes no new objects after the first ones.
@@ -12,11 +16,27 @@
  */
 import Phaser from 'phaser';
 import type { GoalEffect, Trail } from '../core/rewards/items';
-import { BEAM_SIZE, EFFECT_CAPACITY, goalEffectParticles, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_CAPACITY, trailCount, trailParticle } from './effects';
+import { assetUrl, PARTICLE_FILES } from '../assets';
+import { BEAM_SIZE, EFFECT_CAPACITY, goalEffectParticles, imageScale, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_CAPACITY, trailCount, trailParticle } from './effects';
 import { CONFETTI_DEPTH, FIREWORKS_DEPTH } from './FinalShow';
-import { ParticlePool, type ParticleShape } from './particles';
+import { ParticlePool, type ParticleImage, type ParticleShape } from './particles';
 
 const KEY: Record<ParticleShape, string> = { dot: 'fx-dot', star: 'fx-star', piece: 'fx-piece', beam: 'fx-beam' };
+const IMAGE_KEY: Record<ParticleImage, string> = {
+  twinkle: 'fx-img-twinkle',
+  star: 'fx-img-star',
+  sparkle: 'fx-img-sparkle',
+  fire: 'fx-img-fire',
+  flare: 'fx-img-flare',
+  light: 'fx-img-light',
+};
+
+/** Queues the particle images (amendment 22) that are not loaded yet; call it in the scene's preload. */
+export function loadParticleImages(scene: Phaser.Scene): void {
+  for (const [image, key] of Object.entries(IMAGE_KEY) as [ParticleImage, string][]) {
+    if (!scene.textures.exists(key)) scene.load.image(key, assetUrl(PARTICLE_FILES[image]));
+  }
+}
 
 /** Creates the particle textures that do not exist yet: a soft dot, a star, a confetti piece and a light beam. */
 export function ensureFxTextures(scene: Phaser.Scene): void {
@@ -80,11 +100,14 @@ class ParticleLayer {
           image.setVisible(false);
           return;
         }
-        const key = KEY[p.shape];
+        // The particle image when it loaded, otherwise the drawn shape (FR-149).
+        const withImage = p.image !== undefined && scene.textures.exists(IMAGE_KEY[p.image]);
+        const key = withImage ? IMAGE_KEY[p.image!] : KEY[p.shape];
         if (image.texture.key !== key) image.setTexture(key);
+        const scale = withImage ? imageScale(p.image!, s.scale) : s.scale;
         // Glowing particles add up their light; the others keep their colors. A beam turns around its foot.
         image.setOrigin(0.5, p.shape === 'beam' ? 1 : 0.5).setBlendMode(p.glow ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);
-        image.setPosition(s.x, s.y).setScale(s.scale).setAlpha(s.alpha).setRotation(s.rotation).setTint(p.tint).setVisible(true);
+        image.setPosition(s.x, s.y).setScale(scale).setAlpha(s.alpha).setRotation(s.rotation).setTint(p.tint).setVisible(true);
       },
     );
   }

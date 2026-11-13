@@ -116,7 +116,7 @@ Every push to `main` publishes the game to GitHub Pages with the workflow [.gith
 
 ## Assets and licenses
 
-The game bundles a few free asset files in `public/assets/` (amendment 03). They ship with the build and the offline cache, so the game makes no request to other sites. The license of each file was checked on its source page.
+The game bundles a few free asset files in `public/assets/` (amendments 03 and 22). They ship with the build and the offline cache, so the game makes no request to other sites. The license of each file was checked on its source page.
 
 | Use | File | Asset | Author | License | Source |
 |-----|------|-------|--------|---------|--------|
@@ -126,14 +126,25 @@ The game bundles a few free asset files in `public/assets/` (amendment 03). They
 | Soft "ohhh" | `ohh.mp3` | Crowd Sigh In Disappointment (freesound 764324), trimmed to 1.2 s | ShangusBurger | CC0 1.0 | [freesound.org/s/764324](https://freesound.org/s/764324) |
 | Clapping | `clap.mp3` | Audience Clapping 03h (freesound 606967), trimmed to 1.5 s | Department64 | CC0 1.0 | [freesound.org/s/606967](https://freesound.org/s/606967) |
 | Kick | `kick.mp3` | Soccer Ball Kick (freesound 555042) | bittermelonheart | CC0 1.0 | [freesound.org/s/555042](https://freesound.org/s/555042) |
+| Referee whistle | `whistle.mp3` | Referee whistle blow, gymnasium (freesound 218318), trimmed to 1.5 s, mono | SpliceSound | CC0 1.0 | [freesound.org/s/218318](https://freesound.org/s/218318) |
+| Keeper catch | `catch.mp3` | Glove Catch 12 (freesound 164536), trimmed to 0.6 s, mono | martinimeniscus | CC0 1.0 | [freesound.org/s/164536](https://freesound.org/s/164536) |
+| Ball on the wall | `wall.mp3` | Impact Sounds: `impactPunch_medium_000`, mono | Kenney | CC0 1.0 | [kenney.nl/assets/impact-sounds](https://kenney.nl/assets/impact-sounds) |
+| Firework | `firework.mp3` | Firework Cluster (freesound 140717), mono | j1987 | CC0 1.0 | [freesound.org/s/140717](https://freesound.org/s/140717) |
+| Confetti pop | `pop.mp3` | partypopper (freesound 26349), mono | Streety | CC0 1.0 | [freesound.org/s/26349](https://freesound.org/s/26349) |
+| Buying in the locker room | `coin.mp3` | Coin Pickup (freesound 478647), trimmed to 0.8 s, mono | Phenala | CC0 1.0 | [freesound.org/s/478647](https://freesound.org/s/478647) |
+| Unlocked mode and cup lift | `fanfare.mp3` | Success Fanfare Trumpets (freesound 456966), trimmed to 1.9 s with a fade, mono | FunWithSound | CC0 1.0 | [freesound.org/s/456966](https://freesound.org/s/456966) |
+| Rain | `rain.mp3` | Slowly Raining Loop (freesound 177479), 15 s with a crossfaded loop point, mono | unfa | CC0 1.0 | [freesound.org/s/177479](https://freesound.org/s/177479) |
+| Crowd murmur | `murmur.mp3` | Large Crowd Ambience (freesound 383768), 15 s with a crossfaded loop point, mono | a deleted Freesound account | CC0 1.0 | [freesound.org/s/383768](https://freesound.org/s/383768) |
+| Ball trails, fireworks, light show | `star_04.png`, `star_06.png`, `star_07.png`, `fire_01.png`, `flare_01.png`, `light_01.png` | Particle Pack, white versions scaled to 64 px and tinted in code | Kenney | CC0 1.0 | [kenney.nl/assets/particle-pack](https://kenney.nl/assets/particle-pack) |
 | Numbers and headings | `Fredoka.ttf` | Fredoka (variable TTF) | The Fredoka Project Authors | SIL Open Font License 1.1 (text in `public/assets/OFL.txt`) | [fonts.google.com/specimen/Fredoka](https://fonts.google.com/specimen/Fredoka) |
 
 Everything else is drawn or synthesized in code:
 
-- **Scene** (Phaser shapes): stands with fans and scarves, floodlights, night sky, chalk lines, goal frame and net, chart board, keeper, player with shirt number and name, the tennis and ping-pong balls, and the ball designs from the locker room other than the classic ball.
+- **Scene** (Phaser shapes): stands with fans and scarves, floodlights, night sky, chalk lines, goal frame and net, chart board, keeper, player with shirt number and name, the wall's defenders, the mascots, the tennis and ping-pong balls, and the ball designs from the locker room other than the classic ball.
+- **Particles** drawn in code: the rainbow trail, the confetti, the light beams of the light show, rain and snow.
 - **Overlay** (HTML and CSS, inline SVG): buttons, hearts as balls, the shirt icon, the help chart, the number pad.
 - **App icon**: a hand-written SVG (`public/icons/icon.svg`, a goal on grass) with PNG copies at 192 and 512 pixels.
-- **Fallback sounds** (Web Audio API, made while playing): when a sound file cannot be loaded or decoded, a synthesized kick, cheer, clapping or "ohhh" plays instead.
+- **Fallback sounds** (Web Audio API, made while playing): when a sound file cannot be loaded or decoded, a synthesized stand-in plays instead, for every sound file above. The cup final's chant is always synthesized.
 - **Speech**: the browser's own German voice (speechSynthesis), only with "Vorlesen" on.
 
 The project setup and several modules are copied from [math-tank](https://github.com/iddocohen/math-tank) by the same author.

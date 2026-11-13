@@ -14,6 +14,10 @@
  *   `fireworks` pops and crackles for a won cup. Both are synthesized and are crowd sounds.
  * - `cheer`, `clap` and `ohh` are crowd sounds and play while `sound.crowd` is on.
  * - With `sound.ohh` off, `ohh` plays the clapping alone (data-model "Settings").
+ * - Amendment 22 (FR-150 to FR-152): recorded clips for the whistle, the keeper's catch, the ball on the wall, the coin
+ *   and the fanfare (effects), and for the firework, the confetti pop, the rain and the crowd murmur (crowd), each with
+ *   a synthesized stand-in. `CLIP_SWITCH` names the switch of every clip. The rain and the murmur loop quietly while
+ *   `ambience` wants them and the crowd switch is on.
  * - Browsers start audio suspended (amendment 17). iPad Safari and Silk on Fire tablets resume it only inside a user
  *   gesture that counts as one: a key press, a click, or the end of a touch, not the start of a touch (pointerdown).
  *   installUnlock listens to keydown, pointerup, touchend and click for the whole session. While the context is not
@@ -42,10 +46,38 @@ export type AudioContextLike = Pick<
 >;
 
 /** The recorded clips, by the sound they play (src/assets.ts). */
-export type ClipName = 'kick' | 'cheer' | 'clap' | 'ohh';
+export type ClipName = 'kick' | 'cheer' | 'clap' | 'ohh' | 'whistle' | 'catch' | 'wall' | 'firework' | 'pop' | 'coin' | 'fanfare' | 'rain' | 'murmur';
+
+/** The parent's switch that each clip follows (FR-059, FR-152): "Geräusche" (effects) or "Publikum" (crowd). */
+export const CLIP_SWITCH: Record<ClipName, 'effects' | 'crowd'> = {
+  kick: 'effects',
+  whistle: 'effects',
+  catch: 'effects',
+  wall: 'effects',
+  coin: 'effects',
+  fanfare: 'effects',
+  cheer: 'crowd',
+  clap: 'crowd',
+  ohh: 'crowd',
+  firework: 'crowd',
+  pop: 'crowd',
+  rain: 'crowd',
+  murmur: 'crowd',
+};
 
 export const MAX_GAIN = 0.35;
-const CLIP_NAMES: readonly ClipName[] = ['kick', 'cheer', 'clap', 'ohh'];
+const CLIP_NAMES = Object.keys(CLIP_SWITCH) as ClipName[];
+/** The loops play far below the other sounds: the murmur well below the cheer, the rain a little louder (FR-151). */
+export const LOOP_GAIN = { murmur: 0.06, rain: 0.09 } as const;
+export type LoopName = keyof typeof LOOP_GAIN;
+
+/**
+ * The loops a match wants (FR-151): the murmur while the match runs (not paused, not over), and the rain too while the
+ * weather is rain. `sfx.ambience` still checks the crowd switch.
+ */
+export function matchAmbience(running: boolean, weather: string | undefined): Record<LoopName, boolean> {
+  return { murmur: running, rain: running && weather === 'rain' };
+}
 /** Length of the "ohhh" tones; the clapping starts after them. */
 export const OHH_SECONDS = 0.9;
 /** With the recorded "ohhh" (about 1.2 s), the recorded clapping starts this long after it, while the "ohhh" fades. */
@@ -80,6 +112,23 @@ export interface Sfx {
   clap(): void;
   /** The soft "ohhh", then clapping; clapping alone when `sound.ohh` is off. */
   ohh(): void;
+  /** The referee's whistle at the start of a round and the end of a cup match or shootout (FR-150); an effect. */
+  whistle(): void;
+  /** The keeper catches the ball (FR-150); an effect. */
+  keeperCatch(): void;
+  /** The ball hits the wall in "Freistoß mit Mauer" (FR-150); an effect. */
+  wallHit(): void;
+  /** A confetti pop with the confetti goal effect and the cup's confetti (FR-150); a crowd sound. */
+  pop(): void;
+  /** A coin for an item bought in the locker room (FR-150); an effect. */
+  coin(): void;
+  /** A short fanfare for an unlocked game mode and the cup lift (FR-150); an effect. */
+  fanfare(): void;
+  /**
+   * The quiet loops under a match (FR-151): the crowd murmur and the rain. Each plays while it is wanted here and the
+   * crowd switch is on, and stops otherwise. Call it whenever the match, the pause, the weather or the switches change.
+   */
+  ambience(want: Record<LoopName, boolean>): void;
   /**
    * Creates the audio context and, while it is not running, calls `resume()` and plays a silent buffer at once; then
    * decodes the clips once. Call it synchronously from a user gesture. Resolves when the resume and the decoding end.
@@ -224,7 +273,11 @@ export function createSfx(options: SfxOptions): Sfx {
         // Refused outside a gesture: the next key press or tap tries again.
       }),
       loadClips(c),
-    ]).then(() => undefined);
+    ]).then(() => {
+      // The loops wanted before audio ran start now, and a synthesized loop gives way to its decoded clip.
+      for (const [name, loop] of loops) if (loop.synthesized && decoded.has(name)) stopLoop(name);
+      applyAmbience();
+    });
   };
 
   /** A crowd singing one tone: three slightly detuned voices that swell in and fade out. */
@@ -250,6 +303,88 @@ export function createSfx(options: SfxOptions): Sfx {
     if (!playClip(c, 'clap', delay)) clapping(c, 5, 0.12, 0.2, delay);
   };
 
+  /** A plain tone of `type` at `frequency` for `duration`, starting after `delay`, with a quick fade in and out. */
+  const tone = (c: AudioContextLike, frequency: number, duration: number, peak: number, delay = 0, type: OscillatorType = 'triangle') => {
+    const t = c.currentTime + delay;
+    const g = c.createGain();
+    g.gain.setValueAtTime(SILENT, t);
+    g.gain.linearRampToValueAtTime(Math.min(peak, MAX_GAIN), t + 0.01);
+    g.gain.linearRampToValueAtTime(SILENT, t + duration);
+    g.connect(c.destination);
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(frequency, t);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + duration + 0.05);
+  };
+
+  /** The context when the switch of `name` is on and audio runs; null otherwise. */
+  const gate = (name: ClipName): AudioContextLike | null => (options.sound()[CLIP_SWITCH[name]] ? running() : null);
+
+  /** The synthesized pops and crackle of fireworks, also the fallback of the firework clip. */
+  const synthFireworks = (c: AudioContextLike) => {
+    for (const [i, at] of [0, 0.45, 0.8, 1.3].entries()) {
+      // A low pop, then a short crackle.
+      noiseBurst(c, 0.18, 300 + i * 60, 0.3, at);
+      noiseBurst(c, 0.5, 4200, 0.08, at + 0.12);
+    }
+  };
+
+  /** The synthesized stand-in of each loop: band-passed noise, low for the murmur and high for the rain. */
+  const LOOP_NOISE: Record<LoopName, number> = { murmur: 450, rain: 5200 };
+  /** The playing loops: their source and gain, so a loop can stop. */
+  const loops = new Map<LoopName, { src: AudioBufferSourceNode; gain: GainNode; synthesized: boolean }>();
+  let wanted: Record<LoopName, boolean> = { murmur: false, rain: false };
+
+  const startLoop = (c: AudioContextLike, name: LoopName) => {
+    const t = c.currentTime;
+    const g = c.createGain();
+    // A short fade in, so the loop never starts with a click.
+    g.gain.setValueAtTime(SILENT, t);
+    g.gain.linearRampToValueAtTime(LOOP_GAIN[name], t + 0.4);
+    g.connect(c.destination);
+    const src = c.createBufferSource();
+    src.loop = true;
+    const clip = decoded.get(name);
+    if (clip) {
+      src.buffer = clip;
+      src.connect(g);
+    } else {
+      src.buffer = noiseBuffer(c);
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(LOOP_NOISE[name], t);
+      f.Q.setValueAtTime(0.7, t);
+      f.connect(g);
+      src.connect(f);
+    }
+    src.start(t);
+    loops.set(name, { src: src as AudioBufferSourceNode, gain: g as GainNode, synthesized: !clip });
+  };
+
+  const stopLoop = (name: LoopName) => {
+    const loop = loops.get(name);
+    if (!loop) return;
+    loops.delete(name);
+    try {
+      loop.src.stop();
+      loop.gain.disconnect();
+    } catch {
+      // Already stopped: nothing more to do.
+    }
+  };
+
+  /** Starts the loops that are wanted and allowed, and stops the others. */
+  const applyAmbience = () => {
+    const c = options.sound().crowd ? running() : null;
+    for (const name of Object.keys(LOOP_GAIN) as LoopName[]) {
+      const on = c !== null && wanted[name];
+      if (on && !loops.has(name)) startLoop(c, name);
+      else if (!on) stopLoop(name);
+    }
+  };
+
   return {
     kick() {
       const c = options.sound().effects ? running() : null;
@@ -264,13 +399,48 @@ export function createSfx(options: SfxOptions): Sfx {
       }
     },
     fireworks() {
-      const c = crowd();
-      if (!c) return;
-      for (const [i, at] of [0, 0.45, 0.8, 1.3].entries()) {
-        // A low pop, then a short crackle.
-        noiseBurst(c, 0.18, 300 + i * 60, 0.3, at);
-        noiseBurst(c, 0.5, 4200, 0.08, at + 0.12);
-      }
+      const c = gate('firework');
+      if (c && !playClip(c, 'firework')) synthFireworks(c);
+    },
+    whistle() {
+      const c = gate('whistle');
+      if (!c || playClip(c, 'whistle')) return;
+      // Two short high blows, square for the whistle's edge.
+      tone(c, 2750, 0.18, 0.12, 0, 'square');
+      tone(c, 2750, 0.45, 0.12, 0.25, 'square');
+    },
+    keeperCatch() {
+      const c = gate('catch');
+      if (c && !playClip(c, 'catch')) noiseBurst(c, 0.12, 700, 0.3);
+    },
+    wallHit() {
+      const c = gate('wall');
+      if (!c || playClip(c, 'wall')) return;
+      glide(c, 140, 55, 0.16, 0.3);
+      noiseBurst(c, 0.08, 500, 0.2);
+    },
+    pop() {
+      const c = gate('pop');
+      if (!c || playClip(c, 'pop')) return;
+      noiseBurst(c, 0.06, 1500, 0.3);
+      noiseBurst(c, 0.3, 4500, 0.08, 0.05);
+    },
+    coin() {
+      const c = gate('coin');
+      if (!c || playClip(c, 'coin')) return;
+      tone(c, 988, 0.08, 0.15, 0, 'square');
+      tone(c, 1319, 0.3, 0.15, 0.08, 'square');
+    },
+    fanfare() {
+      const c = gate('fanfare');
+      if (!c || playClip(c, 'fanfare')) return;
+      // C, E, G and the high C, the last one held.
+      [523, 659, 784].forEach((f, i) => tone(c, f, 0.16, 0.2, i * 0.14));
+      tone(c, 1047, 0.6, 0.2, 0.42);
+    },
+    ambience(want) {
+      wanted = { ...want };
+      applyAmbience();
     },
     cheer() {
       const c = crowd();

@@ -20,6 +20,9 @@
  *   number lights the square up with its number (it becomes a hint of the next target) and the fans clap; a wrong one
  *   shows its square with the "ohhh". The last square is a normal keeper shot.
  * - Sounds: a kick on every shot, a cheer on a goal, clapping on a filled square, the "ohhh" with clapping on a miss.
+ *   Amendment 22 (FR-150): the whistle when a round starts and when a cup match or a shootout ends, the keeper's catch
+ *   whenever he holds the ball, a thud when the ball hits the wall, a firework or a confetti pop with those goal
+ *   effects, and a fanfare with fireworks and a pop on the cup lift.
  * - Cup (amendment 13): when a cup round starts, the keeper and some scarves take the opponent's colors and the keeper
  *   shows his quirk (FR-107). The final fills the stand, and the crowd chants the shirt name with clapping; a won final
  *   brings confetti, fireworks over the stands, the player lifting the cup, a cheer and the chant again (FR-110).
@@ -69,7 +72,7 @@ import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/ma
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
 import { BALL_DEPTH, BallView } from './BallView';
-import { ensureFxTextures, GoalEffectView, TrailView } from './EffectsView';
+import { ensureFxTextures, GoalEffectView, loadParticleImages, TrailView } from './EffectsView';
 import { MascotView } from './MascotView';
 import type { MascotMood } from './mascot';
 import { GoalView } from './GoalView';
@@ -100,8 +103,18 @@ export interface MatchSounds {
   clap?(): void;
   /** The crowd's chant in the cup final (FR-110). */
   chant?(shirtName: string): void;
-  /** Fireworks for a won cup (FR-110). */
+  /** Fireworks for a won cup (FR-110) and the fireworks goal effect (FR-150). */
   fireworks?(): void;
+  /** The referee's whistle at the start of a round and the end of a cup match or shootout (amendment 22, FR-150). */
+  whistle?(): void;
+  /** The keeper catches the ball, in every mode (FR-150). */
+  keeperCatch?(): void;
+  /** The ball hits the wall (FR-150). */
+  wallHit?(): void;
+  /** A confetti pop with the confetti goal effect and the confetti of a won cup or shootout (FR-150). */
+  pop?(): void;
+  /** The fanfare of the cup lift (FR-150). */
+  fanfare?(): void;
 }
 
 /** The cup match the scene shows (amendment 13): the opponent, and whether it is the final. */
@@ -236,6 +249,7 @@ export class MatchScene extends Phaser.Scene {
     if (!this.textures.exists(BALL_SPRITE)) {
       this.load.spritesheet(BALL_SPRITE, assetUrl(ASSET.ballSprite), { frameWidth: SPRITE_FRAME_SIZE, frameHeight: SPRITE_FRAME_SIZE });
     }
+    loadParticleImages(this);
   }
 
   create(): void {
@@ -333,6 +347,10 @@ export class MatchScene extends Phaser.Scene {
       // The keeper's team is set again for the shootout (applyLook), also when the seed stays the same.
       this.lookKey = '';
       this.kickCount = -1;
+      if (s.phase !== 'roundOver') this.options.sounds?.whistle?.();
+    } else if (prev.phase !== 'roundOver' && s.phase === 'roundOver' && (s.roundType === 'cup' || s.shootout !== null)) {
+      // The final whistle of a cup match or a shootout (FR-150).
+      this.options.sounds?.whistle?.();
     }
     if (s.shootout !== null) this.newKick(s);
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
@@ -397,6 +415,7 @@ export class MatchScene extends Phaser.Scene {
     this.ball.flyOn(target, () => {
       if (saved) {
         this.keeper.catchBall();
+        this.options.sounds?.keeperCatch?.();
         this.ball.caught(HOLD_MS);
         this.stands.cheer();
         this.options.sounds?.cheer();
@@ -432,7 +451,14 @@ export class MatchScene extends Phaser.Scene {
     this.player.liftCup();
     this.stands.cheer();
     this.options.sounds?.cheer();
+    this.liftSounds();
+  }
+
+  /** The sounds of the cup lift: the fanfare, the fireworks and the pop of the confetti (FR-150). */
+  private liftSounds(): void {
+    this.options.sounds?.fanfare?.();
     this.options.sounds?.fireworks?.();
+    this.options.sounds?.pop?.();
   }
 
   /** Every frame: the rolling ball and the countdown ring of a shot in flight follow its time left (FR-144). */
@@ -478,7 +504,7 @@ export class MatchScene extends Phaser.Scene {
     this.player.liftCup();
     this.stands.cheer();
     this.options.sounds?.cheer();
-    this.options.sounds?.fireworks?.();
+    this.liftSounds();
     this.chant();
     this.reportCup(true);
   }
@@ -583,7 +609,7 @@ export class MatchScene extends Phaser.Scene {
       this.stands.cheer();
       this.options.sounds?.cheer();
       // The cup final has its own show instead of the goal effect (FR-137, FR-110).
-      if (!this.cupMatch?.final) this.goalEffect.play(this.currentLook().goalEffect);
+      if (!this.cupMatch?.final) this.playGoalEffect(this.currentLook().goalEffect);
       this.mascot.cheer();
       this.startCelebration(s.roundType === 'time');
     } else if (s.ball?.outcome === 'filled') {
@@ -594,17 +620,28 @@ export class MatchScene extends Phaser.Scene {
     } else if (s.ball?.outcome === 'blocked') {
       // The wall stopped the ball: it rests at the defenders a moment and fades (FR-142).
       this.ball.caught(HOLD_MS);
+      this.options.sounds?.wallHit?.();
       this.mascot.coverEyes();
       this.stands.ohh();
       this.options.sounds?.ohh();
     } else if (s.ball?.outcome === 'miss') {
       // Without the keeper the ball rests on the square of the typed number instead of in his gloves.
-      if (this.keeperInPlay) this.keeper.catchBall();
+      if (this.keeperInPlay) {
+        this.keeper.catchBall();
+        this.options.sounds?.keeperCatch?.();
+      }
       this.ball.caught(HOLD_MS);
       this.mascot.coverEyes();
       this.stands.ohh();
       this.options.sounds?.ohh();
     }
+  }
+
+  /** The goal effect of the look, with its sound: a firework for fireworks, a pop for confetti (FR-137, FR-150). */
+  private playGoalEffect(effect: GoalEffect): void {
+    this.goalEffect.play(effect);
+    if (effect === 'fireworks') this.options.sounds?.fireworks?.();
+    if (effect === 'confetti') this.options.sounds?.pop?.();
   }
 
   /** The chosen celebration plays on the player; when it ends the controller gives the next target (FR-114). */

@@ -7,6 +7,7 @@
 import { expect, seedStorage, startRound, targetNumber, test, typeAndShoot } from './fixtures';
 import { defaultSettings } from '../../src/core/settings/defaults';
 import { SETTINGS_KEY } from '../../src/core/storage/storage';
+import { CLIP_FILES, PARTICLE_FILES } from '../../src/assets';
 
 test('after one load the game starts and plays a whole round offline, also after a reload', async ({ page, context, browserName }) => {
   test.setTimeout(120_000);
@@ -33,4 +34,19 @@ test('after one load the game starts and plays a whole round offline, also after
   await expect(match).toHaveAttribute('data-phase', 'roundOver');
   await expect(page.getByTestId('round-end')).toBeVisible();
   await context.setOffline(false);
+});
+
+test('the precache holds the sound clips and particle images of amendment 22 (FR-153)', async ({ page, browserName }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('start')).toBeVisible();
+  const supported = await page.evaluate(() => 'serviceWorker' in navigator);
+  test.skip(!supported, `${browserName} under Playwright offers no service worker here`);
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  const cached = await page.evaluate(async () => {
+    const urls: string[] = [];
+    for (const name of await caches.keys()) for (const request of await (await caches.open(name)).keys()) urls.push(new URL(request.url).pathname);
+    return urls;
+  });
+  const files = [...Object.values(CLIP_FILES), ...Object.values(PARTICLE_FILES)];
+  for (const file of files) expect(cached.some((path) => path.endsWith(`/assets/${file}`)), file).toBe(true);
 });
