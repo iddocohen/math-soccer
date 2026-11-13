@@ -84,7 +84,7 @@ describe('summarize (FR-039)', () => {
     expect(summary.directions[1]).toMatchObject({ attempts: 2, independent: 1, withHelp: 1, mastered: false });
     expect(summary.level).toEqual({ level: 1, toRaise: 3 });
     expect(summary.levels[0]).toEqual({ level: 1, independent: 1, withHelp: 1, guesses: 0 });
-    expect(summary.levels.map((r) => r.level)).toEqual([1, 2, 3, 4, 5]);
+    expect(summary.levels.map((r) => r.level)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(summary.directions[0]).toMatchObject({ attempts: 2 });
   });
 

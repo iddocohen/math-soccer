@@ -14,7 +14,9 @@ import { t } from '../../src/i18n';
 
 const text = t();
 /** Three goals win a match; three misses lose a heart. */
-const cupSettings = { ...defaultSettings(), cupGoals: 3, difficulty: 'challenging' as const };
+// Levels 1 to 5: every shot at a target is a goal. The cutouts of level 6 take several shots per goal (amendment 18);
+// cutouts.spec.ts and the cup unit tests cover them.
+const cupSettings = { ...defaultSettings(), levels: { start: 1 as const, hardest: 5 as const }, cupGoals: 3, difficulty: 'challenging' as const };
 
 async function storedCup(page: Page): Promise<unknown> {
   return page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null') as unknown, CUP_KEY);

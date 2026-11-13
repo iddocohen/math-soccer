@@ -43,12 +43,13 @@ export function nextTarget(input: NextTargetInput): Target {
     level: pick.level,
     pattern: pick.choice.pattern,
   };
-  return placement.queue && placement.queue.length > 0 ? { ...target, queue: placement.queue } : target;
+  const withQueue = placement.queue && placement.queue.length > 0 ? { ...target, queue: placement.queue } : target;
+  return placement.cutout ? { ...withQueue, cutout: placement.cutout } : withQueue;
 }
 
 /**
- * The next empty square of the same shape after `target` was scored (FR-072), or null when no square is left. The
- * scored square lights up as one more hint.
+ * The next empty square of the same shape or cutout after `target` was scored or filled (FR-072, FR-125), or null when
+ * no square is left. The scored square lights up as one more hint.
  */
 export function nextInShape(target: Target): Target | null {
   const [next, ...rest] = target.queue ?? [];
@@ -60,5 +61,6 @@ export function nextInShape(target: Target): Target | null {
     level: target.level,
     pattern: target.pattern,
   };
-  return rest.length > 0 ? { ...following, queue: rest } : following;
+  const withQueue = rest.length > 0 ? { ...following, queue: rest } : following;
+  return target.cutout ? { ...withQueue, cutout: target.cutout } : withQueue;
 }

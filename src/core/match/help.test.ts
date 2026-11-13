@@ -334,7 +334,7 @@ describe('targetHintDisplay (FR-040, amendment 09: on request only at the hardes
 
   it('with "auf Wunsch" and adaptive on, waits for a request only at the hardest level the parent allows', () => {
     const s = { ...base, hintDisplay: 'onRequest' as const, adaptive: true };
-    expect(([1, 2, 3, 4, 5] as const).map((level) => targetHintDisplay(s, { level }))).toEqual(['always', 'always', 'always', 'always', 'onRequest']);
+    expect(([1, 2, 3, 4, 5, 6] as const).map((level) => targetHintDisplay(s, { level }))).toEqual(['always', 'always', 'always', 'always', 'always', 'onRequest']);
     const upTo2 = { ...s, levels: { start: 1 as const, hardest: 2 as const } };
     expect(([1, 2] as const).map((level) => targetHintDisplay(upTo2, { level }))).toEqual(['always', 'onRequest']);
   });

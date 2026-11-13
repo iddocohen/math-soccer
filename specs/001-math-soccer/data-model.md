@@ -25,7 +25,7 @@ Future shape changes use the migration mechanism instead of a new baseline: rais
 | `range` | `{ preset: '1-100' \| '0-1000' \| 'custom', min, max }` | `1-100`, 1, 100 | integers, `0 <= min < max <= 1000`, `max - min >= 9` |
 | `hintDisplay` | `'always' \| 'onRequest'` | `'always'` | `onRequest` hides the hint numbers until help step 1 |
 | `hintDistance` | `{ direct, vertical, diagonal, far: boolean }` | all true | at least one true; the distances of the Nachbarn pattern |
-| `levels` | `{ start, hardest: 1 \| 2 \| 3 \| 4 \| 5 }` | 1, 5 | "Stufe am Anfang" and "Schwerste Stufe" (FR-085); `start` is not above `hardest` |
+| `levels` | `{ start, hardest: 1 \| 2 \| 3 \| 4 \| 5 \| 6 }` | 1, 6 | "Stufe am Anfang" and "Schwerste Stufe" (FR-085); `start` is not above `hardest` |
 | `shapes` | `{ I, O, T, L, J, S, Z: boolean }` | all true | the shapes of "Formen" (FR-074); with every shape off, levels 3 and 4 are skipped |
 | `timeChallenge` | `{ allowed: boolean, minutes: 1 \| 2 \| 3 \| 5 }` | true, 2 | FR-075, FR-076 |
 | `roundType` | `'untilHearts' \| 'goalCount'` | `'untilHearts'` | the round type of "Spielen" |
@@ -62,11 +62,12 @@ Direction names (used by targets, attempts and progress) map to steps: right +1,
 | `number` | the answer |
 | `hints` | lit hint numbers |
 | `directions` | directions trained (FR-038; for Formen, from the lit shape squares that share an edge with the target, FR-073) |
-| `level` | 1 to 5, the difficulty level of the target (amendment 09) |
-| `pattern` | `neighbors`, `middle`, `row`, `shape` or `xshape` (the X shape of level 5; FR-065, amendment 09) |
-| `queue` | Formen or the X shape with two empty squares only: the empty squares still to shoot after this one, each `{ number, directions }` (FR-072). After the goal, the first one becomes the target and the scored square joins the hints |
+| `level` | 1 to 6, the difficulty level of the target (amendments 09 and 18) |
+| `pattern` | `neighbors`, `middle`, `row`, `shape`, `xshape` (the X shape of level 5; FR-065, amendment 09) or `cutout` (level 6, amendment 18) |
+| `queue` | Formen or the X shape with two empty squares only: the empty squares still to shoot after this one, each `{ number, directions }` (FR-072). After the goal, the first one becomes the target and the scored square joins the hints. A cutout keeps its empty squares here too: after a filled square (no goal) the first one becomes the target |
+| `cutout` | level 6 only (amendment 18): `{ squares, given }`, all squares of the cutout and the squares given from the start; the filled squares are the hints that are not given. Only the last square (empty `queue`) is a keeper shot and a goal. A stored round keeps it, so a refresh continues a half-filled cutout |
 
-Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of amendment 05): 1 "Gerade Linien" (Nachbarn, Mitte and Reihe across and down), 2 "Schräge Linien" (Mitte and Reihe on the diagonals, and diagonal Nachbarn), 3 "Formen" (one empty square), 4 "Formen mit 2 Lücken", 5 "X-Form" (the diagonal cross, with two empty squares once the child solved 2 targets alone at level 5). A level whose patterns do not fit the chart falls back to the nearest lower level that fits, else the nearest higher one. Within a level the direction is drawn at random, directions not mastered yet weighted twice (FR-089).
+Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of amendment 05): 1 "Gerade Linien" (Nachbarn, Mitte and Reihe across and down), 2 "Schräge Linien" (Mitte and Reihe on the diagonals, and diagonal Nachbarn), 3 "Formen" (one empty square), 4 "Formen mit 2 Lücken", 5 "X-Form" (the diagonal cross, with two empty squares once the child solved 2 targets alone at level 5), 6 "Ausschnitte" (cutouts from the hundred chart with one or two given squares, filled square by square; amendment 18). A level whose patterns do not fit the chart falls back to the nearest lower level that fits, else the nearest higher one. Within a level the direction is drawn at random, directions not mastered yet weighted twice (FR-089).
 
 ## Round (`mathsoccer.round.v1`, kept on refresh)
 
@@ -97,7 +98,7 @@ A round ended with "Zum Start" (amendment 14, FR-118) has no round end: the stor
 
 ## AttemptRecord (`mathsoccer.progress.v1`)
 
-`{ at, mode, min, max, target, directions[], hintDistance, hintDisplay, level, solved, helpStep, misses, responseMs, guess }`. `mode` is always `'keeper'`. `level` is 1 to 5. `helpStep` is 0 to 4. Kept as a capped list (last 2000 attempts), as math-tank.
+`{ at, mode, min, max, target, directions[], hintDistance, hintDisplay, level, solved, helpStep, misses, responseMs, guess }`. `mode` is always `'keeper'`. `level` is 1 to 6. `helpStep` is 0 to 4. Kept as a capped list (last 2000 attempts), as math-tank.
 
 ## Progress (`mathsoccer.progress.v1`, version 1)
 
@@ -110,7 +111,7 @@ Every field is required.
 | `level` | the current level (FR-086); null before the first target and after a reset, so the start level applies |
 | `levelRecent` | outcomes since the level last changed, newest last, at most 6; guesses never enter it (FR-087) |
 | `levelWins` | targets solved alone since the level last changed (for the X shape with two empty squares) |
-| `levels` | per level "1" to "5": targets solved alone and with help, and guesses (FR-090) |
+| `levels` | per level "1" to "6": targets solved alone and with help, and guesses (FR-090) |
 
 Level rule with adaptive on (FR-087): up one after 3 targets in a row solved alone, down one when 2 of the last 3 needed help, never below `levels.start` or above `levels.hardest`. With adaptive off the level stays at `levels.start`.
 

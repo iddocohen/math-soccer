@@ -40,7 +40,7 @@ export const SHAPE_CELLS: Record<ShapeId, ReadonlyArray<readonly [number, number
 type Cells = Array<[number, number]>;
 
 /** `cells` turned a quarter clockwise and moved back to row 0 and column 0. */
-function turned(cells: ReadonlyArray<readonly [number, number]>): Cells {
+export function turned(cells: ReadonlyArray<readonly [number, number]>): Cells {
   const out = cells.map(([r, c]) => [c, -r] as [number, number]);
   const minRow = Math.min(...out.map(([r]) => r));
   const minCol = Math.min(...out.map(([, c]) => c));
@@ -49,9 +49,14 @@ function turned(cells: ReadonlyArray<readonly [number, number]>): Cells {
 
 /** The different turns of a shape: four for T, L, J; two for I, S, Z; one for O. */
 export function shapeTurns(shape: ShapeId): Cells[] {
+  return turnsOf(SHAPE_CELLS[shape]);
+}
+
+/** The different turns of any pattern of squares, each moved to row 0 and column 0 and sorted in reading order. */
+export function turnsOf(base: ReadonlyArray<readonly [number, number]>): Cells[] {
   const out: Cells[] = [];
   const seen = new Set<string>();
-  let cells: Cells = turned(turned(turned(turned(SHAPE_CELLS[shape]))));
+  let cells: Cells = turned(turned(turned(turned(base))));
   for (let i = 0; i < 4; i++) {
     const key = JSON.stringify(cells);
     if (!seen.has(key)) {
@@ -82,7 +87,7 @@ export interface ShapePlacement {
 }
 
 /** True when the squares `a` and `b` share an edge on the chart. */
-function touches(layout: ChartLayout, a: number, b: number): boolean {
+export function touches(layout: ChartLayout, a: number, b: number): boolean {
   const p = cellOf(layout, a);
   const q = cellOf(layout, b);
   return Math.abs(p.row - q.row) + Math.abs(p.col - q.col) === 1;
@@ -124,7 +129,7 @@ export function turnPlacements(layout: ChartLayout, turns: ReadonlyArray<ModelTu
             number: at(m.first),
             hints: m.lit.map(at),
             directions: m.directions,
-            queue: m.second === null ? [] : [{ number: at(m.second), directions: m.secondDirections }],
+            queue: m.queue.map((q) => ({ number: at(q.square), directions: q.directions })),
             squares: squares as number[],
           });
         }
@@ -134,13 +139,15 @@ export function turnPlacements(layout: ChartLayout, turns: ReadonlyArray<ModelTu
   return out;
 }
 
-/** One placement of a turn by square index: the empty squares, the lit ones and the trained directions. */
+/**
+ * One placement of a turn by square index: the first empty square, the lit ones, the directions the first trains, and
+ * the empty squares shot after it, in order, with the directions each trains.
+ */
 export interface ModelPlacement {
   first: number;
-  second: number | null;
   lit: number[];
   directions: Direction[];
-  secondDirections: Direction[];
+  queue: Array<{ square: number; directions: Direction[] }>;
 }
 
 /** A turn of a pattern of squares, as [row, column] offsets, with its placements by square index. */
@@ -159,9 +166,9 @@ export interface EmptyRule {
 const SHAPE_RULE: EmptyRule = { directions: (n, lit) => shapeDirections(MODEL, n, lit), minPointing: 2 };
 
 /** A chart where every turn fits away from the edges, so the directions read the same as anywhere else. */
-const MODEL = layoutChart(1, 100);
-const MODEL_ROW = 3;
-const MODEL_COL = 3;
+export const MODEL = layoutChart(1, 100);
+export const MODEL_ROW = 3;
+export const MODEL_COL = 3;
 
 /**
  * The turns of `shape` with their placements by square index. The empty squares, their lit neighbors and their
@@ -190,7 +197,7 @@ export function modelPlacements(cells: ReadonlyArray<readonly [number, number]>,
       const litNumbers = lit.map((i) => squares[i]!);
       const directions = rule.directions(squares[first]!, litNumbers);
       if (directions.length === 0 || pointing(squares[first]!, litNumbers) < rule.minPointing) continue;
-      out.push({ first, second: null, lit, directions, secondDirections: [] });
+      out.push({ first, lit, directions, queue: [] });
       continue;
     }
     for (const second of indexes) {
@@ -200,7 +207,7 @@ export function modelPlacements(cells: ReadonlyArray<readonly [number, number]>,
       const directions = rule.directions(squares[first]!, litNumbers);
       const secondDirections = rule.directions(squares[second]!, [...litNumbers, squares[first]!]);
       if (directions.length === 0 || secondDirections.length === 0) continue;
-      out.push({ first, second, lit, directions, secondDirections });
+      out.push({ first, lit, directions, queue: [{ square: second, directions: secondDirections }] });
     }
   }
   return out;

@@ -740,6 +740,12 @@ button:focus-visible {
   stroke-width: 1.5;
 }
 
+.level-example-number {
+  fill: var(--ink);
+  font-size: 6px;
+  font-weight: 700;
+}
+
 /* "Spielstand übertragen" (FR-041). */
 .transfer {
   display: flex;

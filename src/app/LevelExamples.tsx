@@ -1,7 +1,8 @@
 /**
  * The example drawings of the difficulty levels on the settings page (FR-085). Each level shows a small grid of 5 by 5
- * squares: the lit hint squares filled, the empty target squares as outlines. Levels outside the chosen range are
- * shown faded, so the parent sees which levels the child will meet.
+ * squares: the lit hint squares filled, the empty target squares as outlines. Level 6 shows a 3×3 cutout with one given
+ * number (amendment 18, FR-129). Levels outside the chosen range are shown faded, so the parent sees which levels the
+ * child will meet.
  */
 import { LEVELS, type Level } from '../core/settings/defaults';
 import { t } from '../i18n';
@@ -9,7 +10,7 @@ import { t } from '../i18n';
 type Cell = readonly [row: number, col: number];
 
 /** One example per level: lit squares and empty squares, as [row, column] in a grid of 5 by 5. */
-const EXAMPLES: Record<Level, { lit: readonly Cell[]; empty: readonly Cell[] }> = {
+const EXAMPLES: Record<Level, { lit: readonly Cell[]; empty: readonly Cell[]; number?: string }> = {
   // Nachbarn across and down.
   1: { lit: [[1, 2], [2, 1], [2, 3], [3, 2]], empty: [[2, 2]] },
   // Reihe on a diagonal.
@@ -20,13 +21,19 @@ const EXAMPLES: Record<Level, { lit: readonly Cell[]; empty: readonly Cell[] }> 
   4: { lit: [[1, 1], [2, 1]], empty: [[3, 1], [3, 2]] },
   // The X shape with the centre empty.
   5: { lit: [[1, 1], [1, 3], [3, 1], [3, 3]], empty: [[2, 2]] },
+  // A 3×3 cutout with the number 68 given in the middle, as on the workbook page.
+  6: {
+    lit: [[2, 2]],
+    empty: [[1, 1], [1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2], [3, 3]],
+    number: '68',
+  },
 };
 
 const SIZE = 5;
 const CELL = 12;
 
 function Example({ level }: { level: Level }) {
-  const { lit, empty } = EXAMPLES[level];
+  const { lit, empty, number } = EXAMPLES[level];
   const at = (c: Cell) => ({ x: c[1] * CELL + 1, y: c[0] * CELL + 1, width: CELL - 2, height: CELL - 2 });
   return (
     <svg className="level-example" viewBox={`0 0 ${SIZE * CELL} ${SIZE * CELL}`} width={SIZE * CELL} height={SIZE * CELL} aria-hidden="true">
@@ -39,6 +46,11 @@ function Example({ level }: { level: Level }) {
       {empty.map((c) => (
         <rect key={`e${c[0]}-${c[1]}`} className="level-example-empty" {...at(c)} />
       ))}
+      {number !== undefined && lit[0] && (
+        <text className="level-example-number" x={lit[0][1] * CELL + CELL / 2} y={lit[0][0] * CELL + CELL / 2} textAnchor="middle" dominantBaseline="central">
+          {number}
+        </text>
+      )}
     </svg>
   );
 }

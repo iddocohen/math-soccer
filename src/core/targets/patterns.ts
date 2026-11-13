@@ -10,18 +10,21 @@
  *   16, 26, 36, then 46; diagonal down-right: 13, 24, 35, then 46. Backward directions run the other way.
  * - Formen (`shape`): one or two empty squares of a four-square shape; see shapes.ts (amendment 06).
  * - X-Form (`xshape`): one or two empty squares of the diagonal cross; see xshape.ts (amendment 09).
+ * - Ausschnitte (`cutout`): a box, a row or column, or a shape with one or two given squares and the rest empty; see
+ *   cutouts.ts (amendment 18).
  *
  * Placements step in row and column space on the chart layout, so a pattern never wraps across a row edge, and a
  * placement exists only when every hint square lies on the chart. The trained directions come from the hints, as
  * FR-038 says (`directionsOf`).
  */
 import { cellOf, numberAt, type ChartLayout } from '../chart/layout';
-import type { Direction, HintDistance } from '../types';
+import type { Cutout, Direction, HintDistance } from '../types';
+import { cutoutPlacements, type CutoutId } from './cutouts';
 import { directionsOf, hintOffsets, hintsFor, MOVE } from './hints';
 import { shapePlacements, type QueuedSquare, type ShapeEmpties, type ShapeId } from './shapes';
 import { xPlacements, type XEmpties } from './xshape';
 
-export const PATTERNS = ['neighbors', 'middle', 'row', 'shape', 'xshape'] as const;
+export const PATTERNS = ['neighbors', 'middle', 'row', 'shape', 'xshape', 'cutout'] as const;
 export type Pattern = (typeof PATTERNS)[number];
 
 /** How many squares of a row are printed before the target. */
@@ -34,18 +37,21 @@ export type PatternChoice =
   | { pattern: 'middle'; direction: Direction }
   | { pattern: 'row'; direction: Direction; given: RowGiven }
   | { pattern: 'shape'; shape: ShapeId; empties: ShapeEmpties }
-  | { pattern: 'xshape'; empties: XEmpties };
+  | { pattern: 'xshape'; empties: XEmpties }
+  | { pattern: 'cutout'; cutout: CutoutId };
 
-/** The choices whose placement depends only on the target square: every pattern but Formen and the X shape. */
-export type LineChoice = Exclude<PatternChoice, { pattern: 'shape' } | { pattern: 'xshape' }>;
+/** The choices whose placement depends only on the target square: every pattern but Formen, the X shape and the cutouts. */
+export type LineChoice = Exclude<PatternChoice, { pattern: 'shape' } | { pattern: 'xshape' } | { pattern: 'cutout' }>;
 
 /** A choice placed on the chart: the target, its hint numbers and the directions it trains. */
 export interface Placement {
   number: number;
   hints: number[];
   directions: Direction[];
-  /** Formen or the X shape with two empty squares: the empty square shot after this one (FR-072). */
+  /** Formen or the X shape with two empty squares, or a cutout: the empty squares shot after this one (FR-072, FR-125). */
   queue?: QueuedSquare[];
+  /** A cutout: all its squares and the given ones (amendment 18). */
+  cutout?: Cutout;
 }
 
 /** How many hints a Nachbarn target has with this distance: every arm of it, none may fall off the chart (FR-123). */
@@ -92,6 +98,12 @@ export function placeAt(layout: ChartLayout, choice: LineChoice, n: number): Pla
 
 /** Every placement of `choice` on the chart, by target number; with `direction`, only those that train it. */
 export function placements(layout: ChartLayout, choice: PatternChoice, direction?: Direction): Placement[] {
+  if (choice.pattern === 'cutout') {
+    return cutoutPlacements(layout, choice.cutout, direction).map(({ number, hints, directions, queue, squares }) => {
+      const p: Placement = { number, hints, directions, cutout: { squares, given: hints } };
+      return queue.length > 0 ? { ...p, queue } : p;
+    });
+  }
   if (choice.pattern === 'shape' || choice.pattern === 'xshape') {
     const found = choice.pattern === 'shape' ? shapePlacements(layout, choice.shape, choice.empties, direction) : xPlacements(layout, choice.empties, direction);
     return found.map(({ number, hints, directions, queue }) => (queue.length > 0 ? { number, hints, directions, queue } : { number, hints, directions }));

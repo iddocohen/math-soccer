@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cellRect, layoutChart } from '../core/chart/layout';
 import { CHART_RECT, GOAL_FRAME, POST_WIDTH } from '../core/match/world';
-import type { Rect } from '../core/types';
+import { isCutoutFill, type Rect } from '../core/types';
 import {
   diveEnd,
   fallenPose,
@@ -158,5 +158,24 @@ describe('the waiting keeper keeps the shape squares clear (FR-064, amendment 06
 
   it('lists only the target and hints when nothing waits', () => {
     expect(squaresToKeepClear({ number: 12, hints: [11], directions: [], level: 1, pattern: 'shape' as const })).toEqual([12, 11]);
+  });
+  it('lists every square of a cutout, and the keeper waits aside, clear of the whole cutout (amendment 18, FR-126)', () => {
+    const layout = layoutChart(1, 100);
+    const squares = [56, 57, 58, 66, 67, 68, 76, 77, 78];
+    const target = {
+      number: 57,
+      hints: [67],
+      directions: ['up' as const],
+      level: 6 as const,
+      pattern: 'cutout' as const,
+      queue: [{ number: 66, directions: [] }],
+      cutout: { squares, given: [67] },
+    };
+    expect([...squaresToKeepClear(target)].sort((x, y) => x - y)).toEqual(squares);
+    expect(isCutoutFill(target)).toBe(true);
+    expect(isCutoutFill({ ...target, queue: [] })).toBe(false);
+    const spot = waitingSpot(squaresToKeepClear(target).map((n) => cellRect(layout, CHART_RECT, n)));
+    expect(spot.clear).toBe(true);
+    expect(spot.pose.x).not.toBe(HOME_POSE.x);
   });
 });

@@ -15,7 +15,11 @@
  * - The keeper (T054, FR-020): on every shot he leaps toward the ball, timed with its flight. A wrong number lands in
  *   his gloves: he holds it, the ball fades, and the fans slump with a soft "ohhh" and then clap. The correct number
  *   goes past his gloves into the net and he lands on the grass. The keeper's phase goes to `onKeeper`.
- * - Sounds: a kick on every shot, a cheer on a goal, the "ohhh" with clapping on a miss.
+ * - Cutouts (amendment 18, FR-125, FR-126): while a square of a cutout is not its last one (`isCutoutFill`), the keeper
+ *   waits aside and does not dive. The ball lands on the square of the typed number and rests there a moment. A correct
+ *   number lights the square up with its number (it becomes a hint of the next target) and the fans clap; a wrong one
+ *   shows its square with the "ohhh". The last square is a normal keeper shot.
+ * - Sounds: a kick on every shot, a cheer on a goal, clapping on a filled square, the "ohhh" with clapping on a miss.
  * - Cup (amendment 13): when a cup round starts, the keeper and some scarves take the opponent's colors and the keeper
  *   shows his quirk (FR-107). The final fills the stand, and the crowd chants the shirt name with clapping; a won final
  *   brings confetti, fireworks over the stands, the player lifting the cup, a cheer and the chant again (FR-110).
@@ -31,6 +35,7 @@ import { ballKind, cellRect, center, layoutChart, type ChartLayout } from '../co
 import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
 import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
+import { isCutoutFill } from '../core/types';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -57,6 +62,8 @@ export interface MatchSounds {
   kick(): void;
   cheer(): void;
   ohh(): void;
+  /** Clapping for a filled square of a cutout (amendment 18). */
+  clap?(): void;
   /** The crowd's chant in the cup final (FR-110). */
   chant?(shirtName: string): void;
   /** Fireworks for a won cup (FR-110). */
@@ -99,6 +106,9 @@ export interface MatchSceneOptions {
   onCelebration?: (celebration: Celebration | null) => void;
 }
 
+/** How long the ball rests on a filled square of a cutout before it fades, uncovering the square's number. */
+const FILL_REST_MS = 250;
+
 const BACKDROP_TEXTURE = 'stadium';
 const GRASS_TEXTURE = 'grass';
 /** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
@@ -120,6 +130,8 @@ export class MatchScene extends Phaser.Scene {
   private prev: MatchView | null = null;
   /** True from the kick until the scene has called `ballLanded()`. */
   private flying = false;
+  /** True when the keeper leaps for the ball in flight; false on a square of a cutout that is not its last (FR-126). */
+  private keeperInPlay = true;
   /** True while the ball of the last goal lies in the net. */
   private ballInNet = false;
   private celebration: Phaser.Time.TimerEvent | null = null;
@@ -311,8 +323,10 @@ export class MatchScene extends Phaser.Scene {
     this.options.sounds?.kick();
     this.player.kick();
     const square = cellRect(this.layoutOf(s), CHART_RECT, n);
+    // On a square of a cutout that is not its last one the keeper waits aside (FR-126).
+    this.keeperInPlay = !isCutoutFill(s.target);
     // The same rule as the controller's: the target number scores, any other number is caught.
-    this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
+    if (this.keeperInPlay) this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
     this.ball.fly(square, () => this.arrived());
   }
 
@@ -329,8 +343,14 @@ export class MatchScene extends Phaser.Scene {
       this.stands.cheer();
       this.options.sounds?.cheer();
       this.startCelebration(s.roundType === 'time');
+    } else if (s.ball?.outcome === 'filled') {
+      // The ball rests on the filled square a moment and fades, so the square's new number shows soon (FR-125).
+      this.ball.caught(FILL_REST_MS);
+      this.stands.clap();
+      this.options.sounds?.clap?.();
     } else if (s.ball?.outcome === 'miss') {
-      this.keeper.catchBall();
+      // Without the keeper the ball rests on the square of the typed number instead of in his gloves.
+      if (this.keeperInPlay) this.keeper.catchBall();
       this.ball.caught(HOLD_MS);
       this.stands.ohh();
       this.options.sounds?.ohh();

@@ -30,7 +30,7 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
     expect(s.hintDistance).toEqual({ direct: true, vertical: true, diagonal: true, far: true });
     expect(s).not.toHaveProperty('directions');
     expect(s).not.toHaveProperty('patterns');
-    expect(s.levels).toEqual({ start: 1, hardest: 5 });
+    expect(s.levels).toEqual({ start: 1, hardest: 6 });
     expect(s.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
     expect(s.timeChallenge).toEqual({ allowed: true, minutes: 2 });
     expect(s.roundType).toBe('untilHearts');
@@ -105,9 +105,10 @@ describe('levels (FR-085)', () => {
     expect(keys(withChanges((s) => ((s.shapes = { ...none, L: true }), (s.levels = { start: 3, hardest: 4 }))))).toEqual([]);
   });
 
-  it('refuses a level outside 1 to 5 in stored settings', () => {
+  it('refuses a level outside 1 to 6 in stored settings', () => {
     expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 0, hardest: 5 } }).success).toBe(false);
-    expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 1, hardest: 6 } }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 1, hardest: 7 } }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...defaultSettings(), levels: { start: 6, hardest: 6 } }).success).toBe(true);
   });
 });
 

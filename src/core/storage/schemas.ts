@@ -30,7 +30,7 @@ export const attemptRecordSchema = z.object({
   hintDistance: z.object({ direct: z.boolean(), vertical: z.boolean(), diagonal: z.boolean(), far: z.boolean() }),
   /** How hints showed for this target: always, or on request (parent setting at the hardest level). */
   hintDisplay: z.enum(['always', 'onRequest']),
-  /** The difficulty level of the target, 1 to 5 (amendment 09). */
+  /** The difficulty level of the target, 1 to 6 (amendments 09 and 18). */
   level: z.literal(LEVELS),
   /** Scored before help step 4 showed the answer. */
   solved: z.boolean(),
@@ -173,6 +173,8 @@ export const targetSchema = z.object({
   pattern: z.enum(PATTERNS),
   /** Formen or the X shape with two empty squares: the empty squares still to shoot after this one (FR-072). */
   queue: z.array(z.object({ number: z.number().int(), directions: z.array(z.enum(DIRECTIONS)) })).optional(),
+  /** A cutout of level 6 (amendment 18): all its squares and the given ones; the filled ones are the other hints. */
+  cutout: z.object({ squares: z.array(z.number().int()), given: z.array(z.number().int()) }).optional(),
 });
 
 /**
@@ -229,7 +231,7 @@ function roundRules(
     roundType: string;
     challengeMinutes: number | null;
     cupMatch: unknown;
-    target: { number: number; queue?: Array<{ number: number }> } | null;
+    target: { number: number; queue?: Array<{ number: number }>; cutout?: { squares: number[] } } | null;
   },
   ctx: z.RefinementCtx,
 ): void {
@@ -238,6 +240,6 @@ function roundRules(
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
   if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
   if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
-  const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number)] : [];
+  const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number), ...(r.target.cutout?.squares ?? [])] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { defaultSettings, MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
-import type { Target } from '../types';
+import { isCutoutFill, type Target } from '../types';
 import { GOAL_STARS } from '../rewards/lockerRoom';
 import {
   cupMatchWon,
+  CUTOUT_BONUS_STARS,
+  FILL_STARS,
   MatchController,
   matchInvariantErrors,
   remainingMs,
@@ -1045,5 +1047,130 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
     c.startCup({ level: 2, goals: 3, cup: 1, stage: 0 });
     c.start();
     expect(c.getState()).toMatchObject({ roundType: 'untilHearts', cupMatch: null });
+  });
+});
+
+describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
+  // A row of 4: 45 given, then 46, 47, 48 filled one after the other.
+  const cutoutTarget: Target = {
+    number: 46,
+    hints: [45],
+    directions: ['right'],
+    level: 6,
+    pattern: 'cutout',
+    queue: [
+      { number: 47, directions: ['right'] },
+      { number: 48, directions: ['right'] },
+    ],
+    cutout: { squares: [45, 46, 47, 48], given: [45] },
+  };
+
+  function cutoutController(opts: { over?: Partial<Settings>; store?: RoundStore } = {}) {
+    let next = 0;
+    const records: AttemptRecord[] = [];
+    const settings = { ...defaultSettings(), roundType: 'goalCount' as const, goalsPerRound: 2, ...opts.over };
+    const c = new MatchController({
+      settings: () => settings,
+      newSeed: () => 7,
+      nextTarget: () => (next++ === 0 ? cutoutTarget : target(12)),
+      onAttempt: (r) => void records.push(r),
+      store: opts.store,
+    });
+    return { c, records };
+  }
+
+  it('a correct square earns 1 star, lights up and the next square is the target at once, without a goal', () => {
+    const { c } = cutoutController();
+    c.start();
+    shootAndLand(c, 46);
+    expect(c.getState()).toMatchObject({
+      phase: 'aiming',
+      goals: 0,
+      starsThisRound: FILL_STARS,
+      ball: { number: 46, outcome: 'filled' },
+      message: { kind: 'filled', number: 46 },
+      target: { number: 47, hints: [45, 46], cutout: { squares: [45, 46, 47, 48], given: [45] } },
+    });
+    expect(isCutoutFill(c.getState().target as Target)).toBe(true);
+  });
+
+  it('the last square is a goal with the celebration and the 3 bonus stars; one goal for the whole cutout', () => {
+    const { c } = cutoutController();
+    c.start();
+    shootAndLand(c, 46);
+    shootAndLand(c, 47);
+    expect(c.getState()).toMatchObject({ goals: 0, starsThisRound: 2 * FILL_STARS, target: { number: 48 } });
+    // The last square: the keeper steps in (no more squares after it).
+    expect(isCutoutFill(c.getState().target as Target)).toBe(false);
+    shootAndLand(c, 48);
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, ball: { outcome: 'goal' }, starsThisRound: 2 * FILL_STARS + GOAL_STARS + CUTOUT_BONUS_STARS });
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ phase: 'aiming', goals: 1, target: { number: 12 } });
+  });
+
+  it('a cutout counts one goal toward the goal count', () => {
+    const { c } = cutoutController({ over: { goalsPerRound: 1 } });
+    c.start();
+    for (const n of [46, 47, 48]) shootAndLand(c, n);
+    c.celebrationDone();
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 1 });
+  });
+
+  it('a cutout counts one goal toward the goals of a cup match', () => {
+    const { c } = cutoutController();
+    c.startCup({ level: 6, goals: 3, cup: 1, stage: 4 });
+    for (const n of [46, 47, 48]) shootAndLand(c, n);
+    expect(c.getState().goals).toBe(1);
+  });
+
+  it('records one attempt per square with its direction', () => {
+    const { c, records } = cutoutController();
+    c.start();
+    shootAndLand(c, 56);
+    for (const n of [46, 47, 48]) shootAndLand(c, n);
+    expect(records.map((r) => [r.target, r.directions, r.level, r.misses])).toEqual([
+      [46, ['right'], 6, 1],
+      [47, ['right'], 6, 0],
+      [48, ['right'], 6, 0],
+    ]);
+  });
+
+  it('misses, hearts and help count per square; a lost heart shows the answer and the cutout goes on', () => {
+    const { c } = cutoutController({ over: { roundType: 'untilHearts' } });
+    c.start();
+    c.askHelp();
+    expect(c.getState().helpStep).toBe(1);
+    shootAndLand(c, 46);
+    // The next square starts without help or misses.
+    expect(c.getState()).toMatchObject({ target: { number: 47 }, helpStep: 0, missesInRow: 0 });
+    const misses = MISSES_PER_HEART[defaultSettings().difficulty];
+    for (let i = 0; i < misses; i++) shootAndLand(c, 90 + i);
+    expect(c.getState()).toMatchObject({ hearts: START_HEARTS - 1, helpStep: ANSWER_STEP, target: { number: 47 }, phase: 'aiming' });
+    shootAndLand(c, 47);
+    expect(c.getState()).toMatchObject({ target: { number: 48 }, helpStep: 0, hearts: START_HEARTS - 1 });
+  });
+
+  it('a refresh continues a half-filled cutout with its given and filled squares', () => {
+    const store = memoryStore();
+    const { c } = cutoutController({ store });
+    c.start();
+    shootAndLand(c, 46);
+    expect(store.round?.target).toMatchObject({ number: 47, hints: [45, 46], cutout: { squares: [45, 46, 47, 48], given: [45] } });
+    const again = new MatchController({ settings: () => ({ ...defaultSettings(), roundType: 'goalCount' }), store });
+    expect(again.restore()).toBe(true);
+    expect(again.getState()).toMatchObject({ starsThisRound: FILL_STARS, target: { number: 47, hints: [45, 46], queue: [{ number: 48 }] } });
+    shootAndLand(again, 47);
+    shootAndLand(again, 48);
+    expect(again.getState()).toMatchObject({ phase: 'celebrating', goals: 1 });
+  });
+
+  it('ends a time challenge when its time ran out while the ball flew to a square', () => {
+    const { c } = cutoutController({ over: { timeChallenge: { allowed: true, minutes: 1 } } });
+    c.start('time');
+    type(c, '46');
+    c.shoot();
+    c.tick(60_000);
+    c.ballLanded();
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', starsThisRound: FILL_STARS, goals: 0 });
   });
 });

@@ -88,12 +88,16 @@ describe('SettingsPage (T044, FR-035)', () => {
       'Stufe 3: Formen',
       'Stufe 4: Formen mit 2 Lücken',
       'Stufe 5: X-Form',
+      'Stufe 6: Ausschnitte',
     ]);
-    expect([start.value, hardest.value]).toEqual(['1', '5']);
+    expect([start.value, hardest.value]).toEqual(['1', '6']);
     // The shots per ball stay in the same group.
     expect(within(difficulty).getByLabelText(S.labels.difficulty)).toBeTruthy();
     const examples = within(difficulty).getByTestId('level-examples');
-    expect(examples.querySelectorAll('li svg')).toHaveLength(5);
+    expect(examples.querySelectorAll('li svg')).toHaveLength(6);
+    // Level 6 shows a 3×3 cutout with one given number (amendment 18, FR-129).
+    expect(examples.querySelector('li[data-level="6"] svg text')?.textContent).toBe('68');
+    expect(examples.querySelectorAll('li[data-level="6"] .level-example-empty')).toHaveLength(8);
     fireEvent.change(hardest, { target: { value: '2' } });
     expect(examples.querySelector('li[data-level="3"]')?.getAttribute('data-in-range')).toBe('false');
     fireEvent.click(saveButton());

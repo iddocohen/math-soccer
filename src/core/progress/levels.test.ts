@@ -1,4 +1,4 @@
-/** Difficulty levels 1 to 5 (T094, amendment 09, FR-085 to FR-089). */
+/** Difficulty levels 1 to 6 (T094, T109, amendments 09 and 18, FR-085 to FR-089, FR-129). */
 import { describe, expect, it } from 'vitest';
 import { layoutChart } from '../chart/layout';
 import { createRng } from '../rng';
@@ -23,6 +23,18 @@ function targetsAt(level: Level, s: Settings = settings(), xTwoEmpties = false, 
 }
 
 describe('each level offers only its targets', () => {
+  it('level 6 "Ausschnitte": cutouts across and down, every square a target in turn (amendment 18)', () => {
+    const targets = targetsAt(6);
+    expect(new Set(targets.map((t) => t.pattern))).toEqual(new Set(['cutout']));
+    for (const t of targets) {
+      expect(t.level).toBe(6);
+      expect(t.cutout).toBeDefined();
+      expect(t.directions.every((d) => STRAIGHT.includes(d))).toBe(true);
+    }
+    // Boxes, rows and columns, and the shapes all come up.
+    expect(new Set(targets.map((t) => t.cutout!.squares.length))).toEqual(new Set([4, 5, 6, 9]));
+  });
+
   it('level 1 "Gerade Linien": Nachbarn, Mitte and Reihe across and down, forward and backward', () => {
     const targets = targetsAt(1);
     expect(new Set(targets.map((t) => t.pattern))).toEqual(new Set(['neighbors', 'middle', 'row']));
@@ -89,7 +101,7 @@ describe('each level offers only its targets', () => {
 
   it('PICK_DIRECTIONS and levelChoices agree: no choices for a direction the level does not pick', () => {
     const s = settings();
-    for (const level of [1, 2, 3, 4, 5] as const) {
+    for (const level of [1, 2, 3, 4, 5, 6] as const) {
       for (const d of [...STRAIGHT, ...DIAGONAL]) {
         const has = levelChoices(level, d, s).length > 0;
         expect(has).toBe(PICK_DIRECTIONS[level].includes(d));
@@ -97,7 +109,7 @@ describe('each level offers only its targets', () => {
     }
     // Level 2 picks the straight directions only for the big plus.
     for (const d of STRAIGHT) expect(levelChoices(2, d, s)).toEqual([{ pattern: 'neighbors', distance: 'far' }]);
-    for (const level of [1, 3, 4, 5] as const) expect(PICK_DIRECTIONS[level]).toEqual(LEVEL_DIRECTIONS[level]);
+    for (const level of [1, 3, 4, 5, 6] as const) expect(PICK_DIRECTIONS[level]).toEqual(LEVEL_DIRECTIONS[level]);
   });
 });
 
@@ -121,7 +133,8 @@ describe('the parent range (FR-085, FR-087)', () => {
 
   it('turning off all shapes skips levels 3 and 4', () => {
     const s = settings({ shapes: NO_SHAPES });
-    expect(levelRange(s)).toEqual([1, 2, 5]);
+    // Level 6 offers its cutouts whatever the shape switches say (design call T109).
+    expect(levelRange(s)).toEqual([1, 2, 5, 6]);
     expect(levelUp(2, s)).toBe(5);
     expect(levelDown(5, s)).toBe(2);
     expect(clampLevel(3, s)).toBe(5);

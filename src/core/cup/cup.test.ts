@@ -59,6 +59,11 @@ describe('match levels (FR-109, FR-111)', () => {
     expect([0, 1, 2, 3, 4].map((stage) => stageLevel(1, stage, settings(4, 4)))).toEqual([4, 4, 4, 4, 4]);
   });
 
+  it('includes level 6 "Ausschnitte", so with the default range the final is a cutout (amendment 18, FR-129)', () => {
+    expect([0, 1, 2, 3, 4].map((stage) => stageLevel(1, stage, settings(1, 6)))).toEqual([1, 2, 4, 5, 6]);
+    expect(stageLevel(1, 4, defaultSettings())).toBe(6);
+  });
+
   it('skips levels 3 and 4 when every shape is off', () => {
     const noShapes = settings(1, 5, { shapes: { I: false, O: false, T: false, L: false, J: false, S: false, Z: false } });
     expect([0, 1, 2, 3, 4].map((stage) => stageLevel(1, stage, noShapes))).toEqual([1, 2, 2, 5, 5]);

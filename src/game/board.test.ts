@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cellRect, layoutChart } from '../core/chart/layout';
 import { CHART_RECT } from '../core/match/world';
 import type { Target } from '../core/types';
-import { boardKey, buildBoard, cellPanelVisible, type BoardInput } from './board';
+import { boardKey, buildBoard, cellPanelVisible, filledSquares, type BoardInput } from './board';
 
 const target: Target = { number: 46, hints: [45, 47, 36, 56], directions: ['right'], level: 1, pattern: 'neighbors' };
 
@@ -11,6 +11,32 @@ function input(over: Partial<BoardInput> = {}): BoardInput {
 }
 
 const square = (b: ReturnType<typeof buildBoard>, n: number) => b.squares.find((s) => s.n === n)!;
+
+describe('buildBoard: a cutout of level 6 (amendment 18)', () => {
+  const cutout: Target = {
+    number: 47,
+    hints: [45, 46],
+    directions: ['right'],
+    level: 6,
+    pattern: 'cutout',
+    queue: [{ number: 48, directions: ['right'] }],
+    cutout: { squares: [45, 46, 47, 48], given: [45] },
+  };
+
+  it('lights the given and filled squares, outlines the target and dashes the squares still empty', () => {
+    const b = buildBoard(input({ target: cutout }));
+    expect(b.squares.filter((s) => s.lit).map((s) => s.n)).toEqual([45, 46]);
+    expect(square(b, 47).outlined).toBe(true);
+    expect(square(b, 48).waiting).toBe(true);
+  });
+
+  it('keeps the squares the child filled lit while hints wait for a request', () => {
+    const b = buildBoard(input({ target: cutout, hintsVisible: false }));
+    expect(b.squares.filter((s) => s.lit).map((s) => s.n)).toEqual([46]);
+    expect(square(b, 46).label).toEqual({ text: '46', style: 'ink' });
+    expect(filledSquares(cutout)).toEqual([46]);
+  });
+});
 
 describe('buildBoard: the open goal (FR-013, FR-019)', () => {
   it('has one square per number, the target outlined and the hints lit', () => {

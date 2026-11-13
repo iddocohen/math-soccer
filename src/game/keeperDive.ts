@@ -99,9 +99,13 @@ function overlaps(a: Rect, b: Rect, margin: number): boolean {
 const SPOT_MIN_X = GOAL_FRAME.x + POST_WIDTH - IDLE_OUTLINE[1]!.x * KEEPER_SCALE;
 const SPOT_MAX_X = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH - (IDLE_OUTLINE[1]!.x + IDLE_OUTLINE[1]!.width) * KEEPER_SCALE;
 
-/** The numbers the waiting keeper must not cover: the target, its hints and a shape's waiting empty squares (FR-064). */
+/**
+ * The numbers the waiting keeper must not cover: the target, its hints, a shape's waiting empty squares (FR-064), and
+ * every square of a cutout (amendment 18, FR-126: he waits out of the cutout).
+ */
 export function squaresToKeepClear(target: DeepReadonly<Target>): number[] {
-  return [target.number, ...target.hints, ...(target.queue ?? []).map((q) => q.number)];
+  const squares = [target.number, ...target.hints, ...(target.queue ?? []).map((q) => q.number), ...(target.cutout?.squares ?? [])];
+  return [...new Set(squares)];
 }
 
 export interface WaitingSpot {

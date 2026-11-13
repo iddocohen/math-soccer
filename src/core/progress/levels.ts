@@ -7,6 +7,8 @@
  *   3. "Formen": shapes with one empty square (amendment 06)
  *   4. "Formen mit 2 Lücken": shapes with two empty squares
  *   5. "X-Form": the diagonal cross (xshape.ts); two empty squares once the child has solved 2 targets alone at level 5
+ *   6. "Ausschnitte": cutouts from the hundred chart with one or two given squares (cutouts.ts, amendment 18); every
+ *      empty square is one target, and the last one is the keeper shot
  *
  * Nachbarn follow the parent's hint distances: "direkt daneben" (the small plus) and "darüber und darunter" train
  * across and down, so they belong to level 1; "schräg" trains the diagonals, so diagonal Nachbarn belong to level 2
@@ -27,6 +29,7 @@ import { LEVELS, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { placements, ROW_GIVEN, type PatternChoice } from '../targets/patterns';
 import { SHAPE_IDS } from '../targets/shapes';
+import { CUTOUT_IDS } from '../targets/cutouts';
 import { DIAGONAL, STRAIGHT } from '../targets/hints';
 import { HINT_DISTANCES, type Direction, type HintDistance } from '../types';
 
@@ -52,6 +55,7 @@ export const LEVEL_DIRECTIONS: Record<Level, readonly Direction[]> = {
   3: STRAIGHT,
   4: STRAIGHT,
   5: DIAGONAL,
+  6: STRAIGHT,
 };
 
 /** The directions each level picks from: its own, and for level 2 the straight ones of the big plus too (FR-122). */
@@ -154,6 +158,8 @@ export function levelChoices(level: Level, direction: Direction, settings: Setti
       return shapes(settings, 2);
     case 5:
       return [{ pattern: 'xshape', empties: xTwoEmpties ? 2 : 1 }];
+    case 6:
+      return CUTOUT_IDS.map((cutout) => ({ pattern: 'cutout', cutout }));
   }
 }
 
@@ -176,7 +182,7 @@ export function pickDirection(candidates: readonly Direction[], mastered: readon
 export interface LevelPick {
   direction: Direction;
   choice: PatternChoice;
-  /** The level whose patterns the target uses (1 to 5). */
+  /** The level whose patterns the target uses (1 to 6). */
   level: Level;
 }
 
@@ -203,6 +209,8 @@ function choiceKey(choice: PatternChoice): string {
       return `s${choice.shape}${choice.empties}`;
     case 'xshape':
       return `x${choice.empties}`;
+    case 'cutout':
+      return `c${choice.cutout}`;
   }
 }
 

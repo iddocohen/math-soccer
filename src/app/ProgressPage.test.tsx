@@ -70,9 +70,10 @@ describe('ProgressPage (T045)', () => {
     expect(level.getAttribute('data-level')).toBe('1');
     expect(level.textContent).toContain('Stufe jetzt: Stufe 1: Gerade Linien');
     const rows = [...screen.getByTestId('progress-levels').querySelectorAll('tbody tr')].map((r) => [...r.children].map((c) => c.textContent));
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(6);
     expect(rows[0]).toEqual(['Stufe 1: Gerade Linien', '2', '1']);
     expect(rows[4]).toEqual(['Stufe 5: X-Form', '0', '0']);
+    expect(rows[5]).toEqual(['Stufe 6: Ausschnitte', '0', '0']);
   });
 
   it('lists the personal bests', () => {

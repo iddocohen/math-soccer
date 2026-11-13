@@ -7,7 +7,8 @@
  * - `fly(rect, onArrive)`: from the kick spot along an arc to the middle of `rect` (the `cellRect` of the typed number)
  *   in FLIGHT_MS, shrinking with distance to fit the square, with a shadow on the ground. Calls `onArrive` at the end.
  * - `intoNet()`: after a goal the ball drops behind the grid, through the empty target square, into the net.
- * - `caught(ms)`: after a miss the ball stays in the keeper's gloves, then fades and waits at the kick spot.
+ * - `caught(ms)`: after a miss the ball stays in the keeper's gloves, then fades and waits at the kick spot. On a square
+ *   of a cutout without the keeper (amendment 18) it rests on the square the same way.
  * - `reset()`: the ball waits at the kick spot.
  *
  * All motion uses scene tweens, so pausing the scene's tweens pauses the ball.
@@ -126,7 +127,7 @@ export class BallView {
     });
   }
 
-  /** The keeper caught the ball: it stays in his gloves for `ms`, fades out, and waits at the kick spot. */
+  /** The keeper caught the ball, or it landed on a square of a cutout: it stays for `ms`, fades out, and waits at the kick spot. */
   caught(ms: number): void {
     this.stop();
     this.shadow.setVisible(false);

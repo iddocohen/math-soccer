@@ -85,6 +85,17 @@ describe('recordAttempt: the difficulty level (FR-087)', () => {
     expect(rowToRaise(top, s)).toBeNull();
   });
 
+  it('reaches level 6 "Ausschnitte" after level 5 with the default range, and the parent range clamps it (amendment 18)', () => {
+    const s = settings();
+    const five = play({ ...emptyProgress(), level: 5 as const }, [], s);
+    const six = play(five, THREE, s);
+    expect(six.level).toBe(6);
+    expect(levelRaised(five, six, s)).toBe(6);
+    expect(rowToRaise(six, s)).toBeNull();
+    expect(targetProgress(six, range(1, 5)).level).toBe(5);
+    expect(targetProgress({ ...emptyProgress(), level: null }, range(6, 6)).level).toBe(6);
+  });
+
   it('a stored level outside a narrowed range is clamped when it is used', () => {
     const p = { ...emptyProgress(), level: 5 as const };
     expect(targetProgress(p, range(1, 2)).level).toBe(2);

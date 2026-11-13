@@ -39,6 +39,14 @@
 - **FR-130**: The row and column helper (amendment 10, amendment 14) MUST work per square. Help for the current square shows its row and column. The grid of amendment 11 FR-097 shows from help step 2 until the current square is filled.
 - A refresh during a cutout continues it. The stored round keeps the cutout's squares, the given ones and the filled ones. No migration is needed (the brief's rule).
 
+## Design calls (T109)
+
+- The fill order goes by the number of steps across and down from the nearest given square, then in reading order. Each square trains the directions from the known squares that share an edge with it, so cutouts train across and down. No square needs a diagonal, because every cutout is connected by edges.
+- The Tetris cutouts use all seven shapes, whatever the shape switches of the settings say. Those switches belong to levels 3 and 4, so level 6 stays offered with every shape off.
+- The seven Tetris shapes count as one cutout kind when level 6 picks a cutout, next to the 3×3 box, the 2×3 box, the row or column of 4, of 5, the L and the T. Otherwise the shapes would make up seven of thirteen picks.
+- A filled square shows "Richtig, 68!" in the message line. The fans clap. The ball rests on the square for a quarter of a second and then fades, so the square's number shows soon.
+- While hints wait for a request ("auf Wunsch"), the squares the child filled stay lit with their numbers, because they are the child's own answers. The given squares follow the hint display like any hint.
+
 ## Tests
 
 - Unit:

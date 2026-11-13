@@ -171,6 +171,13 @@ export class StandsView {
     this.clapping = 0;
   }
 
+  /** The fans clap: a square of a cutout was filled (amendment 18, FR-125). */
+  clap(): void {
+    this.clapping = 1;
+    this.cheering = 0;
+    this.slumping = 0;
+  }
+
   /** A soft slump, then clapping. */
   ohh(): void {
     this.slumping = 1;

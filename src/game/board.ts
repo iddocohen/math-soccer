@@ -8,7 +8,8 @@
  * "auf Wunsch". From help step 1 up to the help chart (step 3) an arrow points from the closest hint number to the target
  * (`hintFrom`, from core/match/help.ts). The target's row lies under a soft band from help step 1 and its column from
  * step 2 (amendment 10, `bands`); where they cross, the target square has a stronger wash. Help step 4 writes the
- * answer in the target square. The square of a missed number is warm
+ * answer in the target square. In a cutout (amendment 18) the squares the child filled stay lit with their numbers even
+ * while hints wait for a request: they are the child's own answers. The square of a missed number is warm
  * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
  * number.
  */
@@ -97,7 +98,7 @@ export function buildBoard(input: BoardInput): Board {
   const cellHeight = goal.height / layout.rows;
   const numbersFit = showNumbers(layout, goal);
   const fontSize = numbersFit ? Math.min(34, cellHeight * 0.62) : 13;
-  const hints = new Set(target && hintsVisible ? target.hints : []);
+  const hints = new Set(target ? (hintsVisible ? target.hints : filledSquares(target)) : []);
   const waiting = new Set((target?.queue ?? []).map((q) => q.number));
   const squares: Square[] = [];
 
@@ -125,6 +126,12 @@ export function buildBoard(input: BoardInput): Board {
     column: litColumn === null ? null : { ...cellRectAt(layout, goal, 0, litColumn), height: goal.height },
   };
   return { squares, fontSize, numbersFit, arrow: helpArrow(input), bands, panel: cellPanelVisible(layout, target, helpStep, input.solved) };
+}
+
+/** The squares of a cutout the child has filled so far: its hints that were not given (amendment 18). */
+export function filledSquares(target: DeepReadonly<Target>): number[] {
+  const given = target.cutout?.given;
+  return given ? target.hints.filter((h) => !given.includes(h)) : [];
 }
 
 function helpArrow({ layout, goal, target, helpStep, hintFrom }: BoardInput): Arrow | null {

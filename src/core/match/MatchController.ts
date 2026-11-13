@@ -40,6 +40,13 @@
  * level is, so adaptive difficulty never changes the level inside the match. The round ends won at the match's goals
  * (`cupMatchWon`), or lost when the hearts are gone. The app records the result in the cup.
  *
+ * Cutouts (amendment 18, FR-125 to FR-128): a level 6 target is one empty square of a cutout. A correct number on a square
+ * that is not the cutout's last one fills it: the ball lands on the square with the outcome 'filled', FILL_STARS are
+ * earned, the attempt is recorded, and the next square becomes the target at once, with no goal and no celebration.
+ * The keeper does not take part (the scene reads `isCutoutFill`). The last square is a normal shot: a goal with the
+ * celebration and GOAL_STARS plus CUTOUT_BONUS_STARS, and the one goal of the cutout for the goal count and the cup.
+ * Misses, hearts and help work per square, as for any target.
+ *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
@@ -51,7 +58,7 @@ import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { nextInShape, NO_PROGRESS, nextTarget, type TargetProgress } from '../targets/nextTarget';
-import type { DeepReadonly, RoundType, Target } from '../types';
+import { isCutoutFill, type DeepReadonly, type RoundType, type Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
 
@@ -60,6 +67,10 @@ export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 /** How long the square of a missed number shows its number (FR-004: at least 1.5 seconds). */
 export const SHOWN_MS = 1500;
 
+/** Stars for a filled square of a cutout, and the bonus for the whole cutout on its last square (amendment 18, FR-125, FR-126). */
+export const FILL_STARS = 1;
+export const CUTOUT_BONUS_STARS = 3;
+
 /** Time played is saved with the round at most this often, so ticks do not write storage on every frame. */
 const SAVE_TIME_EVERY_MS = 1000;
 
@@ -67,15 +78,20 @@ const SAVE_TIME_EVERY_MS = 1000;
 export type MatchMessage =
   | { kind: 'outOfRange'; min: number; max: number }
   | { kind: 'goal' }
+  /** A square of a cutout filled with the correct number (amendment 18). */
+  | { kind: 'filled'; number: number }
   /** A goal that raised the difficulty level (FR-088); a level going down shows nothing. */
   | { kind: 'levelUp'; level: Level }
   | { kind: 'miss'; number: number }
   | { kind: 'heartLost'; number: number };
 
-/** The ball after a shot: the typed number and, once landed, whether it scored. */
+/**
+ * The ball after a shot: the typed number and, once landed, whether it scored, filled a square of a cutout (no goal,
+ * amendment 18) or missed.
+ */
 export interface Ball {
   number: number;
-  outcome: 'goal' | 'miss' | null;
+  outcome: 'goal' | 'filled' | 'miss' | null;
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
@@ -508,6 +524,10 @@ export class MatchController {
     const s = this.state;
     if (s.phase !== 'ballInFlight' || !s.ball) return;
     const hit = s.target !== null && s.ball.number === s.target.number;
+    if (hit && isCutoutFill(s.target)) {
+      this.filled(s, s.ball);
+      return;
+    }
     if (hit) {
       // A shot at the answer of help step 4 scores and celebrates; it counts for the goal counter only when the parent
       // keeps "Punkt nach voller Hilfe" on (FR-025b).
@@ -519,7 +539,8 @@ export class MatchController {
         lastAttempt: attempt,
         phase: 'celebrating',
         goals: counts ? s.goals + 1 : s.goals,
-        starsThisRound: s.starsThisRound + GOAL_STARS,
+        // The last square of a cutout adds the bonus for the whole cutout (FR-126).
+        starsThisRound: s.starsThisRound + GOAL_STARS + (s.target?.cutout ? CUTOUT_BONUS_STARS : 0),
         missesInRow: 0,
         message: levelUp === null ? { kind: 'goal' } : { kind: 'levelUp', level: levelUp },
       });
@@ -570,6 +591,28 @@ export class MatchController {
       ...this.helpRaised(s.helpStep),
       message: { kind: 'miss', number },
     });
+  }
+
+  /**
+   * A square of a cutout that is not its last one got the correct number (FR-125): the attempt is recorded, FILL_STARS
+   * are earned and the next square is the target at once; no goal, no celebration. When the time of a time challenge ran
+   * out while the ball flew, the round ends here instead.
+   */
+  private filled(s: MatchState, ball: Ball): void {
+    const { attempt, levelUp } = this.scored(s, ball);
+    const landed: MatchState = {
+      ...s,
+      ...TARGET_RESET,
+      ball: { ...ball, outcome: 'filled' },
+      lastAttempt: attempt,
+      starsThisRound: s.starsThisRound + FILL_STARS,
+      message: levelUp === null ? { kind: 'filled', number: ball.number } : { kind: 'levelUp', level: levelUp },
+    };
+    if (timeUp(s)) {
+      this.set({ ...landed, phase: 'roundOver' });
+      return;
+    }
+    this.set(this.withNextTarget({ ...landed, phase: 'aiming' }));
   }
 
   /** Records the attempt at the target of `s` that `ball` just scored; returns it for `lastAttempt`, and a new level. */
@@ -681,8 +724,8 @@ export class MatchController {
   }
 
   /**
-   * The state with the round's next target: the next empty square of the same shape when one is left (FR-072), else a
-   * new target. A new target after changed settings (`withNewSettings`) clears the target first, so it never continues
+   * The state with the round's next target: the next empty square of the same shape or cutout when one is left (FR-072,
+   * FR-125), else a new target. A new target after changed settings (`withNewSettings`) clears the target first, so it never continues
    * a shape.
    */
   private withNextTarget(state: MatchState): MatchState {

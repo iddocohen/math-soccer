@@ -44,7 +44,7 @@ export interface Target {
   hints: number[];
   /** Directions trained, from the hint offsets (FR-038). */
   directions: Direction[];
-  /** The difficulty level whose patterns the target uses, 1 to 5 (core/progress/levels.ts, amendment 09). */
+  /** The difficulty level whose patterns the target uses, 1 to 6 (core/progress/levels.ts, amendments 09 and 18). */
   level: Level;
   /** The hint pattern (FR-065). */
   pattern: Pattern;
@@ -53,6 +53,23 @@ export interface Target {
    * order, with the directions each trains. Missing or empty for every other target.
    */
   queue?: Array<{ number: number; directions: Direction[] }>;
+  /**
+   * A cutout of level 6 (amendment 18, FR-124): all its squares and the given ones. The squares filled so far are the
+   * hints that are not given. The target is the last square of the cutout when `queue` is empty; only that one is a
+   * keeper shot and a goal (FR-126). Missing for every other target.
+   */
+  cutout?: Cutout;
+}
+
+/** The squares of a cutout (amendment 18): all of them, and those given with their numbers from the start. */
+export interface Cutout {
+  squares: number[];
+  given: number[];
+}
+
+/** True when `target` is a square of a cutout with more empty squares after it: no keeper, no goal (FR-126). */
+export function isCutoutFill(target: { cutout?: unknown; queue?: readonly unknown[] } | null | undefined): boolean {
+  return target?.cutout !== undefined && (target.queue?.length ?? 0) > 0;
 }
 
 /** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */

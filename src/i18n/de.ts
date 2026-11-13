@@ -84,6 +84,8 @@ export const de = {
   /** Feedback lines (contracts/screens.md "Feedback contract"). */
   feedback: {
     goal: 'TOR!',
+    /** A square of a cutout filled with the correct number (amendment 18). */
+    filled: (n: number) => `Richtig, ${n}!`,
     miss: (n: number) => `Hier ist ${n}. Nochmal!`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
@@ -93,7 +95,7 @@ export const de = {
 
   /** The difficulty levels (amendment 09), easiest first. */
   levels: {
-    names: { 1: 'Gerade Linien', 2: 'Schräge Linien', 3: 'Formen', 4: 'Formen mit 2 Lücken', 5: 'X-Form' } as Record<Level, string>,
+    names: { 1: 'Gerade Linien', 2: 'Schräge Linien', 3: 'Formen', 4: 'Formen mit 2 Lücken', 5: 'X-Form', 6: 'Ausschnitte' } satisfies Record<Level, string>,
     /** "Stufe 2: Schräge Linien". */
     label: (level: number, name: string) => `Stufe ${level}: ${name}`,
   },

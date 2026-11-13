@@ -9,8 +9,11 @@ export const RANGE_SPAN_MIN = 9;
 export const CHALLENGE_MINUTES = [1, 2, 3, 5] as const;
 export type ChallengeMinutes = (typeof CHALLENGE_MINUTES)[number];
 export const GOALS_PER_ROUND_MIN = 1;
-/** The difficulty levels (amendment 09): 1 "Gerade Linien" to 5 "X-Form"; core/progress/levels.ts says what each offers. */
-export const LEVELS = [1, 2, 3, 4, 5] as const;
+/**
+ * The difficulty levels (amendments 09 and 18): 1 "Gerade Linien" to 6 "Ausschnitte"; core/progress/levels.ts says what
+ * each offers.
+ */
+export const LEVELS = [1, 2, 3, 4, 5, 6] as const;
 export type Level = (typeof LEVELS)[number];
 export const GOALS_PER_ROUND_MAX = 20;
 /** "Tore pro Spiel" of a cup match (amendment 13, FR-108): 3 to 10, default 5. */
@@ -34,7 +37,7 @@ export function defaultSettings(): Settings {
     range: { preset: '1-100', min: 1, max: 100 },
     hintDisplay: 'always',
     hintDistance: { direct: true, vertical: true, diagonal: true, far: true },
-    levels: { start: 1, hardest: 5 },
+    levels: { start: 1, hardest: 6 },
     shapes: { I: true, O: true, T: true, L: true, J: true, S: true, Z: true },
     timeChallenge: { allowed: true, minutes: 2 },
     roundType: 'untilHearts',
