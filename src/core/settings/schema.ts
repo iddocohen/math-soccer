@@ -43,6 +43,11 @@ export const settingsSchema = z.object({
   pointAfterFullHelp: z.boolean(),
   /** "Zeilen- und Spaltenhilfe" (FR-093): the row scale beside the goal and the column scale above it. */
   rowColumnHelper: z.boolean(),
+  /**
+   * "Spielarten erlauben" (amendment 21, FR-141): each mode bought in the locker room shows its start screen button only
+   * while it is on here. Added with a default, so settings stored before it still load (no migration).
+   */
+  modesAllowed: z.object({ wall: z.boolean(), keeper: z.boolean(), shootout: z.boolean() }).default({ wall: true, keeper: true, shootout: true }),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;

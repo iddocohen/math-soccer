@@ -52,5 +52,6 @@ export function defaultSettings(): Settings {
     lockerRoom: true,
     pointAfterFullHelp: true,
     rowColumnHelper: true,
+    modesAllowed: { wall: true, keeper: true, shootout: true },
   };
 }

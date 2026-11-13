@@ -99,7 +99,7 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
   };
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => update({ ...draft, [key]: value });
   /** A switch inside one of the on/off groups. */
-  const flag = <G extends 'hintDistance' | 'shapes' | 'sound'>(group: G, key: keyof Settings[G] & string) => ({
+  const flag = <G extends 'hintDistance' | 'shapes' | 'sound' | 'modesAllowed'>(group: G, key: keyof Settings[G] & string) => ({
     checked: (draft[group] as Record<string, boolean>)[key] === true,
     onChange: (v: boolean) => set(group, { ...draft[group], [key]: v }),
   });
@@ -308,6 +308,14 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
 
         <Group title={S.groups.lockerRoom}>
           <Check label={L.lockerRoom} checked={draft.lockerRoom} onChange={(v) => set('lockerRoom', v)} />
+        </Group>
+
+        {/* "Spielarten erlauben" (amendment 21, FR-141): a mode turned off here has no start screen button. */}
+        <Group title={S.groups.modes}>
+          <p className="hint">{L.modesHint}</p>
+          <Check label={O.modes.wall} {...flag('modesAllowed', 'wall')} />
+          <Check label={O.modes.keeper} {...flag('modesAllowed', 'keeper')} />
+          <Check label={O.modes.shootout} {...flag('modesAllowed', 'shootout')} />
         </Group>
 
         <Group title={S.groups.data}>

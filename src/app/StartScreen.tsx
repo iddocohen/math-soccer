@@ -8,6 +8,11 @@
  * The gear sits at the top right; the parent gate (T041) passes it in as `gear` and opens the parent menu after a
  * 2-second press. The fullscreen button shows only where the browser lets a page use fullscreen.
  *
+ * Modes to unlock (amendment 21, FR-141): below the start buttons, one button per mode the parent allows ("Spielarten
+ * erlauben"): "Mauer" (M), "Torwart" (T), "Elfmeter" (E). An unlocked mode starts with a tap or its key; one whose game
+ * comes later says "kommt bald" and does nothing. A locked mode shows greyed with a lock and its price, and a tap opens
+ * the locker room at "Spielarten". Each carries `data-start=<mode>` and `data-mode-state` (ready, soon, locked).
+ *
  * With the locker room on (FR-044), a "Kabine" button (K) and the star total (`data-testid="star-total"`) show below
  * the start buttons; with it off, both are hidden.
  *
@@ -15,6 +20,7 @@
  * shows below the title with "OK" to close it. It never blocks the start buttons or their keys.
  */
 import type { ReactNode } from 'react';
+import type { ModeButton } from '../core/rewards/modes';
 import { t } from '../i18n';
 import type { StartKind } from './keyboard';
 
@@ -36,11 +42,13 @@ interface Props {
   cup?: { cup: number; stage: number; tries: number } | null;
   /** The star balance and how to open the locker room; null when the parent turned the locker room off. */
   lockerRoom?: { stars: number; onOpen: () => void } | null;
+  /** The buttons of the modes to unlock (amendment 21); `onOpenModes` opens the locker room at "Spielarten". */
+  modes?: { buttons: readonly ModeButton[]; onOpenModes: () => void };
   /** Short notes for the parent, each a list of lines, closed with "OK"; nothing shows when empty. */
   notices?: ReadonlyArray<{ id: string; lines: readonly string[]; onDismiss: () => void }>;
 }
 
-export function StartScreen({ timeChallenge, onPlay, gear, cup = null, lockerRoom = null, notices = [] }: Props) {
+export function StartScreen({ timeChallenge, onPlay, gear, cup = null, lockerRoom = null, modes, notices = [] }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
   return (
@@ -101,6 +109,42 @@ export function StartScreen({ timeChallenge, onPlay, gear, cup = null, lockerRoo
           </button>
         )}
       </div>
+      {modes && modes.buttons.length > 0 && (
+        <div className="start-buttons start-modes">
+          {modes.buttons.map((b) => {
+            const name = text.start.modes[b.mode];
+            const onClick = () => {
+              if (b.state === 'ready') onPlay(b.mode);
+              else if (b.state === 'locked') modes.onOpenModes();
+            };
+            return (
+              <button
+                key={b.mode}
+                type="button"
+                className="start-button start-mode"
+                data-start={b.mode}
+                data-mode-state={b.state}
+                aria-keyshortcuts={b.state === 'soon' ? undefined : b.key}
+                aria-disabled={b.state === 'soon' ? 'true' : undefined}
+                aria-label={b.state === 'locked' ? text.start.modeLocked(name, b.price) : undefined}
+                onClick={onClick}
+              >
+                <span>
+                  {b.state === 'locked' && (
+                    <span className="start-lock" aria-hidden="true">
+                      🔒{' '}
+                    </span>
+                  )}
+                  {name}
+                </span>
+                <span className="start-key" aria-hidden="true">
+                  {b.state === 'locked' ? `${text.lockerRoom.price(b.price)} · ${b.key}` : b.state === 'soon' ? text.start.soon : b.key}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {lockerRoom && (
         <div className="start-locker">
           <span className="star-total" data-testid="star-total" aria-label={text.start.starsLabel(lockerRoom.stars)}>

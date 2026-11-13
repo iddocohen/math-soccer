@@ -5,6 +5,7 @@
  * never contain a word from `forbiddenWords` (FR-023).
  */
 
+import type { UnlockMode } from '../core/rewards/modes';
 import type { Level } from '../core/settings/defaults';
 
 /** "1 Tor" or "n Tore". */
@@ -55,6 +56,12 @@ export const de = {
     saveFailed: 'Speichern klappt gerade nicht. Neue Sterne und Fortschritte gelten nur, bis der Browser geschlossen wird.',
     /** Closes a notice on the start screen. */
     dismiss: 'OK',
+    /** The buttons of the modes to unlock (amendment 21, FR-141). */
+    modes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter' },
+    /** An unlocked mode whose game comes in a later version. */
+    soon: 'kommt bald',
+    /** Accessible name of a locked mode's button: "Mauer, gesperrt, 200 Sterne". */
+    modeLocked: (name: string, price: number) => `${name}, gesperrt, ${starCount(price)}`,
   },
 
   /** Match overlay (contracts/screens.md "Match"). */
@@ -87,6 +94,8 @@ export const de = {
     /** A square of a cutout filled with the correct number (amendment 18). */
     filled: (n: number) => `Richtig, ${n}!`,
     miss: (n: number) => `Hier ist ${n}. Nochmal!`,
+    /** A shot at a number behind the wall of "Freistoß mit Mauer" (amendment 21, FR-142). */
+    blocked: (n: number) => `Die Mauer! Hier ist ${n}.`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
     /** A goal that raised the difficulty level (FR-088). */
@@ -182,8 +191,16 @@ export const de = {
       mascot: 'Maskottchen',
       stadium: 'Stadion',
       weather: 'Wetter',
+      /** The game modes to unlock (amendment 21, FR-140). */
+      modes: 'Spielarten',
       trophies: 'Pokale',
     },
+    /** The game modes to unlock (amendment 21, FR-140). */
+    modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen' } satisfies Record<UnlockMode, string>,
+    /** A mode that needs another one first: "Erst Selbst ins Tor freischalten". */
+    needsFirst: (name: string) => `Erst ${name} freischalten`,
+    unlocked: 'Freigeschaltet',
+    unlockQuestion: (n: number) => `Für ${starCount(n)} freischalten?`,
     /** The trophy shelf (amendment 13, FR-111). */
     trophy: (n: number) => `Pokal ${n}`,
     emptyShelf: 'Hier stehen deine Pokale.',
@@ -309,6 +326,8 @@ export const de = {
       sound: 'Ton',
       controls: 'Bedienung',
       lockerRoom: 'Kabine',
+      /** Amendment 21 (FR-141). */
+      modes: 'Spielarten erlauben',
       data: 'Daten',
     },
     labels: {
@@ -338,6 +357,8 @@ export const de = {
       /** Goals that win a cup match (amendment 13, FR-108). */
       cupGoals: 'Tore pro Spiel',
       timeChallengeAllowed: 'Zeit-Challenge erlauben',
+      /** Amendment 21 (FR-141). */
+      modesHint: 'Freigeschaltete Spielarten bekommen einen eigenen Knopf auf dem Startbildschirm. Ausgeschaltet ist der Knopf weg.',
       timeChallengeMinutes: 'Dauer',
     },
     options: {
@@ -350,6 +371,8 @@ export const de = {
       roundType: { untilHearts: 'Bis die Bälle weg sind', goalCount: 'Feste Zahl an Toren' },
       difficulty: { easy: 'leicht (5 Schüsse pro Ball)', normal: 'normal (4 Schüsse pro Ball)', challenging: 'schwer (3 Schüsse pro Ball)' },
       numberPad: { auto: 'automatisch', always: 'immer', never: 'nie' },
+      /** The modes to unlock (amendment 21), as named in the locker room. */
+      modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen' } satisfies Record<UnlockMode, string>,
     },
     data: {
       export: 'Daten sichern',

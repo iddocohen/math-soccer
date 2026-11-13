@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 describe('SettingsPage (T044, FR-035)', () => {
-  it('shows the eleven groups in order, without "Spielarten", "Hinweis-Muster" or "Richtungen" (FR-069, amendment 09)', () => {
+  it('shows the twelve groups in order, with "Spielarten erlauben" (amendment 21) and without "Hinweis-Muster" or "Richtungen" (FR-069, amendment 09)', () => {
     setup();
     const legends = screen.getAllByRole('group').map((g) => g.querySelector('legend')?.textContent);
     expect(legends).toEqual([
@@ -52,6 +52,7 @@ describe('SettingsPage (T044, FR-035)', () => {
       'Ton',
       'Bedienung',
       'Kabine',
+      'Spielarten erlauben',
       'Daten',
     ]);
   });

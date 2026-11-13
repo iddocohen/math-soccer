@@ -7,25 +7,27 @@
  */
 import { useLayoutEffect, useRef } from 'react';
 import type { MatchController } from '../core/match/MatchController';
-import { keyToAction, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
+import { keyToAction, type KeyAction, type KeyContext, type KeyScreen, type StartKind } from './keyboard';
 
 export interface KeyboardOptions {
   screen: KeyScreen | null;
   timeChallenge?: boolean;
   lockerRoom?: boolean;
   enterStart?: StartKind;
+  /** What the mode keys M, T and E do on the start screen (amendment 21). */
+  modeKeys?: KeyContext['modeKeys'];
   onAction: (action: KeyAction) => void;
 }
 
-export function useKeyboard({ screen, timeChallenge = false, lockerRoom = false, enterStart, onAction }: KeyboardOptions): void {
-  const latest = useRef({ screen, timeChallenge, lockerRoom, enterStart, onAction });
-  latest.current = { screen, timeChallenge, lockerRoom, enterStart, onAction };
+export function useKeyboard({ screen, timeChallenge = false, lockerRoom = false, enterStart, modeKeys, onAction }: KeyboardOptions): void {
+  const latest = useRef({ screen, timeChallenge, lockerRoom, enterStart, modeKeys, onAction });
+  latest.current = { screen, timeChallenge, lockerRoom, enterStart, modeKeys, onAction };
 
   useLayoutEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const { screen: current, timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted, onAction: handle } = latest.current;
+      const { screen: current, timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted, modeKeys: modes, onAction: handle } = latest.current;
       if (current === null || isTextField(event.target)) return;
-      const action = keyToAction(event, current, { timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted });
+      const action = keyToAction(event, current, { timeChallenge: timeOn, lockerRoom: lockerOn, enterStart: wanted, modeKeys: modes });
       if (action === null) return;
       event.preventDefault();
       handle(action);

@@ -64,6 +64,36 @@ describe('keyToAction: start screen', () => {
   });
 });
 
+describe('keyToAction: modes to unlock on the start screen (amendment 21, FR-141)', () => {
+  it('M, T and E start an unlocked mode, in either case', () => {
+    const modeKeys = { wall: 'start', keeper: 'start', shootout: 'start' } as const;
+    expect(keyToAction(key('m'), 'start', { ...ALL, modeKeys })).toEqual({ type: 'start', kind: 'wall' });
+    expect(keyToAction(key('M'), 'start', { ...ALL, modeKeys })).toEqual({ type: 'start', kind: 'wall' });
+    expect(keyToAction(key('t'), 'start', { ...ALL, modeKeys })).toEqual({ type: 'start', kind: 'keeper' });
+    expect(keyToAction(key('E'), 'start', { ...ALL, modeKeys })).toEqual({ type: 'start', kind: 'shootout' });
+    expect(keyToAction(key('m', { repeat: true }), 'start', { ...ALL, modeKeys })).toBeNull();
+  });
+
+  it('a locked mode\'s key opens the locker room at "Spielarten", only with the locker room on', () => {
+    expect(keyToAction(key('m'), 'start', { ...ALL, modeKeys: { wall: 'locked' } })).toEqual({ type: 'lockerRoom', group: 'modes' });
+    expect(keyToAction(key('m'), 'start', { ...ALL, lockerRoom: false, modeKeys: { wall: 'locked' } })).toBeNull();
+  });
+
+  it('a mode without a button, or with nothing to start yet, does nothing', () => {
+    expect(keyToAction(key('m'), 'start', ALL)).toBeNull();
+    expect(keyToAction(key('t'), 'start', { ...ALL, modeKeys: { wall: 'start' } })).toBeNull();
+  });
+
+  it('Enter starts the mode ?start= names only when its key would start it', () => {
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'wall', modeKeys: { wall: 'start' } })).toEqual({ type: 'start', kind: 'wall' });
+    expect(keyToAction(key('Enter'), 'start', { ...ALL, enterStart: 'wall', modeKeys: { wall: 'locked' } })).toEqual({ type: 'start', kind: 'play' });
+  });
+
+  it('M, T and E type nothing in the match', () => {
+    for (const k of ['m', 't', 'e']) expect(keyToAction(key(k), 'match', { ...ALL, modeKeys: { wall: 'start' } })).toBeNull();
+  });
+});
+
 describe('keyToAction: match', () => {
   it('maps digits 0 to 9, including 1 to 3, to digit actions', () => {
     for (let d = 0; d <= 9; d++) {

@@ -33,6 +33,10 @@
  *   (FR-135, FR-138). The backdrop is painted once per combination and swapped when the look changes; the snow or the
  *   rain falls behind the chart (WeatherView). `onExtras` hears them too (`data-weather`, `data-floodlight`,
  *   `data-stands` for tests).
+ * - "Freistoß mit Mauer" (amendment 21, FR-142): WallView draws the wall of the current target (`s.wall`) and shades
+ *   the columns behind it. A shot at a number behind the wall flies to the wall instead of the square; the keeper does
+ *   not dive, the defenders jump, and the "ohhh" plays as after a caught ball. The square of the typed number lights up
+ *   from the controller's shown square, as after any miss.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -45,6 +49,8 @@ import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
 import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
 import { isCutoutFill } from '../core/types';
+import { wallBlocks } from '../core/match/wall';
+import { WallView } from './WallView';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -162,6 +168,7 @@ export class MatchScene extends Phaser.Scene {
   private goalEffect!: GoalEffectView;
   private mascot!: MascotView;
   private weather!: WeatherView;
+  private wall!: WallView;
   private backdrop!: Phaser.GameObjects.Image;
   private extras: SceneExtras = {
     trail: 'none',
@@ -227,6 +234,7 @@ export class MatchScene extends Phaser.Scene {
     this.trail = new TrailView(this, BALL_DEPTH - 0.5);
     this.goalEffect = new GoalEffectView(this);
     this.mascot = new MascotView(this, (mood) => this.setExtras({ mascotMood: mood }));
+    this.wall = new WallView(this);
     this.extrasKey = '';
     this.cupMatch = null;
     this.prev = null;
@@ -296,6 +304,7 @@ export class MatchScene extends Phaser.Scene {
       this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
     }
     this.refreshLook(layout);
+    this.wall.setWall(s.wall, this.currentLook().shirtColor);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
@@ -415,9 +424,13 @@ export class MatchScene extends Phaser.Scene {
     this.ballInNet = false;
     this.options.sounds?.kick();
     this.player.kick();
-    const square = cellRect(this.layoutOf(s), CHART_RECT, n);
-    // On a square of a cutout that is not its last one the keeper waits aside (FR-126).
-    this.keeperInPlay = !isCutoutFill(s.target);
+    const layout = this.layoutOf(s);
+    // The same rule as the controller's: a number behind the wall hits the wall (FR-142).
+    const blocked = wallBlocks(layout, s.wall, n);
+    const square = blocked ? this.wall.hitPoint(layout, n) : cellRect(layout, CHART_RECT, n);
+    // On a square of a cutout that is not its last one the keeper waits aside (FR-126); a ball the wall stops never
+    // reaches him.
+    this.keeperInPlay = !isCutoutFill(s.target) && !blocked;
     // The same rule as the controller's: the target number scores, any other number is caught.
     if (this.keeperInPlay) this.keeper.dive(square, n === s.target?.number ? 'beaten' : 'catch');
     this.ball.fly(square, () => this.arrived());
@@ -444,6 +457,13 @@ export class MatchScene extends Phaser.Scene {
       this.ball.caught(FILL_REST_MS);
       this.stands.clap();
       this.options.sounds?.clap?.();
+    } else if (s.ball?.outcome === 'blocked') {
+      // The wall stopped the ball: it rests at the defenders a moment and fades (FR-142).
+      this.wall.bump();
+      this.ball.caught(HOLD_MS);
+      this.mascot.coverEyes();
+      this.stands.ohh();
+      this.options.sounds?.ohh();
     } else if (s.ball?.outcome === 'miss') {
       // Without the keeper the ball rests on the square of the typed number instead of in his gloves.
       if (this.keeperInPlay) this.keeper.catchBall();

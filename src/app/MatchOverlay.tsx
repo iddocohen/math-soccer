@@ -76,6 +76,8 @@ export function messageText(message: MatchMessage | null): string {
       return f.levelUp(t().levels.names[message.level]);
     case 'miss':
       return f.miss(message.number);
+    case 'blocked':
+      return f.blocked(message.number);
     case 'heartLost':
       return f.heartLost;
   }

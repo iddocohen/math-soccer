@@ -16,6 +16,7 @@
  */
 import { center } from '../core/chart/layout';
 import { GOAL_FRAME, POST_WIDTH } from '../core/match/world';
+import { keptClearSquares } from '../core/match/wall';
 import { clamp, lerp } from '../core/util';
 import type { DeepReadonly, Rect, Target } from '../core/types';
 
@@ -104,8 +105,8 @@ const SPOT_MAX_X = GOAL_FRAME.x + GOAL_FRAME.width - POST_WIDTH - (IDLE_OUTLINE[
  * every square of a cutout (amendment 18, FR-126: he waits out of the cutout).
  */
 export function squaresToKeepClear(target: DeepReadonly<Target>): number[] {
-  const squares = [target.number, ...target.hints, ...(target.queue ?? []).map((q) => q.number), ...(target.cutout?.squares ?? [])];
-  return [...new Set(squares)];
+  // The same squares the wall of "Freistoß mit Mauer" leaves free (amendment 21).
+  return keptClearSquares(target);
 }
 
 export interface WaitingSpot {

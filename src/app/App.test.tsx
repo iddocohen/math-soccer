@@ -48,11 +48,13 @@ function scoreGoal(): void {
 afterEach(cleanup);
 
 describe('App', () => {
-  it('shows "Spielen", "Zeit-Challenge" and "Pokal" on the start screen, and no mode buttons (FR-068, FR-075, FR-105)', () => {
+  it('shows "Spielen", "Zeit-Challenge" and "Pokal" on the start screen, then the three modes to unlock, locked (FR-068, FR-075, FR-105, FR-141)', () => {
     render(<App />);
     expect(screen.getByTestId('start')).toBeTruthy();
     const buttons = Array.from(document.querySelectorAll('[data-start]')).map((b) => b.getAttribute('data-start'));
-    expect(buttons).toEqual(['play', 'time', 'cup']);
+    expect(buttons).toEqual(['play', 'time', 'cup', 'wall', 'keeper', 'shootout']);
+    const states = Array.from(document.querySelectorAll('[data-mode-state]')).map((b) => b.getAttribute('data-mode-state'));
+    expect(states).toEqual(['locked', 'locked', 'locked']);
     expect(document.querySelector('[data-start="play"]')!.textContent).toBe('SpielenEnter');
     // The key hint shows like "Z" on "Zeit-Challenge" (FR-101) and is hidden from screen readers.
     expect(document.querySelector('[data-start="play"] .start-key')!.getAttribute('aria-hidden')).toBe('true');

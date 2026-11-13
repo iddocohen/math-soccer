@@ -47,6 +47,12 @@
  * celebration and GOAL_STARS plus CUTOUT_BONUS_STARS, and the one goal of the cutout for the goal count and the cup.
  * Misses, hearts and help work per square, as for any target.
  *
+ * "Freistoß mit Mauer" (amendment 21, FR-142): `start('wall')` starts a round in the match mode 'wall' with the parent's
+ * round type. Every new target gets a wall of defenders over a band of free columns (core/match/wall.ts); after a
+ * filled square of a cutout the wall stays, after a goal it moves. A shot at a number behind the wall lands with the
+ * outcome 'blocked' and the message 'blocked': it counts as a miss in every way (misses, hearts, help), and the square of
+ * the typed number shows its number as after any miss. The start kinds and their modes live in core/match/rounds.ts.
+ *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
@@ -61,6 +67,8 @@ import { nextInShape, NO_PROGRESS, nextTarget, type TargetProgress } from '../ta
 import { isCutoutFill, type DeepReadonly, type RoundType, type Target } from '../types';
 import { entryReducer, entryValue, maxDigitsOf, type EntryKey } from './entry';
 import { ANSWER_STEP, CHART_STEP } from './help';
+import { START_KIND_INFO, roundTypeOf, type ControllerKind, type MatchMode } from './rounds';
+import { placeWall, wallBlocks, wallClear, type Wall } from './wall';
 
 export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 
@@ -86,15 +94,17 @@ export type MatchMessage =
   /** A goal that raised the difficulty level (FR-088); a level going down shows nothing. */
   | { kind: 'levelUp'; level: Level }
   | { kind: 'miss'; number: number }
+  /** A shot at a number behind the wall of "Freistoß mit Mauer" (amendment 21): a miss. */
+  | { kind: 'blocked'; number: number }
   | { kind: 'heartLost'; number: number };
 
 /**
  * The ball after a shot: the typed number and, once landed, whether it scored, filled a square of a cutout (no goal,
- * amendment 18) or missed.
+ * amendment 18), missed, or hit the wall of "Freistoß mit Mauer" (a miss too, amendment 21).
  */
 export interface Ball {
   number: number;
-  outcome: 'goal' | 'filled' | 'miss' | null;
+  outcome: 'goal' | 'filled' | 'miss' | 'blocked' | null;
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
@@ -124,6 +134,10 @@ export interface MatchState {
   challengeMinutes: ChallengeMinutes | null;
   /** A cup match: the level of its targets and the goals that win it (FR-108, FR-109); null for the other round types. */
   cupMatch: CupMatchSetup | null;
+  /** The match mode (core/match/rounds.ts): the usual game, or the free kick with the wall (amendment 21). */
+  mode: MatchMode;
+  /** The wall in front of the current target; null outside the mode 'wall', or when no column is free. */
+  wall: Wall | null;
   seed: number;
   min: number;
   max: number;
@@ -169,7 +183,8 @@ export type MatchView = DeepReadonly<MatchState>;
  * consistent:
  * - a ball without an outcome flies: it exists exactly in 'ballInFlight';
  * - 'celebrating' follows a goal, so its ball has the outcome 'goal';
- * - no missed square shows after the round ended.
+ * - no missed square shows after the round ended;
+ * - a wall stands only in the mode 'wall'.
  */
 export function matchInvariantErrors(s: MatchState): string[] {
   const errors: string[] = [];
@@ -177,6 +192,7 @@ export function matchInvariantErrors(s: MatchState): string[] {
   if ((s.phase === 'ballInFlight') !== flying) errors.push(`ball ${JSON.stringify(s.ball)} in phase ${s.phase}`);
   if (s.phase === 'celebrating' && s.ball?.outcome !== 'goal') errors.push('celebrating without a goal');
   if (s.phase === 'roundOver' && s.shown !== null) errors.push('shown square after the round ended');
+  if (s.wall !== null && s.mode !== 'wall') errors.push(`wall in mode ${s.mode}`);
   return errors;
 }
 
@@ -228,6 +244,8 @@ const STORED_KEYS = [
   'roundType',
   'challengeMinutes',
   'cupMatch',
+  'mode',
+  'wall',
   'min',
   'max',
   'goals',
@@ -257,9 +275,6 @@ const TARGET_RESET = {
   lastGuess: null,
   shown: null,
 } as const satisfies Partial<MatchState>;
-
-/** What `start` begins: a normal round ("Spielen") or a time challenge ("Zeit-Challenge"). */
-export type StartKind = 'play' | 'time';
 
 /**
  * What a cup match needs (core/cup `nextMatch`): the level of its targets and the goals that win it. `cup` and `stage`
@@ -293,12 +308,15 @@ function timeUp(s: MatchState): boolean {
   return remainingMs(s) === 0;
 }
 
-function freshState(s: Settings, seed: number, started: boolean, kind: StartKind = 'play', cupMatch: CupMatchSetup | null = null): MatchState {
+function freshState(s: Settings, seed: number, started: boolean, kind: ControllerKind = 'play', cupMatch: CupMatchSetup | null = null): MatchState {
+  const roundType = cupMatch !== null ? 'cup' : roundTypeOf(kind, s);
   return {
     started,
-    roundType: cupMatch !== null ? 'cup' : kind === 'time' ? 'time' : s.roundType,
-    challengeMinutes: cupMatch === null && kind === 'time' ? s.timeChallenge.minutes : null,
+    roundType,
+    challengeMinutes: roundType === 'time' ? s.timeChallenge.minutes : null,
     cupMatch: cupMatch === null ? null : { ...cupMatch },
+    mode: cupMatch !== null ? 'normal' : (START_KIND_INFO[kind].mode ?? 'normal'),
+    wall: null,
     seed,
     min: s.range.min,
     max: s.range.max,
@@ -344,6 +362,9 @@ const ROUND_KEYS = ['roundType', 'goalsPerRound'] as const satisfies ReadonlyArr
 function changesTargets(a: Settings, b: Settings): boolean {
   return TARGET_KEYS.some((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key]));
 }
+
+/** Mixed into the seed of each wall, so the wall's random numbers differ from those of the target. */
+const WALL_SEED = 0x3a11;
 
 /** The guess rule looks at misses within the last 5 seconds; this many are enough to keep (classify.ts). */
 const MISS_TIMES_KEPT = 5;
@@ -416,8 +437,11 @@ export class MatchController {
     return () => this.listeners.delete(fn);
   }
 
-  /** Starts a new round with the current settings: a normal round, or a time challenge with `'time'` (FR-075). */
-  start(kind: StartKind = 'play'): void {
+  /**
+   * Starts a new round with the current settings: a normal round, a time challenge with `'time'` (FR-075), or the free
+   * kick with the wall with `'wall'` (FR-142).
+   */
+  start(kind: ControllerKind = 'play'): void {
     this.begin(kind, null);
   }
 
@@ -430,7 +454,7 @@ export class MatchController {
   }
 
   /** A new round with the current settings and a new seed: a normal round, a time challenge or a cup match. */
-  private begin(kind: StartKind, cupMatch: CupMatchSetup | null): void {
+  private begin(kind: ControllerKind, cupMatch: CupMatchSetup | null): void {
     this.clearPending();
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
@@ -445,7 +469,8 @@ export class MatchController {
 
   /**
    * Continues the stored round after a refresh. Returns false, and deletes the stored round, when there is none or it
-   * no longer fits the settings: another range (FR-036a), or a time challenge the parent no longer allows (amendment 07).
+   * no longer fits the settings: another range (FR-036a), a time challenge the parent no longer allows (amendment 07), or
+   * a mode the parent turned off in "Spielarten erlauben" (amendment 21).
    */
   restore(): boolean {
     const store = this.options.store;
@@ -453,7 +478,8 @@ export class MatchController {
     if (!store || !stored) return false;
     const s = this.options.settings();
     const challengeOff = stored.roundType === 'time' && !s.timeChallenge.allowed;
-    if (stored.min !== s.range.min || stored.max !== s.range.max || challengeOff) {
+    const modeOff = stored.mode === 'wall' && !s.modesAllowed.wall;
+    if (stored.min !== s.range.min || stored.max !== s.range.max || challengeOff || modeOff) {
       store.clear();
       return false;
     }
@@ -553,9 +579,12 @@ export class MatchController {
     const number = s.ball.number;
     const misses = s.missesInRow + 1;
     const shown: ShownSquare = { number, remainingMs: SHOWN_MS };
+    // A number behind the wall hits the wall (FR-142); it counts as any other miss.
+    const blocked = wallBlocks(layoutChart(s.min, s.max), s.wall, number);
+    const missMessage: MatchMessage = blocked ? { kind: 'blocked', number } : { kind: 'miss', number };
     const missed = {
       ...s,
-      ball: { ...s.ball, outcome: 'miss' as const },
+      ball: { ...s.ball, outcome: blocked ? ('blocked' as const) : ('miss' as const) },
       targetMisses: s.targetMisses + 1,
       missTimes: [...s.missTimes, s.ball.atMs].slice(-MISS_TIMES_KEPT),
       lastGuess: number,
@@ -583,7 +612,7 @@ export class MatchController {
     }
     if (timeUp(s)) {
       // The time ran out while the ball flew: it landed and missed, and the round ends (FR-077).
-      this.endRound({ ...missed, shown: null, phase: 'roundOver', helpChartOpen: false, message: { kind: 'miss', number } });
+      this.endRound({ ...missed, shown: null, phase: 'roundOver', helpChartOpen: false, message: missMessage });
       return;
     }
     this.set({
@@ -592,7 +621,7 @@ export class MatchController {
       phase: 'aiming',
       missesInRow: misses,
       ...this.helpRaised(s.helpStep),
-      message: { kind: 'miss', number },
+      message: missMessage,
     });
   }
 
@@ -729,13 +758,26 @@ export class MatchController {
   /**
    * The state with the round's next target: the next empty square of the same shape or cutout when one is left (FR-072,
    * FR-125), else a new target. A new target after changed settings (`withNewSettings`) clears the target first, so it never continues
-   * a shape.
+   * a shape. In the mode 'wall' the target gets its wall (`wallFor`).
    */
   private withNextTarget(state: MatchState): MatchState {
     const fresh = { targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
     const inShape = state.target ? nextInShape(state.target) : null;
     const target = inShape ?? (this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state));
-    return { ...state, ...fresh, target };
+    const next: MatchState = { ...state, ...fresh, target };
+    return { ...next, wall: this.wallFor(next, state.ball?.outcome === 'filled') };
+  }
+
+  /**
+   * The wall for the target of `s` in the mode 'wall' (FR-142): the same wall after a filled square of a cutout
+   * (`keep`), while it still leaves the target clear; a new one in other columns after a goal or for a new target.
+   * Its random numbers derive from the seed and the target count, apart from the target's.
+   */
+  private wallFor(s: MatchState, keep: boolean): Wall | null {
+    if (s.mode !== 'wall' || s.target === null) return null;
+    const layout = layoutChart(s.min, s.max);
+    if (keep && s.wall !== null && wallClear(layout, s.wall, s.target)) return s.wall;
+    return placeWall(layout, s.target, createRng(deriveSeed(s.seed, s.targetCount, WALL_SEED)), s.wall);
   }
 
   /**

@@ -60,6 +60,11 @@
  * weather, the floodlight color, the stands and the scoreboard's name; `data-weather-drops` counts the falling snowflakes
  * or raindrops.
  *
+ * Amendment 21 part 1 (T113): the start screen shows a button per mode to unlock (`modeButtons`); a locked one opens
+ * the locker room at "Spielarten". Only a mode that `canStart` allows starts, so a locked mode never does. "Freistoß mit
+ * Mauer" starts with "Mauer" or M; `data-mode` on the match names the match mode and `data-wall-cols` lists the columns
+ * the wall covers ('' without a wall). Its bests are kept apart (`recordKey` with the mode).
+ *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
  * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
@@ -81,6 +86,9 @@ import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult } from '../core/records/records';
+import { canStart, isControllerKind, startKindOf } from '../core/match/rounds';
+import { wallColumns } from '../core/match/wall';
+import { modeButtons } from '../core/rewards/modes';
 import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
@@ -122,11 +130,6 @@ function cupSceneOf(match: CupMatch): CupScene {
 
 /** What the round end shows of a finished round: its personal bests, or for a cup match its line and bonus stars. */
 type RoundResult = { kind: 'record'; record: RoundRecord | null } | { kind: 'cup'; cup: CupRoundResult & { bonus: number } };
-
-/** The kind of round "Nochmal" starts again for a round of `roundType`. */
-function startKindOf(roundType: MatchView['roundType']): StartKind {
-  return roundType === 'time' || roundType === 'cup' ? roundType : 'play';
-}
 
 /** The parent screens over the game: the parent menu, the settings page and the progress page. */
 type ParentView = 'closed' | 'menu' | 'settings' | 'progress';
@@ -270,7 +273,7 @@ function createApp() {
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
 function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
-  const key = recordKey(s.min, s.max, s.roundType, s.challengeMinutes);
+  const key = recordKey(s.min, s.max, s.roundType, s.challengeMinutes, s.mode);
   const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
   if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
@@ -320,6 +323,8 @@ export function App() {
   // The note about data reset on load shows until the parent closes it (FR-036).
   const [resetLines, setResetLines] = useState(() => resetNoteLines(persistence.resetReasons()));
   const [screen, setScreen] = useState<Screen>(restored ? 'match' : 'start');
+  // The locker room opened from a locked mode's button or key shows "Spielarten" first (FR-141).
+  const [lockerGroup, setLockerGroup] = useState<'modes' | null>(null);
   const [parent, setParent] = useState<ParentView>('closed');
   // Bumped after a save, an import or a transfer, so the start screen shows the new settings (the time challenge).
   const [, setDataVersion] = useState(0);
@@ -477,6 +482,8 @@ export function App() {
 
   const startMatch = useCallback(
     (kind: StartKind) => {
+      // A locked mode, one the parent turned off or one whose game is not built yet never starts (FR-141).
+      if (!canStart(kind, persistence.lockerRoom(), settings())) return;
       // Tablet browsers play sound and speak only after a user tap: the start tap (or key) unlocks both (FR-032,
       // amendment 17), as in math-tank.
       void sfx.unlock();
@@ -489,7 +496,7 @@ export function App() {
         cupScene.current = cupSceneOf(match);
         setIntro({ stage: match.stage, team: match.team });
         controller.startCup({ level: match.level, goals: match.goals, cup: cup.cup, stage: match.stage });
-      } else {
+      } else if (isControllerKind(kind)) {
         cupScene.current = null;
         setIntro(null);
         controller.start(kind);
@@ -563,12 +570,13 @@ export function App() {
   const playAgain = () => {
     // A won cup match goes on to the bracket (FR-108), where the next match waits.
     // The round that just ended tells what it started as; a restored time challenge counts as one.
-    const last = startKindOf(state.roundType);
+    const last = startKindOf(state);
     if (last === 'cup' && (cupResult?.won || cupResult?.replaced)) {
       setScreen('cup');
       return;
     }
-    const kind = last === 'time' && !timeChallenge ? 'play' : last;
+    // A time challenge or a mode the parent no longer allows becomes "Spielen".
+    const kind = canStart(last, persistence.lockerRoom(), settings()) ? last : 'play';
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round.
     if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
     startMatch(kind);
@@ -582,7 +590,7 @@ export function App() {
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.kind);
     else if (action.type === 'again') playAgain();
-    else if (action.type === 'lockerRoom') setScreen('lockerRoom');
+    else if (action.type === 'lockerRoom') openLockerRoom(action.group ?? null);
     else if (action.type === 'bracket') setScreen('cup');
     else if (action.type === 'back') setScreen('start');
     else if (action.type === 'skipIntro') setIntro(null);
@@ -592,13 +600,21 @@ export function App() {
       applyMatchAction(controller, action);
     }
   };
-  useKeyboard({ screen: keyScreen, timeChallenge, lockerRoom: lockerOn, enterStart: startFromUrl(window.location.search), onAction });
-
   const locker = persistence.lockerRoom();
+  const modes = modeButtons(locker, settings().modesAllowed, lockerOn);
+  const modeKeys = Object.fromEntries(
+    modes.filter((b) => b.state !== 'soon').map((b) => [b.mode, b.state === 'ready' ? 'start' : 'locked'] as const),
+  );
+  useKeyboard({ screen: keyScreen, timeChallenge, lockerRoom: lockerOn, enterStart: startFromUrl(window.location.search), modeKeys, onAction });
+
   const saveLocker = (next: typeof locker) => {
     saves.report(persistence.saveLockerRoom(next));
     setDataVersion((n) => n + 1);
   };
+  function openLockerRoom(group: 'modes' | null) {
+    setLockerGroup(group);
+    setScreen('lockerRoom');
+  }
   const closeMatchLocker = () => {
     setLockerOpen(false);
     // The scene draws the look on every state change; a round the child paused has none, so it is shown here.
@@ -661,6 +677,7 @@ export function App() {
         onChange={saveLocker}
         onBack={() => setScreen('start')}
         trophies={persistence.cup().trophies}
+        focus={lockerGroup}
       />
     );
   }
@@ -682,7 +699,8 @@ export function App() {
           onPlay={(kind) => (kind === 'cup' ? setScreen('cup') : startMatch(kind))}
           gear={gear}
           cup={persistence.cup()}
-          lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => setScreen('lockerRoom') } : null}
+          lockerRoom={lockerOn ? { stars: locker.stars, onOpen: () => openLockerRoom(null) } : null}
+          modes={{ buttons: modes, onOpenModes: () => openLockerRoom('modes') }}
           notices={[
             ...(resetLines.length > 0 ? [{ id: 'reset', lines: resetLines, onDismiss: () => setResetLines([]) }] : []),
             ...(saveFailed ? [{ id: 'save', lines: [t().start.saveFailed], onDismiss: saves.dismiss }] : []),
@@ -716,6 +734,8 @@ export function App() {
       data-floodlight={extras?.floodlight ?? ''}
       data-stands={extras?.stands ?? ''}
       data-stadium-name={stadiumNameShown(locker.stadiumName)}
+      data-mode={state.mode}
+      data-wall-cols={state.wall ? wallColumns(state.wall).join(',') : ''}
       onPointerDown={skipCelebration}
     >
       <div className="game-parent" ref={gameParent} />

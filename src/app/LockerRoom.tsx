@@ -22,6 +22,13 @@
  * like the other items. A tap on one shows it on the stadium preview (src/app/LockerStadium.tsx), also before it is
  * bought.
  *
+ * "Spielarten" (amendment 21, FR-140): the game modes to unlock, "Freistoß mit Mauer" (200), "Selbst ins Tor" (300) and
+ * "Elfmeterschießen" (600, only after "Selbst ins Tor"). Each shows a short preview animation (again on every tap), its
+ * price or "noch N Sterne", or "Erst Selbst ins Tor freischalten". A tap on an affordable mode asks "Für N Sterne
+ * freischalten?"; "Ja" unlocks it for good. Opened from a locked mode on the start screen (`focus="modes"`), the
+ * locker room scrolls to this group. For tests: the group `data-testid="locker-modes"`, every mode
+ * `data-testid="mode-<mode>"` with `data-unlocked` and `data-lock` (unlocked, needs, affordable, stars).
+ *
  * The trophy shelf (amendment 13, FR-111) shows every won cup as "Pokal 1", "Pokal 2" and so on
  * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
  *
@@ -63,6 +70,7 @@ import {
   starsNeeded,
   type Look,
 } from '../core/rewards/lockerRoom';
+import { MODE_OFFERS, modeLock, UNLOCK_MODES, unlockMode, type UnlockMode } from '../core/rewards/modes';
 import type { LockerRoom as LockerData } from '../core/storage/schemas';
 import { t } from '../i18n';
 import { TrophyIcon } from './CupBracket';
@@ -76,6 +84,49 @@ interface Props {
   onBack: () => void;
   /** The won cups for the trophy shelf (amendment 13, FR-111), oldest first. */
   trophies?: ReadonlyArray<{ cup: number }>;
+  /** A group to scroll to when the locker room opens: "Spielarten" after a tap on a locked mode (FR-141). */
+  focus?: 'modes' | null;
+}
+
+/** The question before stars are spent: its text, and the locker room after "Ja". */
+interface Question {
+  text: string;
+  apply: (locker: LockerData) => LockerData;
+}
+
+/**
+ * A small moving picture of a mode (FR-140): the ball bounces off the wall, the keeper dives to the ball, or the ball
+ * goes in and the score circles fill. It plays once when it shows and again when `play` changes.
+ */
+export function ModePreview({ mode, play }: { mode: UnlockMode; play: number }): ReactElement {
+  const chalk = css(COLOR.chalk);
+  const kit = css(COLOR.kit);
+  return (
+    <svg key={play} className={`mode-preview mode-preview-${mode}`} width={64} height={44} viewBox="0 0 64 44" aria-hidden="true">
+      <path d="M8 30 V6 H56 V30" fill="none" stroke={chalk} strokeWidth={2.5} />
+      {mode === 'wall' &&
+        [22, 32, 42].map((x) => (
+          <g key={x}>
+            <rect x={x - 4} y={26} width={8} height={12} rx={2} fill="#c94f4f" />
+            <circle cx={x} cy={23} r={3} fill={css(COLOR.skin)} />
+          </g>
+        ))}
+      {mode === 'keeper' && (
+        <g className="mode-preview-keeper">
+          <rect x={28} y={16} width={8} height={12} rx={2} fill={kit} />
+          <circle cx={32} cy={13} r={3} fill={css(COLOR.skin)} />
+        </g>
+      )}
+      {mode === 'shootout' &&
+        [0, 1, 2, 3, 4].map((i) => (
+          <g key={i}>
+            <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={36} r={2.5} fill={kit} />
+            <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={42} r={2} fill={chalk} opacity={0.6} />
+          </g>
+        ))}
+      <circle className="mode-preview-ball" cx={32} cy={40} r={3} fill="#ffffff" stroke={css(COLOR.ink)} strokeWidth={0.8} />
+    </svg>
+  );
 }
 
 /** For each celebration's small picture: the moment of its pose that shows it best. */
@@ -278,9 +329,11 @@ function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): Reac
   return <span className={`locker-swatch locker-swatch-${item.kind}`} style={{ background: css(item.color ?? 0) }} aria-hidden="true" />;
 }
 
-export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): ReactElement {
+export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = null }: Props): ReactElement {
   const L = t().lockerRoom;
-  const [question, setQuestion] = useState<LockerItem | null>(null);
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [modePlay, setModePlay] = useState<Record<UnlockMode, number>>({ wall: 0, keeper: 0, shootout: 0 });
+  const modesGroup = useRef<HTMLElement>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
   const [extrasPlay, setExtrasPlay] = useState<ExtrasPlay | null>(null);
@@ -300,6 +353,11 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // Opened from a locked mode on the start screen: "Spielarten" shows first.
+  useEffect(() => {
+    if (focus === 'modes') modesGroup.current?.scrollIntoView?.({ block: 'start' });
+  }, [focus]);
+
   const choose = (item: LockerItem) => {
     // A celebration plays on the preview with every tap, also before it is bought (FR-113).
     if (item.kind === 'celebration') setPlay((p) => ({ celebration: celebrationOf(item.id), n: (p?.n ?? 0) + 1 }));
@@ -314,11 +372,17 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
     if (item.kind === 'floodlight') setStadiumPlay({ kind: 'floodlight', name: floodlightOf(item.id), n: m });
     if (item.kind === 'weather') setStadiumPlay({ kind: 'weather', name: weatherOf(item.id), n: m });
     if (isOwned(locker, item.id)) onChange(equip(locker, item.kind, item.id));
-    else if (canBuy(locker, item.id)) setQuestion(item);
+    else if (canBuy(locker, item.id)) setQuestion({ text: L.buyQuestion(item.price), apply: (l) => buy(l, item.id) });
+  };
+
+  const chooseMode = (mode: UnlockMode) => {
+    setModePlay((p) => ({ ...p, [mode]: p[mode] + 1 }));
+    const lock = modeLock(locker, mode);
+    if (lock.kind === 'affordable') setQuestion({ text: L.unlockQuestion(lock.price), apply: (l) => unlockMode(l, mode) });
   };
 
   const answer = (yes: boolean) => {
-    if (yes && question) onChange(buy(locker, question.id));
+    if (yes && question) onChange(question.apply(locker));
     setQuestion(null);
   };
 
@@ -467,6 +531,40 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
             <h2>{L.groups.weather}</h2>
             {items('weather')}
           </section>
+          <section className="locker-group" aria-label={L.groups.modes} data-testid="locker-modes" ref={modesGroup}>
+            <h2>{L.groups.modes}</h2>
+            <div className="locker-items">
+              {UNLOCK_MODES.map((mode) => {
+                const lock = modeLock(locker, mode);
+                // A locked mode shows its price, and what is still missing (FR-140).
+                let missing: string | null = null;
+                if (lock.kind === 'needs') missing = L.needsFirst(L.modes[lock.mode]);
+                else if (lock.kind === 'stars') missing = L.stillNeeded(lock.needed);
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    className="locker-item locker-mode"
+                    data-testid={`mode-${mode}`}
+                    data-unlocked={String(lock.kind === 'unlocked')}
+                    data-lock={lock.kind}
+                    data-locked={String(lock.kind === 'needs' || lock.kind === 'stars')}
+                    aria-disabled={lock.kind === 'needs' || lock.kind === 'stars' ? 'true' : undefined}
+                    onClick={() => chooseMode(mode)}
+                  >
+                    <ModePreview mode={mode} play={modePlay[mode]} />
+                    <span className="locker-item-name">{L.modes[mode]}</span>
+                    {lock.kind === 'unlocked' ? (
+                      <span className="locker-item-chosen">{L.unlocked}</span>
+                    ) : (
+                      <span className="locker-item-price">{L.price(MODE_OFFERS[mode].price)}</span>
+                    )}
+                    {missing !== null && <span className="locker-item-price">{missing}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
           <section className="locker-group" aria-label={L.groups.trophies}>
             <h2>{L.groups.trophies}</h2>
             <ul className="trophy-shelf" data-testid="trophy-shelf" data-trophies={trophies.length}>
@@ -484,7 +582,7 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [] }: Props): 
       {question && (
         <div className="parent-menu-backdrop">
           <div className="parent-menu" role="dialog" aria-modal="true" data-testid="buy-question" aria-labelledby="buy-question-text">
-            <p id="buy-question-text">{L.buyQuestion(question.price)}</p>
+            <p id="buy-question-text">{question.text}</p>
             <div className="round-end-buttons">
               <button type="button" className="primary" onClick={() => answer(true)}>
                 {L.yes}

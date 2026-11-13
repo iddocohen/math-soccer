@@ -41,6 +41,7 @@ import {
   type Trail,
   type Weather,
 } from './items';
+import { cleanModes } from './modes';
 
 /** Stars for a goal (FR-132). */
 export const GOAL_STARS = 1;
@@ -149,7 +150,8 @@ export function stadiumNameShown(name: string): string {
 
 /**
  * Stored data after the schema check: bought ids that are unknown, free or repeated are dropped, and a chosen item that
- * is unknown, of the wrong kind or not owned becomes the starter item of its kind.
+ * is unknown, of the wrong kind or not owned becomes the starter item of its kind. Unknown or repeated game modes are
+ * dropped (amendment 21).
  */
 export function cleanLockerRoom(locker: LockerRoom): LockerRoom {
   const owned = [...new Set(locker.owned)].filter((id) => itemById(id) !== undefined && !isFree(id));
@@ -158,7 +160,7 @@ export function cleanLockerRoom(locker: LockerRoom): LockerRoom {
     const item = itemById(id);
     return item && item.kind === kind && (item.price === 0 || owned.includes(id)) ? id : STARTER[kind];
   };
-  const cleaned: LockerRoom = { ...locker, owned };
+  const cleaned: LockerRoom = { ...locker, owned, modes: cleanModes(locker.modes) };
   for (const kind of ITEM_KINDS) cleaned[FIELD[kind]] = pick(kind);
   return cleaned;
 }

@@ -11,6 +11,7 @@
  * every challenge of the same length has the same time, so the best is the most goals.
  */
 import { emptyRecords, recordsSchema, type Records } from '../storage/schemas';
+import type { MatchMode } from '../match/rounds';
 import { PLAYED_MODE, type RoundType } from '../types';
 
 export { emptyRecords, recordsSchema, type Records };
@@ -24,11 +25,13 @@ export interface BestResult {
 
 /**
  * `${min}-${max}|keeper|${roundType}` (data-model "PersonalBest"); a time challenge adds its minutes:
- * `${min}-${max}|keeper|time|${minutes}`.
+ * `${min}-${max}|keeper|time|${minutes}`. A round of "Freistoß mit Mauer" (amendment 21) adds `|wall`, so its bests
+ * stay apart from those of "Spielen" with the same round type.
  */
-export function recordKey(min: number, max: number, roundType: RoundType, challengeMinutes: number | null = null): string {
+export function recordKey(min: number, max: number, roundType: RoundType, challengeMinutes: number | null = null, mode: MatchMode = 'normal'): string {
   const base = `${min}-${max}|${PLAYED_MODE}|${roundType}`;
-  return roundType === 'time' ? `${base}|${challengeMinutes ?? 0}` : base;
+  const key = roundType === 'time' ? `${base}|${challengeMinutes ?? 0}` : base;
+  return mode === 'normal' ? key : `${key}|${mode}`;
 }
 
 export interface SubmitOutcome {

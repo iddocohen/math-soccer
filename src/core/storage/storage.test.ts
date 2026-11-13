@@ -46,6 +46,8 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     seed: 1,
     roundType: 'untilHearts',
     challengeMinutes: null,
+    mode: 'normal',
+    wall: null,
     goalsPerRound: 10,
     min: 1,
     max: 100,

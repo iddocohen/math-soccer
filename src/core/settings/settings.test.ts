@@ -33,6 +33,8 @@ describe('defaultSettings (data-model "Settings", defaults as listed)', () => {
     expect(s.levels).toEqual({ start: 1, hardest: 6 });
     expect(s.shapes).toEqual({ I: true, O: true, T: true, L: true, J: true, S: true, Z: true });
     expect(s.timeChallenge).toEqual({ allowed: true, minutes: 2 });
+    // "Spielarten erlauben" (amendment 21, FR-141): every mode to unlock is allowed.
+    expect(s.modesAllowed).toEqual({ wall: true, keeper: true, shootout: true });
     expect(s.roundType).toBe('untilHearts');
     expect(s.goalsPerRound).toBe(10);
     expect(s.difficulty).toBe('easy');
