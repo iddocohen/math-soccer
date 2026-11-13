@@ -224,6 +224,17 @@ export class KeeperView {
     return this.number.text;
   }
 
+  /** Hides the keeper and his shadow ("Torwandschießen" has no keeper, amendment 23); false shows him again. */
+  setHidden(hidden: boolean): void {
+    this.body.setVisible(!hidden);
+    this.shadow.setVisible(!hidden);
+  }
+
+  /** True while the keeper is hidden. */
+  get hidden(): boolean {
+    return !this.body.visible;
+  }
+
   /** Stops any motion: the keeper waits in the middle until he hears the next squares. */
   reset(): void {
     this.stop();

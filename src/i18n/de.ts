@@ -58,7 +58,7 @@ export const de = {
     /** Closes a notice on the start screen. */
     dismiss: 'OK',
     /** The buttons of the modes to unlock (amendment 21, FR-141). */
-    modes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter' },
+    modes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter', torwand: 'Torwand', family: 'Papa gegen Kind' },
     /** An unlocked mode whose game comes in a later version. */
     soon: 'kommt bald',
     /** Accessible name of a locked mode's button: "Mauer, gesperrt, 200 Sterne". */
@@ -90,6 +90,13 @@ export const de = {
     shootoutScore: (child: string, a: number, opponent: string, b: number) => `${child} ${a}, ${opponent} ${b}`,
     /** Whose turn it is: the child shoots or keeps. */
     shootoutTurn: { child: 'Du schießt!', opponent: 'Du hältst!' },
+    /** "Torwandschießen" (amendment 23, FR-157): the hits so far and the shot now. */
+    torwandCount: (hits: number, shot: number, total: number) => `${hits} Treffer · Schuss ${shot} von ${total}`,
+    /** "Papa gegen Kind" (amendment 23, FR-158): the round, the turn card and whose turn it is. */
+    familyRound: (round: number, rounds: number) => (round <= rounds ? `Papa gegen Kind · Runde ${round} von ${rounds}` : `Papa gegen Kind · Entscheidung ${round - rounds}`),
+    familyTurn: (name: string) => `${name} ist dran!`,
+    familyTurnGo: 'Enter oder Tippen: Los!',
+    familyLevel: (level: number) => `Stufe ${level}`,
     /** The child's name on the score circles when he has no shirt name. */
     you: 'Du',
     hearts: (n: number) => `${n} Bälle übrig`,
@@ -113,6 +120,10 @@ export const de = {
     late: (n: number) => `Zu spät! Hier war ${n}.`,
     /** "Elfmeterschießen" (amendment 21 part 3): the child's kick missed, the opponent's turn comes. */
     kickMissed: (n: number) => `Daneben! Hier ist ${n}.`,
+    /** "Torwandschießen" (amendment 23, FR-155, FR-156): the task, a decoy hole, and the board. */
+    torwandAsk: (n: number) => `Triff die ${n}!`,
+    decoy: (n: number) => `Das andere Loch! Das war die ${n}.`,
+    board: (n: number) => `An die Wand! Hier ist ${n}.`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
     /** A goal that raised the difficulty level (FR-088). */
@@ -124,6 +135,16 @@ export const de = {
     names: { 1: 'Gerade Linien', 2: 'Schräge Linien', 3: 'Formen', 4: 'Formen mit 2 Lücken', 5: 'X-Form', 6: 'Ausschnitte' } satisfies Record<Level, string>,
     /** "Stufe 2: Schräge Linien". */
     label: (level: number, name: string) => `Stufe ${level}: ${name}`,
+  },
+
+  /** The start card of "Papa gegen Kind" (amendment 23, FR-158, FR-159). */
+  family: {
+    title: 'Papa gegen Kind',
+    hint: 'Ihr schießt abwechselnd. Wer mehr Tore schießt, gewinnt.',
+    name: 'Name',
+    level: 'Stufe',
+    start: "Los geht's",
+    back: 'Zurück',
   },
 
   /** Help steps (spec US2, amendment 10): step 1 the row with a hint, step 2 the column, step 3 the full chart, step 4 the answer. */
@@ -152,6 +173,14 @@ export const de = {
     shootoutLost: 'Knapp! Noch mal?',
     shootoutSummary: (a: number, b: number, opponent: string) => `${a}:${b} gegen ${opponent}`,
     shootoutRecord: (wins: number) => (wins === 1 ? '1 Elfmeterschießen gewonnen' : `${wins} Elfmeterschießen gewonnen`),
+    /** "Torwandschießen" (amendment 23, FR-157): the hits of the round and the best. */
+    torwandSummary: (hits: number, shots: number) => `${hits} von ${shots} Treffern`,
+    torwandRecord: (hits: number) => `Dein Rekord: ${hits} von 10 Treffern`,
+    /** "Papa gegen Kind" (amendment 23, FR-160): the winner, the gentle loss, the score and the child's wins. */
+    familyWinner: (name: string) => `${name} gewinnt!`,
+    familyLost: 'Knapp! Revanche?',
+    familySummary: (child: string, a: number, grownup: string, b: number) => `${child} ${a}:${b} ${grownup}`,
+    familyRecord: (wins: number) => (wins === 1 ? '1 Mal gewonnen' : `${wins} Mal gewonnen`),
     stars: (n: number) => `+${starCount(n)}`,
     /** A new version waits (amendment 12, FR-103). */
     updateWaiting: 'Neue Version, startet gleich',
@@ -222,7 +251,7 @@ export const de = {
       trophies: 'Pokale',
     },
     /** The game modes to unlock (amendment 21, FR-140). */
-    modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen' } satisfies Record<UnlockMode, string>,
+    modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen', torwand: 'Torwandschießen', family: 'Papa gegen Kind' } satisfies Record<UnlockMode, string>,
     /** A mode that needs another one first: "Erst Selbst ins Tor freischalten". */
     needsFirst: (name: string) => `Erst ${name} freischalten`,
     unlocked: 'Freigeschaltet',
@@ -400,7 +429,7 @@ export const de = {
       difficulty: { easy: 'leicht (5 Schüsse pro Ball)', normal: 'normal (4 Schüsse pro Ball)', challenging: 'schwer (3 Schüsse pro Ball)' },
       numberPad: { auto: 'automatisch', always: 'immer', never: 'nie' },
       /** The modes to unlock (amendment 21), as named in the locker room. */
-      modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen' } satisfies Record<UnlockMode, string>,
+      modes: { wall: 'Freistoß mit Mauer', keeper: 'Selbst ins Tor', shootout: 'Elfmeterschießen', torwand: 'Torwandschießen', family: 'Papa gegen Kind' } satisfies Record<UnlockMode, string>,
       /** The flight time of the opponent's shot in "Selbst ins Tor" (FR-144); the first shot of a round is always slow. */
       keeperSpeed: { slow: 'langsam (10 s)', medium: 'mittel (8 s)', fast: 'schnell (5 s)' } satisfies Record<KeeperSpeed, string>,
     },
@@ -487,9 +516,12 @@ export const de = {
     noBests: 'Noch keine Rekorde.',
     roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren', time: 'Zeit-Challenge', cup: 'Pokal' },
     /** The bests per mode (amendment 21): the mode's start button name. */
-    matchModes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter' },
+    matchModes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter', torwand: 'Torwand', family: 'Papa gegen Kind' },
     keeperBestLine: (saves: number) => `${saves} von 10 gehalten`,
     shootoutBestLine: (wins: number) => (wins === 1 ? '1 Elfmeterschießen gewonnen' : `${wins} Elfmeterschießen gewonnen`),
+    /** Amendment 23: the most hits at the board out of 10, and the child's wins against the grown-up. */
+    torwandBestLine: (hits: number) => `${hits} von 10 Treffern`,
+    familyBestLine: (wins: number) => (wins === 1 ? '1 Mal gewonnen' : `${wins} Mal gewonnen`),
     range: (min: number, max: number) => `${min} bis ${max}`,
   },
 

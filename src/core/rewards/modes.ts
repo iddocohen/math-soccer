@@ -1,21 +1,23 @@
 /**
  * Game modes to unlock with stars (amendment 21, FR-140, FR-141). Pure data and functions, no React or Phaser.
  *
- * Three modes, in the locker room group "Spielarten":
+ * Five modes, in the locker room group "Spielarten":
  * - "Freistoß mit Mauer" (`wall`): 200 stars.
  * - "Selbst ins Tor" (`keeper`): 300 stars.
  * - "Elfmeterschießen" (`shootout`): 600 stars, only after "Selbst ins Tor" is owned.
+ * - "Torwandschießen" (`torwand`, amendment 23, FR-154): 150 stars.
+ * - "Papa gegen Kind" (`family`, amendment 23, FR-154): 250 stars.
  *
  * The modes are not locker room items (src/core/rewards/items.ts): nothing is chosen or worn, a bought mode only gives
  * its start screen button. The locker room keeps them in `modes`, apart from `owned`. Once bought, a mode stays
  * unlocked; only `unlockMode` takes stars.
  *
  * `playable` is false for a mode whose game is not built yet: it can be bought, and the start screen button says
- * "kommt bald". All three modes of amendment 21 are playable.
+ * "kommt bald". All modes are playable.
  */
 import type { LockerRoom } from '../storage/schemas';
 
-export const UNLOCK_MODES = ['wall', 'keeper', 'shootout'] as const;
+export const UNLOCK_MODES = ['wall', 'keeper', 'shootout', 'torwand', 'family'] as const;
 export type UnlockMode = (typeof UNLOCK_MODES)[number];
 
 export interface ModeOffer {
@@ -25,7 +27,7 @@ export interface ModeOffer {
   /** The mode that must be owned before this one can be bought; null when none is needed. */
   requires: UnlockMode | null;
   /** The start screen key, as shown on the button (FR-141). */
-  key: 'M' | 'T' | 'E';
+  key: 'M' | 'T' | 'E' | 'W' | 'F';
   /** False while the mode's game is not built yet: the start button says "kommt bald". */
   playable: boolean;
 }
@@ -35,6 +37,8 @@ export const MODE_OFFERS: Record<UnlockMode, ModeOffer> = {
   wall: { mode: 'wall', price: 200, requires: null, key: 'M', playable: true },
   keeper: { mode: 'keeper', price: 300, requires: null, key: 'T', playable: true },
   shootout: { mode: 'shootout', price: 600, requires: 'keeper', key: 'E', playable: true },
+  torwand: { mode: 'torwand', price: 150, requires: null, key: 'W', playable: true },
+  family: { mode: 'family', price: 250, requires: null, key: 'F', playable: true },
 };
 
 export function isUnlockMode(value: string): value is UnlockMode {

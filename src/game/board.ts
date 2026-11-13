@@ -11,7 +11,8 @@
  * answer in the target square. In a cutout (amendment 18) the squares the child filled stay lit with their numbers even
  * while hints wait for a request: they are the child's own answers. The square of a missed number is warm
  * orange with its number while `shown` is set. Squares outside the range in a partial first or last row carry no
- * number.
+ * number. With `plain` ("Torwandschießen", amendment 23) the target square has no outline until the row and column
+ * bands cross on it (help step 2), so the child finds the hole by its number.
  */
 import { cellRect, cellRectAt, center, COLUMNS, inChart, numberAt, showNumbers, type ChartLayout } from '../core/chart/layout';
 import { ANSWER_STEP, HINT_STEP, rowColumnHelp } from '../core/match/help';
@@ -31,6 +32,8 @@ export interface BoardInput {
   hintFrom: number | null;
   /** The target was just scored (the celebration runs), so the cell panel is gone. False when left out. */
   solved?: boolean;
+  /** The target square is not outlined before help step 2 ("Torwandschießen"). False when left out. */
+  plain?: boolean;
 }
 
 /** The help arrow in world pixels, from the center of the hint square to the center of the target square. */
@@ -88,7 +91,7 @@ export function boardKey(input: BoardInput): string {
   const t = input.target;
   const target = t ? `${t.number}:${t.hints.join(',')}:${(t.queue ?? []).map((q) => q.number).join(',')}` : '-';
   const { min, max } = input.layout;
-  return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-', input.solved ? 1 : 0].join('|');
+  return [min, max, target, input.hintsVisible ? 1 : 0, input.helpStep, input.shown ?? '-', input.hintFrom ?? '-', input.solved ? 1 : 0, input.plain ? 1 : 0].join('|');
 }
 
 export function buildBoard(input: BoardInput): Board {
@@ -118,7 +121,7 @@ export function buildBoard(input: BoardInput): Board {
       if (isShown) label = { text: String(n), style: 'shown' };
       const isWaiting = !isTarget && waiting.has(n);
       const crossing = isTarget && litRow !== null && litColumn !== null;
-      squares.push({ n, rect, outlined: isTarget, waiting: isWaiting, lit: hints.has(n), shown: isShown, crossing, label });
+      squares.push({ n, rect, outlined: isTarget && (!input.plain || crossing), waiting: isWaiting, lit: hints.has(n), shown: isShown, crossing, label });
     }
   }
   const bands = {

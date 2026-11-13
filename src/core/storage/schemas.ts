@@ -4,6 +4,8 @@ import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, G
 import { PATTERNS } from '../targets/patterns';
 import { MATCH_MODES } from '../match/rounds';
 import { KEEPER_SHOTS } from '../match/keeper';
+import { TORWAND_SHOTS } from '../match/torwand';
+import { GROWNUP_NAME_MAX } from '../match/family';
 import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
 
 /**
@@ -245,8 +247,11 @@ export const roundSchema = z
       .object({ from: z.number().int().min(0).max(9), to: z.number().int().min(0).max(9), defenders: z.number().int().min(3).max(5) })
       .nullable()
       .default(null),
-    /** "Selbst ins Tor" (amendment 21, FR-143): the shots decided so far; 0 in the other modes. Added with a default. */
-    shots: z.number().int().min(0).max(KEEPER_SHOTS).default(0),
+    /**
+     * "Selbst ins Tor" (amendment 21, FR-143) and "Torwandschießen" (amendment 23): the shots decided so far; 0 in the
+     * other modes. Added with a default.
+     */
+    shots: z.number().int().min(0).max(Math.max(KEEPER_SHOTS, TORWAND_SHOTS)).default(0),
     /** The opponent's shot at the current target in "Selbst ins Tor"; null in the other modes. Added with a default. */
     keeperShot: z
       .object({
@@ -270,6 +275,16 @@ export const roundSchema = z
       })
       .nullable()
       .default(null),
+    /** "Torwandschießen" (amendment 23): the board's holes and the wait after a missed shot; null otherwise. */
+    torwand: z
+      .object({ holes: z.array(z.number().int()).min(1).max(3), waitMs: z.number().min(0) })
+      .nullable()
+      .default(null),
+    /** "Papa gegen Kind" (amendment 23): the grown-up's name and level, and the turn card; null otherwise. */
+    family: z
+      .object({ name: z.string().min(1).max(GROWNUP_NAME_MAX), level: z.literal(LEVELS), card: z.boolean() })
+      .nullable()
+      .default(null),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);
@@ -277,8 +292,9 @@ export type StoredRound = z.infer<typeof roundSchema>;
 
 /**
  * Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, a
- * wall belongs to the wall mode, a shot at the child in goal to the keeper or the shootout mode, and the kicks of a
- * shootout to the shootout mode.
+ * wall belongs to the wall mode, a shot at the child in goal to the keeper or the shootout mode, the kicks of a
+ * shootout to the shootout and the family mode, the board's holes to the torwand mode and the grown-up to the family
+ * mode.
  */
 function roundRules(
   r: {
@@ -292,6 +308,8 @@ function roundRules(
     wall: { from: number; to: number } | null;
     keeperShot: unknown;
     shootout: unknown;
+    torwand: { holes: number[] } | null;
+    family: unknown;
     target: { number: number; queue?: Array<{ number: number }>; cutout?: { squares: number[] } } | null;
   },
   ctx: z.RefinementCtx,
@@ -303,7 +321,10 @@ function roundRules(
   if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
   if (r.wall !== null && (r.mode !== 'wall' || r.wall.from > r.wall.to)) issue('a wall stands only in the wall mode, left to right', 'wall');
   if (r.keeperShot !== null && r.mode !== 'keeper' && r.mode !== 'shootout') issue('a shot at the child in goal belongs to the keeper or the shootout mode', 'keeperShot');
-  if ((r.shootout !== null) !== (r.mode === 'shootout')) issue('the kicks of a shootout belong to the shootout mode, and it has them', 'shootout');
+  if ((r.shootout !== null) !== (r.mode === 'shootout' || r.mode === 'family')) issue('the kicks of a shootout belong to the shootout and the family mode, and they have them', 'shootout');
+  if ((r.torwand !== null) !== (r.mode === 'torwand')) issue('the holes of the board belong to the torwand mode, and it has them', 'torwand');
+  if ((r.family !== null) !== (r.mode === 'family')) issue('the grown-up belongs to the family mode, and it has one', 'family');
+  if (r.torwand?.holes.some((n) => n < r.min || n > r.max)) issue('hole outside the range', 'torwand');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number), ...(r.target.cutout?.squares ?? [])] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

@@ -27,10 +27,11 @@ export interface BestResult {
  * `${min}-${max}|keeper|${roundType}` (data-model "PersonalBest"); a time challenge adds its minutes:
  * `${min}-${max}|keeper|time|${minutes}`. A round of "Freistoß mit Mauer" (amendment 21) adds `|wall`, so its bests
  * stay apart from those of "Spielen" with the same round type. "Selbst ins Tor" and "Elfmeterschießen" do not follow the
- * round type, so their keys name only the mode: `${min}-${max}|keeper|keeper` and `${min}-${max}|keeper|shootout`.
+ * round type, so their keys name only the mode: `${min}-${max}|keeper|keeper` and `${min}-${max}|keeper|shootout`. So do
+ * "Torwandschießen" (`|torwand`) and "Papa gegen Kind" (`|family`, amendment 23).
  */
 export function recordKey(min: number, max: number, roundType: RoundType, challengeMinutes: number | null = null, mode: MatchMode = 'normal'): string {
-  if (mode === 'keeper' || mode === 'shootout') return `${min}-${max}|${PLAYED_MODE}|${mode}`;
+  if (mode === 'keeper' || mode === 'shootout' || mode === 'torwand' || mode === 'family') return `${min}-${max}|${PLAYED_MODE}|${mode}`;
   const base = `${min}-${max}|${PLAYED_MODE}|${roundType}`;
   const key = roundType === 'time' ? `${base}|${challengeMinutes ?? 0}` : base;
   return mode === 'normal' ? key : `${key}|${mode}`;
@@ -63,6 +64,7 @@ export function submitResult(records: Records, key: string, result: BestResult):
 /**
  * The best of "Elfmeterschießen" (amendment 21 part 3) is the number of shootouts won (`goals`, with `timeMs` 0). A won
  * shootout adds one; a lost one leaves the records as they are. `newRecord` stays false, since every win counts up.
+ * "Papa gegen Kind" (amendment 23) counts the child's wins the same way.
  */
 export function submitShootout(records: Records, key: string, won: boolean, at: string): SubmitOutcome {
   const stored = records.bests[key] ?? null;

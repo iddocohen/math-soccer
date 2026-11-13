@@ -88,3 +88,38 @@ describe('RoundEnd after a shootout (amendment 21 part 3, FR-148)', () => {
     expect(screen.getByTestId('round-end').className).toBe('round-end');
   });
 });
+
+describe('RoundEnd after "Torwandschießen" and "Papa gegen Kind" (amendment 23, FR-157, FR-160)', () => {
+  it('"Torwand" shows the hits out of 10 and the best', () => {
+    render(
+      <RoundEnd
+        goals={7}
+        elapsedMs={65_000}
+        roundType="untilHearts"
+        record={{ newRecord: false, best: { goals: 8, timeMs: 0, at: '' } }}
+        torwandShots={10}
+        onAgain={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('round-result').textContent).toBe('7 von 10 Treffern');
+    expect(screen.getByTestId('record').textContent).toBe('Dein Rekord: 8 von 10 Treffern');
+  });
+
+  it('the child\'s win names him; a win of the grown-up names him and offers "Knapp! Revanche?"', () => {
+    const { unmount } = render(
+      <RoundEnd goals={4} elapsedMs={0} roundType="untilHearts" record={null} stars={7} family={{ winner: 'child', child: 'Leo', grownup: 'Papa', score: [4, 3] }} onAgain={() => {}} onBack={() => {}} />,
+    );
+    expect(screen.getByRole('heading').textContent).toBe('Leo gewinnt!');
+    expect(screen.getByTestId('round-result').textContent).toBe('Leo 4:3 Papa');
+    expect(screen.getByTestId('round-end').getAttribute('data-family-winner')).toBe('child');
+    expect(screen.queryByTestId('family-lost')).toBeNull();
+    unmount();
+    render(
+      <RoundEnd goals={2} elapsedMs={0} roundType="untilHearts" record={null} stars={2} family={{ winner: 'grownup', child: 'Leo', grownup: 'Papa', score: [2, 3] }} onAgain={() => {}} onBack={() => {}} />,
+    );
+    expect(screen.getByRole('heading').textContent).toBe('Papa gewinnt!');
+    expect(screen.getByTestId('family-lost').textContent).toBe('Knapp! Revanche?');
+    expect(screen.getByTestId('round-stars').textContent).toBe('+2 Sterne');
+  });
+});

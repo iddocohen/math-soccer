@@ -81,7 +81,7 @@ describe('ProgressPage (T045)', () => {
     expect(screen.getByTestId('progress-bests').textContent).toBe('1 bis 100, bis die Bälle weg sind: 6 Tore in 2:05');
   });
 
-  it('lists the bests per mode: "Mauer", "Torwart", "Elfmeter" (amendment 21)', () => {
+  it('lists the bests per mode: "Mauer", "Torwart", "Elfmeter" (amendment 21), "Torwand", "Papa gegen Kind" (amendment 23)', () => {
     const kv = memoryKeyValue();
     const records = emptyRecords();
     const at = '2026-11-13T12:00:00.000Z';
@@ -89,6 +89,8 @@ describe('ProgressPage (T045)', () => {
     records.bests['1-100|keeper|goalCount|wall'] = { goals: 5, timeMs: 61_000, at };
     records.bests['1-100|keeper|keeper'] = { goals: 7, timeMs: 90_000, at };
     records.bests['1-100|keeper|shootout'] = { goals: 2, timeMs: 0, at };
+    records.bests['1-100|keeper|family'] = { goals: 1, timeMs: 0, at };
+    records.bests['1-100|keeper|torwand'] = { goals: 8, timeMs: 70_000, at };
     saveRecords(kv, records);
     render(<ProgressPage persistence={createPersistence(kv)} onClose={() => {}} />);
     const lines = [...screen.getByTestId('progress-bests').querySelectorAll('li')].map((li) => [li.getAttribute('data-match-mode'), li.textContent]);
@@ -97,6 +99,8 @@ describe('ProgressPage (T045)', () => {
       ['wall', '1 bis 100, Mauer (feste Zahl an Toren): 5 Tore in 1:01'],
       ['keeper', '1 bis 100, Torwart: 7 von 10 gehalten'],
       ['shootout', '1 bis 100, Elfmeter: 2 Elfmeterschießen gewonnen'],
+      ['torwand', '1 bis 100, Torwand: 8 von 10 Treffern'],
+      ['family', '1 bis 100, Papa gegen Kind: 1 Mal gewonnen'],
     ]);
   });
 

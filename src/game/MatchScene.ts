@@ -51,6 +51,13 @@
  *   "Spielen". On the opponent's turn the shot plays as in "Selbst ins Tor", with the child in goal in his kit. Each new
  *   turn puts the ball back at the kick spot and the keeper in the middle. A won shootout brings the short trophy
  *   moment: confetti and fireworks (FinalShow), the cup lift, a cheer.
+ * - "Torwandschießen" (amendment 23, FR-155, FR-156): TorwandView covers the goal with the light board and its holes
+ *   (`s.torwand.holes`), and the keeper is hidden. The target square has no outline (`plain`). A goal flies through
+ *   its hole into the net; a decoy hole takes the ball into the net too, with the "ohhh"; any other number bounces
+ *   off the board with a thud and the "ohhh".
+ * - "Papa gegen Kind" (amendment 23, FR-158 to FR-160): the turns play as the child's kicks of the shootout, against
+ *   the usual keeper. On the grown-up's turn the player at the kick spot wears a blue shirt with the grown-up's name.
+ *   Either winner gets the short trophy moment.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -65,6 +72,8 @@ import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } fr
 import { isCutoutFill } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
 import { WallView } from './WallView';
+import { TorwandView } from './TorwandView';
+import { nextSide } from '../core/match/shootout';
 import { ShotView } from './ShotView';
 import { keeperOpponent } from '../core/match/keeper';
 import { shootoutWinner } from '../core/match/shootout';
@@ -179,6 +188,9 @@ const FILL_REST_MS = 250;
 const GRASS_TEXTURE = 'grass';
 /** The shirt number of the opponent who shoots in "Selbst ins Tor". */
 const OPPONENT_NUMBER = 9;
+/** The grown-up's shirt in "Papa gegen Kind": a blue apart from the kit colors, with number 1. */
+const GROWNUP_SHIRT = 0x3b6fd6;
+const GROWNUP_NUMBER = 1;
 /** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
 const GRASS_TILE_SCALE = 0.5;
 
@@ -199,6 +211,7 @@ export class MatchScene extends Phaser.Scene {
   private weather!: WeatherView;
   private wall!: WallView;
   private shot!: ShotView;
+  private torwand!: TorwandView;
   /** The target count of the opponent's shot the scene shows; -1 before the first. */
   private shotCount = -1;
   /** The target count of the shootout's kick the scene shows; -1 before the first. */
@@ -275,6 +288,7 @@ export class MatchScene extends Phaser.Scene {
     this.mascot = new MascotView(this, (mood) => this.setExtras({ mascotMood: mood }));
     this.wall = new WallView(this);
     this.shot = new ShotView(this);
+    this.torwand = new TorwandView(this);
     this.shotCount = -1;
     this.shotDecided = false;
     this.shotK = 0;
@@ -359,12 +373,15 @@ export class MatchScene extends Phaser.Scene {
     }
     this.refreshLook(layout);
     this.wall.setWall(layout, s.wall, this.currentLook().shirtColor);
+    // The board of "Torwandschießen" and no keeper (FR-155).
+    this.torwand.setHoles(layout, s.torwand?.holes ?? null);
+    this.keeper.setHidden(s.torwand !== null);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
     // A scored target loses its cell panel at once (FR-097, parent feedback).
     const solved = s.ball?.outcome === 'goal';
-    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved });
+    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved, plain: s.torwand !== null });
     this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper, solved);
 
     this.setPaused(s.paused);
@@ -372,7 +389,11 @@ export class MatchScene extends Phaser.Scene {
     if (this.celebration !== null && s.phase !== 'celebrating') this.endCelebration();
 
     if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
-    if (s.phase === 'roundOver' && s.shootout !== null && shootoutWinner(s.shootout.kicks) === 0 && !this.finalShow.running) this.shootoutWon();
+    // The child's won shootout, and in "Papa gegen Kind" either winner (FR-160), get the trophy moment.
+    if (s.phase === 'roundOver' && s.shootout !== null && !this.finalShow.running) {
+      const winner = shootoutWinner(s.shootout.kicks);
+      if (winner === 0 || (winner === 1 && s.family !== null)) this.shootoutWon();
+    }
 
     if (s.mode === 'keeper' || s.mode === 'shootout') this.drawShot(s, layout);
     else this.shot.hide();
@@ -562,10 +583,15 @@ export class MatchScene extends Phaser.Scene {
     const opponentShoots = s.started && (s.mode === 'keeper' || (shootout && s.keeperShot !== null));
     const team = opponentShoots || shootout ? keeperOpponent(s.seed) : null;
     const opponent = opponentShoots ? team : null;
-    const key = `${lookKey(look)}|${team?.id ?? ''}|${opponentShoots}`;
+    // "Papa gegen Kind": the grown-up kicks in his own shirt with his name.
+    const grownup = s.started && s.family !== null && s.shootout !== null && nextSide(s.shootout.kicks) === 1 ? s.family.name : null;
+    const key = `${lookKey(look)}|${team?.id ?? ''}|${opponentShoots}|${grownup ?? ''}`;
     if (key === this.lookKey) return;
     this.lookKey = key;
-    this.player.setLook(opponent ? { ...look, shirtColor: hexColor(opponent.color), shirtNumber: OPPONENT_NUMBER, shirtName: opponent.name } : look);
+    let playerLook = look;
+    if (opponent) playerLook = { ...look, shirtColor: hexColor(opponent.color), shirtNumber: OPPONENT_NUMBER, shirtName: opponent.name };
+    else if (grownup !== null) playerLook = { ...look, shirtColor: GROWNUP_SHIRT, shirtNumber: GROWNUP_NUMBER, shirtName: grownup };
+    this.player.setLook(playerLook);
     this.keeper.setKit(opponentShoots ? { color: look.shirtColor, number: look.shirtNumber } : null);
     if (shootout) this.keeper.setTeam(opponentShoots ? null : team);
     this.stands.setScarfColor(look.scarfColor);
@@ -588,7 +614,7 @@ export class MatchScene extends Phaser.Scene {
     const square = blocked ? this.wall.hitPoint(layout, n) : cellRect(layout, CHART_RECT, n);
     // On a square of a cutout that is not its last one the keeper waits aside (FR-126); a ball the wall stops never
     // reaches him.
-    this.keeperInPlay = !isCutoutFill(s.target) && !blocked;
+    this.keeperInPlay = !isCutoutFill(s.target) && !blocked && s.torwand === null;
     // The defenders jump on every shot, highest when the ball reaches them (FR-142).
     this.wall.jump(blocked);
     // The same rule as the controller's: the target number scores, any other number is caught.
@@ -619,6 +645,20 @@ export class MatchScene extends Phaser.Scene {
       this.options.sounds?.clap?.();
     } else if (s.ball?.outcome === 'blocked') {
       // The wall stopped the ball: it rests at the defenders a moment and fades (FR-142).
+      this.ball.caught(HOLD_MS);
+      this.options.sounds?.wallHit?.();
+      this.mascot.coverEyes();
+      this.stands.ohh();
+      this.options.sounds?.ohh();
+    } else if (s.ball?.outcome === 'decoy') {
+      // Through a decoy hole of the board: the ball goes into the net, but it is no goal (FR-156).
+      this.ballInNet = true;
+      this.ball.intoNet();
+      this.mascot.coverEyes();
+      this.stands.ohh();
+      this.options.sounds?.ohh();
+    } else if (s.ball?.outcome === 'miss' && s.torwand !== null) {
+      // The ball bounces off the board, rests a moment where it hit and fades (FR-156).
       this.ball.caught(HOLD_MS);
       this.options.sounds?.wallHit?.();
       this.mascot.coverEyes();

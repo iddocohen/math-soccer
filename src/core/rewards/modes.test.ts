@@ -9,15 +9,17 @@ import { award, cleanLockerRoom } from './lockerRoom';
 import { canUnlockMode, cleanModes, isModeUnlocked, MODE_OFFERS, modeButtons, modeLock, UNLOCK_MODES, unlockMode } from './modes';
 
 const withStars = (stars: number, modes: string[] = []): LockerRoom => ({ ...emptyLockerRoom(), stars, totalEarned: stars, modes });
-const ALL = { wall: true, keeper: true, shootout: true };
+const ALL = { wall: true, keeper: true, shootout: true, torwand: true, family: true };
 
 describe('modes to unlock (amendment 21, FR-140)', () => {
   it('"Freistoß mit Mauer" 200, "Selbst ins Tor" 300, "Elfmeterschießen" 600 after "Selbst ins Tor"', () => {
-    expect(UNLOCK_MODES).toEqual(['wall', 'keeper', 'shootout']);
+    expect(UNLOCK_MODES).toEqual(['wall', 'keeper', 'shootout', 'torwand', 'family']);
     expect(Object.values(MODE_OFFERS).map((o) => [o.mode, o.price, o.requires, o.key])).toEqual([
       ['wall', 200, null, 'M'],
       ['keeper', 300, null, 'T'],
       ['shootout', 600, 'keeper', 'E'],
+      ['torwand', 150, null, 'W'],
+      ['family', 250, null, 'F'],
     ]);
   });
 
@@ -64,18 +66,22 @@ describe('start buttons and startable modes (FR-141)', () => {
       { mode: 'wall', key: 'M', state: 'locked', price: 200 },
       { mode: 'keeper', key: 'T', state: 'locked', price: 300 },
       { mode: 'shootout', key: 'E', state: 'locked', price: 600 },
+      { mode: 'torwand', key: 'W', state: 'locked', price: 150 },
+      { mode: 'family', key: 'F', state: 'locked', price: 250 },
     ]);
-    const owned = withStars(0, ['wall', 'keeper', 'shootout']);
+    const owned = withStars(0, ['wall', 'keeper', 'shootout', 'torwand', 'family']);
     expect(modeButtons(owned, ALL, true).map((b) => [b.mode, b.state])).toEqual([
       ['wall', 'ready'],
       ['keeper', 'ready'],
       ['shootout', 'ready'],
+      ['torwand', 'ready'],
+      ['family', 'ready'],
     ]);
   });
 
   it('a mode the parent turned off has no button; without the locker room locked modes have none either', () => {
     const owned = withStars(0, ['wall']);
-    expect(modeButtons(owned, { ...ALL, wall: false }, true).map((b) => b.mode)).toEqual(['keeper', 'shootout']);
+    expect(modeButtons(owned, { ...ALL, wall: false }, true).map((b) => b.mode)).toEqual(['keeper', 'shootout', 'torwand', 'family']);
     expect(modeButtons(owned, ALL, false).map((b) => b.mode)).toEqual(['wall']);
   });
 
@@ -90,6 +96,11 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(canStart('shootout', owned, settings)).toBe(true);
     expect(canStart('shootout', owned, { ...settings, modesAllowed: { ...ALL, shootout: false } })).toBe(false);
     expect(canStart('shootout', withStars(0, ['keeper']), settings)).toBe(false);
+    const amendment23 = withStars(0, ['torwand', 'family']);
+    expect(canStart('torwand', amendment23, settings)).toBe(true);
+    expect(canStart('family', amendment23, settings)).toBe(true);
+    expect(canStart('torwand', amendment23, { ...settings, modesAllowed: { ...ALL, torwand: false } })).toBe(false);
+    expect(canStart('family', withStars(0, ['torwand']), settings)).toBe(false);
     expect(canStart('play', emptyLockerRoom(), settings)).toBe(true);
     expect(canStart('time', emptyLockerRoom(), { ...settings, timeChallenge: { allowed: false, minutes: 2 } })).toBe(false);
   });
@@ -100,6 +111,8 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(startKindOf({ roundType: 'goalCount', mode: 'normal' })).toBe('play');
     expect(startKindOf({ roundType: 'time', mode: 'normal' })).toBe('time');
     expect(startKindOf({ roundType: 'cup', mode: 'normal' })).toBe('cup');
+    expect(startKindOf({ roundType: 'untilHearts', mode: 'torwand' })).toBe('torwand');
+    expect(startKindOf({ roundType: 'goalCount', mode: 'family' })).toBe('family');
     expect(START_KIND_INFO.wall).toEqual({ mode: 'wall', unlock: 'wall', roundType: 'settings' });
   });
 
@@ -107,6 +120,11 @@ describe('start buttons and startable modes (FR-141)', () => {
     const old: Partial<ReturnType<typeof defaultSettings>> = defaultSettings();
     delete old.modesAllowed;
     expect(parseSettings(old)?.modesAllowed).toEqual(ALL);
+  });
+
+  it('settings stored before amendment 23 load with "Torwand" and "Papa gegen Kind" allowed', () => {
+    const old = { ...defaultSettings(), modesAllowed: { wall: false, keeper: true, shootout: true } };
+    expect(parseSettings(old)?.modesAllowed).toEqual({ ...ALL, wall: false });
   });
 
   it('a wall round keeps its bests apart from "Spielen"', () => {
@@ -118,6 +136,8 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(recordKey(1, 100, 'untilHearts', null, 'keeper')).toBe('1-100|keeper|keeper');
     expect(recordKey(1, 100, 'goalCount', null, 'keeper')).toBe('1-100|keeper|keeper');
     expect(recordKey(1, 100, 'goalCount', null, 'shootout')).toBe('1-100|keeper|shootout');
+    expect(recordKey(1, 100, 'untilHearts', null, 'torwand')).toBe('1-100|keeper|torwand');
+    expect(recordKey(1, 100, 'goalCount', null, 'family')).toBe('1-100|keeper|family');
     expect(startKindOf({ roundType: 'untilHearts', mode: 'shootout' })).toBe('shootout');
   });
 });

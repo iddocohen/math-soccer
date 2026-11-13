@@ -317,6 +317,8 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
           <Check label={O.modes.wall} {...flag('modesAllowed', 'wall')} />
           <Check label={O.modes.keeper} {...flag('modesAllowed', 'keeper')} />
           <Check label={O.modes.shootout} {...flag('modesAllowed', 'shootout')} />
+          <Check label={O.modes.torwand} {...flag('modesAllowed', 'torwand')} />
+          <Check label={O.modes.family} {...flag('modesAllowed', 'family')} />
           {/* "Schussgeschwindigkeit" of "Selbst ins Tor" (FR-144). */}
           <Select
             label={L.keeperSpeed}

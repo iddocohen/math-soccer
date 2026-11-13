@@ -1489,3 +1489,98 @@ button:focus-visible {
     animation: none;
   }
 }
+
+/* "Papa gegen Kind" (amendment 23): the turn card before each kick, big and in the middle; a tap starts the turn. */
+.turn-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 15;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 48px;
+  border: 4px solid var(--kit);
+  border-radius: 20px;
+  background: rgb(15 29 43 / 92%);
+  color: var(--chalk);
+  font: inherit;
+  cursor: pointer;
+}
+
+.turn-card-grownup {
+  border-color: #3b6fd6;
+}
+
+.turn-card-name {
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 800;
+}
+
+.turn-card-level {
+  font-size: 1.2rem;
+  opacity: 0.85;
+}
+
+.turn-card-go {
+  font-size: 1rem;
+  opacity: 0.75;
+}
+
+/* The start card of "Papa gegen Kind": the grown-up's name and level. */
+.family-card {
+  z-index: 30;
+}
+
+.family-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(480px, calc(100% - 32px));
+}
+
+.round-end .family-hint {
+  font-size: 1.1rem;
+}
+
+.family-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1.2rem;
+}
+
+.family-field input {
+  width: 12ch;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.family-levels legend {
+  float: left;
+  margin-right: 10px;
+}
+
+.family-level {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+}
+
+.family-level-chosen {
+  background: var(--kit);
+  color: var(--night);
+}
+
+.round-end .family-lost {
+  font-size: 1.3rem;
+}

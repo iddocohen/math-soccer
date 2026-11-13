@@ -45,10 +45,11 @@ export interface BestRow {
   mode: Mode;
   /**
    * The match mode of the best (amendment 21): "Spielen" and the time challenge are 'normal'. "Torwart" counts the
-   * most saves out of 10, "Elfmeter" the shootouts won, "Mauer" goals as the normal round type does.
+   * most saves out of 10, "Elfmeter" the shootouts won, "Mauer" goals as the normal round type does. "Torwand" counts
+   * the most hits out of 10 and "Papa gegen Kind" the child's wins (amendment 23).
    */
   matchMode: MatchMode;
-  /** The round type; null for "Torwart" and "Elfmeter", which do not follow it. */
+  /** The round type; null for "Torwart", "Elfmeter", "Torwand" and "Papa gegen Kind", which do not follow it. */
   roundType: RoundType | null;
   /** The challenge time of a time challenge best; null for the other round types. */
   challengeMinutes: number | null;
@@ -69,10 +70,11 @@ export interface ProgressSummary {
 
 /**
  * A record key (records.ts recordKey), or null: `${min}-${max}|${mode}|${roundType}`, with `|${minutes}` for a time
- * challenge and `|wall` for "Mauer"; `${min}-${max}|${mode}|keeper` for "Torwart" and `|shootout` for "Elfmeter".
+ * challenge and `|wall` for "Mauer"; `${min}-${max}|${mode}|keeper` for "Torwart", `|shootout` for "Elfmeter",
+ * `|torwand` for "Torwand" and `|family` for "Papa gegen Kind".
  */
 export function parseRecordKey(key: string): Omit<BestRow, 'goals' | 'timeMs'> | null {
-  const m = /^(\d+)-(\d+)\|(keeper)\|(?:(untilHearts|goalCount)(\|wall)?|time\|(\d+)|(keeper|shootout))$/.exec(key);
+  const m = /^(\d+)-(\d+)\|(keeper)\|(?:(untilHearts|goalCount)(\|wall)?|time\|(\d+)|(keeper|shootout|torwand|family))$/.exec(key);
   if (!m) return null;
   const base = { min: Number(m[1]), max: Number(m[2]), mode: m[3] as Mode };
   if (m[4] !== undefined) return { ...base, matchMode: m[5] ? 'wall' : 'normal', roundType: m[4] as RoundType, challengeMinutes: null };
@@ -80,8 +82,8 @@ export function parseRecordKey(key: string): Omit<BestRow, 'goals' | 'timeMs'> |
   return { ...base, matchMode: 'normal', roundType: 'time', challengeMinutes: Number(m[6]) };
 }
 
-/** The order of the bests per range: "Spielen" and the time challenge, then "Mauer", "Torwart", "Elfmeter". */
-const MODE_ORDER: Record<MatchMode, number> = { normal: 0, wall: 1, keeper: 2, shootout: 3 };
+/** The order of the bests per range: "Spielen" and the time challenge, then "Mauer", "Torwart", "Elfmeter", "Torwand", "Papa gegen Kind". */
+const MODE_ORDER: Record<MatchMode, number> = { normal: 0, wall: 1, keeper: 2, shootout: 3, torwand: 4, family: 5 };
 
 /** `settings` gives the current level. */
 export function summarize(p: Progress, records: Records, settings?: Settings): ProgressSummary {

@@ -162,6 +162,8 @@ function bestValue(b: BestRow): string {
   const P = t().progressPage;
   if (b.matchMode === 'keeper') return P.keeperBestLine(b.goals);
   if (b.matchMode === 'shootout') return P.shootoutBestLine(b.goals);
+  if (b.matchMode === 'torwand') return P.torwandBestLine(b.goals);
+  if (b.matchMode === 'family') return P.familyBestLine(b.goals);
   return b.challengeMinutes === null ? P.bestLine(b.goals, b.timeMs) : P.challengeBestLine(b.goals, b.challengeMinutes);
 }
 

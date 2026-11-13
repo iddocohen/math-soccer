@@ -218,7 +218,7 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
   it('a refresh drops a wall round the parent turned off in "Spielarten erlauben"', () => {
     const store = memoryStore();
     wallController(defaultSettings, store);
-    const off = () => ({ ...defaultSettings(), modesAllowed: { wall: false, keeper: true, shootout: true } });
+    const off = () => ({ ...defaultSettings(), modesAllowed: { wall: false, keeper: true, shootout: true, torwand: true, family: true } });
     const again = new MatchController({ settings: off, store, nextTarget: () => target(46) });
     expect(again.restore()).toBe(false);
     expect(store.round).toBeNull();

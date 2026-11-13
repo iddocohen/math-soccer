@@ -36,6 +36,11 @@
  * (`data-testid="shootout-score"`, each circle with `data-kick`). The rows have five circles and grow by one per round
  * of sudden death. A line under them says whose turn it is.
  *
+ * Amendment 23: in "Torwandschießen" the goal counter shows the hits and the shot ("3 Treffer · Schuss 4 von 10") and
+ * the message line asks "Triff die 47!" while the child aims. "Papa gegen Kind" uses the score circles with the
+ * grown-up's name, and before each kick a big turn card (`data-testid="turn-card"`) names the shooter and his level;
+ * Enter or a tap on it (`onStartTurn`) starts the turn.
+ *
  * Polish (T061 to T063): with `pad` the on-screen number pad (NumberPad.tsx, FR-031) shows at the bottom and
  * `data-number-pad` is true. With `onSpeak` ("Vorlesen" on and a German voice, FR-032) a speaker icon reads the task
  * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
@@ -46,6 +51,7 @@ import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { KEEPER_SHOTS } from '../core/match/keeper';
 import { nextSide, scoreCircles, shootoutRound, shootoutScore, SHOOTOUT_ROUNDS, type ShootoutKicks } from '../core/match/shootout';
+import { TORWAND_SHOTS } from '../core/match/torwand';
 import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
@@ -93,9 +99,24 @@ export function messageText(message: MatchMessage | null): string {
       return f.late(message.number);
     case 'kickMissed':
       return f.kickMissed(message.number);
+    case 'decoy':
+      return f.decoy(message.number);
+    case 'board':
+      return f.board(message.number);
     case 'heartLost':
       return f.heartLost;
   }
+}
+
+/**
+ * The message line: the match message, or in "Torwandschießen" the task "Triff die 47!" while the child aims at a new
+ * target (amendment 23, FR-155).
+ */
+export function messageLine(state: Pick<MatchView, 'message' | 'mode' | 'phase' | 'target' | 'torwand'>): string {
+  if (state.message === null && state.mode === 'torwand' && state.phase === 'aiming' && state.target !== null && state.torwand?.waitMs === 0) {
+    return t().feedback.torwandAsk(state.target.number);
+  }
+  return messageText(state.message);
 }
 
 /** True once the ball scored the current target, while the goal is celebrated: the scales are gone (FR-115). */
@@ -139,7 +160,7 @@ interface Props {
   shirt?: string;
   /** The stadium name on the scoreboard next to the goal counter (amendment 20, FR-135); no scoreboard without it. */
   stadium?: string;
-  /** "Elfmeterschießen": the names on the score circles, the child's and the opponent team's. */
+  /** "Elfmeterschießen" and "Papa gegen Kind": the names on the score circles, the child's and the opponent's. */
   shootoutNames?: { child: string; opponent: string };
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
@@ -154,6 +175,8 @@ interface Props {
   onResume: () => void;
   /** The home button (FR-116): pauses and asks "Runde beenden?"; the button shows only when this is given. */
   onHome?: () => void;
+  /** "Papa gegen Kind": a tap on the turn card starts the turn (FR-158). */
+  onStartTurn?: () => void;
 }
 
 export const MatchOverlay = memo(function MatchOverlay({
@@ -174,6 +197,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   onPause,
   onResume,
   onHome,
+  onStartTurn,
 }: Props) {
   const text = t();
   const canFullscreen = document.fullscreenEnabled === true;
@@ -190,7 +214,17 @@ export const MatchOverlay = memo(function MatchOverlay({
     const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
     goals = text.match.keeperCount(state.goals, Math.max(1, shot), KEEPER_SHOTS);
   }
-  if (state.shootout !== null) goals = text.match.shootoutRound(shootoutRound(state.shootout.kicks), SHOOTOUT_ROUNDS);
+  if (state.shootout !== null) {
+    const round = shootoutRound(state.shootout.kicks);
+    goals = state.family !== null ? text.match.familyRound(round, SHOOTOUT_ROUNDS) : text.match.shootoutRound(round, SHOOTOUT_ROUNDS);
+  }
+  // "Torwandschießen" (amendment 23): the hits and the shot now, out of TORWAND_SHOTS.
+  if (state.torwand !== null) {
+    const shot = state.phase === 'roundOver' || state.torwand.waitMs > 0 || state.phase === 'celebrating' ? state.shots : state.shots + 1;
+    goals = text.match.torwandCount(state.goals, Math.min(TORWAND_SHOTS, Math.max(1, shot)), TORWAND_SHOTS);
+  }
+  const names = shootoutNames ?? { child: text.match.you, opponent: '' };
+  const turnCard = state.family?.card === true && state.phase === 'aiming' && !state.paused;
   return (
     <div
       className="overlay"
@@ -234,9 +268,9 @@ export const MatchOverlay = memo(function MatchOverlay({
             </span>
           )}
           {state.shootout !== null && (
-            <ShootoutScore kicks={state.shootout.kicks} names={shootoutNames ?? { child: text.match.you, opponent: '' }} />
+            <ShootoutScore kicks={state.shootout.kicks} names={names} family={state.family !== null} />
           )}
-          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && state.mode !== 'shootout' && (
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && state.shootout === null && state.torwand === null && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
@@ -308,10 +342,13 @@ export const MatchOverlay = memo(function MatchOverlay({
             {state.entry}
           </output>
           <p className="message" data-testid="message" aria-live="polite">
-            {state.paused ? text.match.paused : messageText(state.message)}
+            {state.paused ? text.match.paused : messageLine(state)}
           </p>
         </div>
       </div>
+      {turnCard && state.shootout !== null && (
+        <TurnCard kicks={state.shootout.kicks} names={names} level={state.family?.level ?? null} childLevel={state.target?.level ?? null} onStart={onStartTurn} />
+      )}
       {pad && <NumberPad disabled={state.paused || state.phase !== 'aiming'} onDigit={pad.onDigit} onBackspace={pad.onBackspace} onShoot={pad.onShoot} />}
     </div>
   );
@@ -319,8 +356,42 @@ export const MatchOverlay = memo(function MatchOverlay({
 
 const noSubscribe = () => () => {};
 
-/** The score circles of the shootout (FR-147): one row per side with its name, and whose turn it is. */
-function ShootoutScore({ kicks, names }: { kicks: ShootoutKicks; names: { child: string; opponent: string } }) {
+/**
+ * The turn card of "Papa gegen Kind" (amendment 23, FR-158): "Leo ist dran!" with the shooter's level; Enter or a tap
+ * starts the turn.
+ */
+function TurnCard({
+  kicks,
+  names,
+  level,
+  childLevel,
+  onStart,
+}: {
+  kicks: ShootoutKicks;
+  names: { child: string; opponent: string };
+  level: number | null;
+  childLevel: number | null;
+  onStart?: () => void;
+}) {
+  const text = t().match;
+  const side = nextSide(kicks);
+  if (side === null) return null;
+  const name = side === 0 ? names.child : names.opponent;
+  const shownLevel = side === 0 ? childLevel : level;
+  return (
+    <button type="button" className={`turn-card turn-card-${side === 0 ? 'child' : 'grownup'}`} data-testid="turn-card" data-side={side} onClick={onStart}>
+      <span className="turn-card-name">{text.familyTurn(name)}</span>
+      {shownLevel !== null && <span className="turn-card-level">{text.familyLevel(shownLevel)}</span>}
+      <span className="turn-card-go">{text.familyTurnGo}</span>
+    </button>
+  );
+}
+
+/**
+ * The score circles of the shootout (FR-147): one row per side with its name, and whose turn it is. In "Papa gegen
+ * Kind" the turn line names the shooter.
+ */
+function ShootoutScore({ kicks, names, family = false }: { kicks: ShootoutKicks; names: { child: string; opponent: string }; family?: boolean }) {
   const text = t().match;
   const rows = scoreCircles(kicks);
   const [a, b] = shootoutScore(kicks);
@@ -339,7 +410,7 @@ function ShootoutScore({ kicks, names }: { kicks: ShootoutKicks; names: { child:
       ))}
       {side !== null && (
         <span className="shootout-turn" data-testid="shootout-turn">
-          {side === 0 ? text.shootoutTurn.child : text.shootoutTurn.opponent}
+          {family ? text.familyTurn(side === 0 ? names.child : names.opponent) : side === 0 ? text.shootoutTurn.child : text.shootoutTurn.opponent}
         </span>
       )}
     </div>

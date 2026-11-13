@@ -286,7 +286,7 @@ describe('stored keeper rounds', () => {
     const store = memoryStore();
     keeperRound(defaultSettings, { store });
     expect(roundSchema.safeParse({ ...store.round, mode: 'normal' }).success).toBe(false);
-    const off = () => ({ ...defaultSettings(), modesAllowed: { wall: true, keeper: false, shootout: true } });
+    const off = () => ({ ...defaultSettings(), modesAllowed: { wall: true, keeper: false, shootout: true, torwand: true, family: true } });
     expect(new MatchController({ settings: off, store }).restore()).toBe(false);
     expect(store.round).toBeNull();
   });

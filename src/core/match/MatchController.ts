@@ -78,6 +78,24 @@
  * - After SHOOTOUT_ROUNDS rounds, or a round of sudden death, with one side ahead the round ends. A win earns
  *   SHOOTOUT_WIN_STARS; goals and saves earn none, and a loss takes nothing away. `goals` counts the child's goals.
  *
+ * "Torwandschießen" (amendment 23, FR-155 to FR-157): `start('torwand')` starts a round in the match mode 'torwand'. A
+ * board covers the goal with two or three holes (`torwand.holes`, core/match/torwand.ts); the target is one of them and
+ * has fewer hints than usual. There is no keeper. Each shot ends its target, and the holes move:
+ * - the target number scores, is celebrated and earns GOAL_STARS;
+ * - the number of a decoy hole flies through it and misses ('decoy'), any other number hits the board ('miss'); either
+ *   way its square shows its number, and after `torwand.waitMs` (SHOWN_MS) of play time the next target comes.
+ * - After TORWAND_SHOTS shots (`shots`) the round ends. Hearts and the round type play no part. Every shot records an
+ *   attempt.
+ *
+ * "Papa gegen Kind" (amendment 23, FR-158 to FR-161): `start('family', setup)` starts a shootout in the match mode
+ * 'family'. Side 0 is the child, side 1 the grown-up (`family.name`, `family.level`); both shoot as the child does in
+ * the shootout, against the computer keeper.
+ * - Before each kick `family.card` is true: the turn card names the shooter, and Enter or a tap (`startTurn`) hides it.
+ *   While it shows nothing is typed, shot or asked.
+ * - The grown-up's targets use his level; the child's use the child's level.
+ * - Only the child's kicks record attempts, count as `goals` and earn GOAL_STARS per goal; his win adds
+ *   FAMILY_WIN_STARS. The grown-up's kicks record nothing.
+ *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
  */
@@ -96,6 +114,8 @@ import { START_KIND_INFO, roundTypeOf, type ControllerKind, type MatchMode } fro
 import { placeWall, wallBlocks, wallClear, type Wall } from './wall';
 import { flightMsOf, KEEPER_RESULT_MS, KEEPER_SAVE_STARS, KEEPER_SHOTS, keeperTarget, newShot, shotResult, type KeeperShot } from './keeper';
 import { addKick, emptyKicks, nextSide, shootoutWinner, SHOOTOUT_WIN_STARS, type Kick } from './shootout';
+import { torwandHoles, torwandTarget, TORWAND_SHOTS } from './torwand';
+import { defaultFamilySetup, FAMILY_WIN_STARS, type FamilySetup } from './family';
 
 export type Phase = 'aiming' | 'ballInFlight' | 'celebrating' | 'roundOver';
 
@@ -129,15 +149,19 @@ export type MatchMessage =
   | { kind: 'late'; number: number }
   /** "Elfmeterschießen" (amendment 21): the child's kick missed; his turn is over. */
   | { kind: 'kickMissed'; number: number }
+  /** "Torwandschießen" (amendment 23): the ball went through a decoy hole, or hit the board. */
+  | { kind: 'decoy'; number: number }
+  | { kind: 'board'; number: number }
   | { kind: 'heartLost'; number: number };
 
 /**
  * The ball after a shot: the typed number and, once landed, whether it scored, filled a square of a cutout (no goal,
- * amendment 18), missed, or hit the wall of "Freistoß mit Mauer" (a miss too, amendment 21).
+ * amendment 18), missed, or hit the wall of "Freistoß mit Mauer" (a miss too, amendment 21). In "Torwandschießen" a
+ * miss hits the board, and 'decoy' flies through a decoy hole (amendment 23).
  */
 export interface Ball {
   number: number;
-  outcome: 'goal' | 'filled' | 'miss' | 'blocked' | null;
+  outcome: 'goal' | 'filled' | 'miss' | 'blocked' | 'decoy' | null;
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
@@ -168,6 +192,22 @@ export interface ShootoutState {
   waitMs: number;
 }
 
+/**
+ * "Torwandschießen" (amendment 23): the holes of the board, the target's first, and the play time left before the next
+ * target after a missed shot; 0 when nothing waits.
+ */
+export interface TorwandState {
+  holes: number[];
+  waitMs: number;
+}
+
+/** "Papa gegen Kind" (amendment 23): the grown-up's name and level, and whether the turn card shows. */
+export interface FamilyState {
+  name: string;
+  level: Level;
+  card: boolean;
+}
+
 export interface MatchState {
   /** False before the first `start()`. */
   started: boolean;
@@ -180,15 +220,19 @@ export interface MatchState {
   mode: MatchMode;
   /** The wall in front of the current target; null outside the mode 'wall', or when no column is free. */
   wall: Wall | null;
-  /** "Selbst ins Tor": the shots decided so far, up to KEEPER_SHOTS; 0 in the other modes. */
+  /** "Selbst ins Tor" and "Torwandschießen": the shots decided so far, up to KEEPER_SHOTS or TORWAND_SHOTS; 0 otherwise. */
   shots: number;
   /**
    * The opponent's shot at the current target: in "Selbst ins Tor", and in "Elfmeterschießen" on the opponent's turn;
    * null otherwise and after the round.
    */
   keeperShot: KeeperShot | null;
-  /** "Elfmeterschießen": the kicks so far; null in the other modes. */
+  /** "Elfmeterschießen" and "Papa gegen Kind": the kicks so far; null in the other modes. */
   shootout: ShootoutState | null;
+  /** "Torwandschießen": the holes of the board; null in the other modes. */
+  torwand: TorwandState | null;
+  /** "Papa gegen Kind": the grown-up and the turn card; null in the other modes. */
+  family: FamilyState | null;
   seed: number;
   min: number;
   max: number;
@@ -238,7 +282,8 @@ export type MatchView = DeepReadonly<MatchState>;
  * - a wall stands only in the mode 'wall';
  * - only the modes 'keeper' and 'shootout' have an opponent's shot, and the child shoots no ball in the mode 'keeper'
  *   or while the opponent shoots;
- * - the kicks of a shootout exist exactly in the mode 'shootout'.
+ * - the kicks of a shootout exist exactly in the modes 'shootout' and 'family';
+ * - the holes of the board exist exactly in the mode 'torwand', the grown-up exactly in the mode 'family'.
  */
 export function matchInvariantErrors(s: MatchState): string[] {
   const errors: string[] = [];
@@ -250,25 +295,31 @@ export function matchInvariantErrors(s: MatchState): string[] {
   if (s.keeperShot !== null && s.mode !== 'keeper' && s.mode !== 'shootout') errors.push(`opponent's shot in mode ${s.mode}`);
   if (s.mode === 'keeper' && s.ball !== null) errors.push('a ball of the child in the keeper mode');
   if (s.keeperShot !== null && s.ball !== null) errors.push('a ball of the child while the opponent shoots');
-  if ((s.shootout !== null) !== (s.mode === 'shootout')) errors.push(`shootout kicks in mode ${s.mode}`);
+  if ((s.shootout !== null) !== (s.mode === 'shootout' || s.mode === 'family')) errors.push(`shootout kicks in mode ${s.mode}`);
+  if ((s.torwand !== null) !== (s.mode === 'torwand')) errors.push(`board holes in mode ${s.mode}`);
+  if ((s.family !== null) !== (s.mode === 'family')) errors.push(`grown-up in mode ${s.mode}`);
   return errors;
 }
 
 /**
  * True when `b` differs from `a` only in the time played, the shown square's time left, the time left of the
- * opponent's shot and the wait of a shootout, as after a `tick` that changed nothing else. The views skip such states,
+ * opponent's shot and the wait of a shootout or of the board, as after a `tick` that changed nothing else. The views skip such states,
  * except the clock; the scene reads the shot's time left on every frame.
  */
 export function onlyTimeChanged(a: MatchView, b: MatchView): boolean {
-  if (a.elapsedMs === b.elapsedMs && a.shown === b.shown && a.keeperShot === b.keeperShot && a.shootout === b.shootout) return false;
+  if (a.elapsedMs === b.elapsedMs && a.shown === b.shown && a.keeperShot === b.keeperShot && a.shootout === b.shootout && a.torwand === b.torwand) return false;
   if (a.shown?.number !== b.shown?.number) return false;
   if (!sameShot(a.keeperShot, b.keeperShot)) return false;
   if (a.shootout?.kicks !== b.shootout?.kicks) return false;
+  if (a.torwand?.holes !== b.torwand?.holes) return false;
   for (const key of Object.keys(b) as Array<keyof MatchView>) {
-    if (key !== 'elapsedMs' && key !== 'shown' && key !== 'keeperShot' && key !== 'shootout' && a[key] !== b[key]) return false;
+    if (!TIMED_KEYS.has(key) && a[key] !== b[key]) return false;
   }
   return true;
 }
+
+/** The fields a `tick` changes; `onlyTimeChanged` compares them on their own. */
+const TIMED_KEYS = new Set<keyof MatchView>(['elapsedMs', 'shown', 'keeperShot', 'shootout', 'torwand']);
 
 /** True when two shots differ at most in their time left. */
 function sameShot(a: MatchView['keeperShot'], b: MatchView['keeperShot']): boolean {
@@ -317,6 +368,8 @@ const STORED_KEYS = [
   'shots',
   'keeperShot',
   'shootout',
+  'torwand',
+  'family',
   'min',
   'max',
   'goals',
@@ -379,18 +432,29 @@ function timeUp(s: MatchState): boolean {
   return remainingMs(s) === 0;
 }
 
-function freshState(s: Settings, seed: number, started: boolean, kind: ControllerKind = 'play', cupMatch: CupMatchSetup | null = null): MatchState {
+function freshState(
+  s: Settings,
+  seed: number,
+  started: boolean,
+  kind: ControllerKind = 'play',
+  cupMatch: CupMatchSetup | null = null,
+  family: FamilySetup | null = null,
+): MatchState {
   const roundType = cupMatch !== null ? 'cup' : roundTypeOf(kind, s);
+  const mode: MatchMode = cupMatch !== null ? 'normal' : (START_KIND_INFO[kind].mode ?? 'normal');
+  const grownup = family ?? defaultFamilySetup();
   return {
     started,
     roundType,
     challengeMinutes: roundType === 'time' ? s.timeChallenge.minutes : null,
     cupMatch: cupMatch === null ? null : { ...cupMatch },
-    mode: cupMatch !== null ? 'normal' : (START_KIND_INFO[kind].mode ?? 'normal'),
+    mode,
     wall: null,
     shots: 0,
     keeperShot: null,
-    shootout: cupMatch === null && START_KIND_INFO[kind].mode === 'shootout' ? { kicks: emptyKicks(), waitMs: 0 } : null,
+    shootout: mode === 'shootout' || mode === 'family' ? { kicks: emptyKicks(), waitMs: 0 } : null,
+    torwand: mode === 'torwand' ? { holes: [], waitMs: 0 } : null,
+    family: mode === 'family' ? { name: grownup.name, level: grownup.level, card: true } : null,
     seed,
     min: s.range.min,
     max: s.range.max,
@@ -439,19 +503,32 @@ function changesTargets(a: Settings, b: Settings): boolean {
 
 /** Mixed into the seed of each wall, so the wall's random numbers differ from those of the target. */
 const WALL_SEED = 0x3a11;
+/** Mixed into the seeds of the board's holes and hints in "Torwandschießen" (amendment 23). */
+const TORWAND_SEED = 0x70a1;
 
 /** The guess rule looks at misses within the last 5 seconds; this many are enough to keep (classify.ts). */
 const MISS_TIMES_KEPT = 5;
 
-/** True when the opponent shoots at the target of `s`: always in "Selbst ins Tor", on his turn in the shootout. */
+/**
+ * True when the opponent shoots at the target of `s`: always in "Selbst ins Tor", on his turn in the shootout. In "Papa
+ * gegen Kind" both players shoot, so nobody shoots at the child.
+ */
 function opponentShoots(s: Pick<MatchState, 'mode' | 'shootout'>): boolean {
   if (s.mode === 'keeper') return true;
-  return s.shootout !== null && nextSide(s.shootout.kicks) === 1;
+  return s.mode === 'shootout' && s.shootout !== null && nextSide(s.shootout.kicks) === 1;
 }
 
-/** True while a missed kick of the child shows its square, before the opponent's turn: nothing is typed or shot. */
-function shootoutWaits(s: Pick<MatchState, 'shootout'>): boolean {
-  return s.shootout !== null && s.shootout.waitMs > 0;
+/**
+ * True while a missed kick shows its square before the next turn, a missed shot at the board shows its square before
+ * the next target, or the turn card of "Papa gegen Kind" shows: nothing is typed, shot or asked.
+ */
+function waits(s: Pick<MatchState, 'shootout' | 'torwand' | 'family'>): boolean {
+  return (s.shootout !== null && s.shootout.waitMs > 0) || (s.torwand !== null && s.torwand.waitMs > 0) || s.family?.card === true;
+}
+
+/** True when the grown-up of "Papa gegen Kind" takes the current kick: it records nothing and earns nothing. */
+function grownupKicks(s: Pick<MatchState, 'family' | 'shootout'>): boolean {
+  return s.family !== null && s.shootout !== null && nextSide(s.shootout.kicks) === 1;
 }
 
 export class MatchController {
@@ -526,8 +603,8 @@ export class MatchController {
    * Starts a new round with the current settings: a normal round, a time challenge with `'time'` (FR-075), or the free
    * kick with the wall with `'wall'` (FR-142).
    */
-  start(kind: ControllerKind = 'play'): void {
-    this.begin(kind, null);
+  start(kind: ControllerKind = 'play', family: FamilySetup | null = null): void {
+    this.begin(kind, null, family);
   }
 
   /**
@@ -539,11 +616,18 @@ export class MatchController {
   }
 
   /** A new round with the current settings and a new seed: a normal round, a time challenge or a cup match. */
-  private begin(kind: ControllerKind, cupMatch: CupMatchSetup | null): void {
+  private begin(kind: ControllerKind, cupMatch: CupMatchSetup | null, family: FamilySetup | null = null): void {
     this.clearPending();
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
-    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind, cupMatch)));
+    this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind, cupMatch, family)));
+  }
+
+  /** "Papa gegen Kind": hides the turn card, so the shooter can aim (Enter or a tap on the card). */
+  startTurn(): void {
+    const s = this.state;
+    if (!s.started || s.paused || s.phase !== 'aiming' || s.family === null || !s.family.card) return;
+    this.set({ ...s, family: { ...s.family, card: false } }, { save: false });
   }
 
   /** Drops a waiting settings change and the landing feedback's wait: a round starts, comes back or ends. */
@@ -609,9 +693,10 @@ export class MatchController {
       return;
     }
     if (this.state.phase !== 'aiming') return;
-    // Between two shots of "Selbst ins Tor", and after a missed kick of the shootout, no number is typed.
+    // Between two shots of "Selbst ins Tor", after a missed kick or shot at the board, and under the turn card, no
+    // number is typed.
     if (this.state.keeperShot !== null && this.state.keeperShot.result !== null) return;
-    if (shootoutWaits(this.state)) return;
+    if (waits(this.state)) return;
     const entry = entryReducer(this.state.entry, key, maxDigitsOf(this.state));
     if (entry !== this.state.entry) this.set({ ...this.state, entry }, { save: false });
   }
@@ -627,6 +712,11 @@ export class MatchController {
       return;
     }
     if (!s.started || s.paused || s.phase !== 'aiming') return;
+    // Enter on the turn card of "Papa gegen Kind" starts the turn and does not also shoot.
+    if (s.family?.card === true) {
+      this.startTurn();
+      return;
+    }
     // Enter closes the open help chart and does not also shoot.
     if (s.helpChartOpen) {
       this.closeHelpChart();
@@ -642,7 +732,7 @@ export class MatchController {
       if (s.keeperShot !== null && s.keeperShot.result === null) this.decideShot(s, n);
       return;
     }
-    if (shootoutWaits(s)) return;
+    if (waits(s)) return;
     this.set({ ...s, entry: '', message: null, phase: 'ballInFlight', ball: { number: n, outcome: null, atMs: s.elapsedMs } }, { save: false });
   }
 
@@ -651,6 +741,10 @@ export class MatchController {
     const s = this.state;
     if (s.phase !== 'ballInFlight' || !s.ball) return;
     const hit = s.target !== null && s.ball.number === s.target.number;
+    if (s.torwand !== null) {
+      this.torwandLanded(s, s.torwand, s.ball, hit);
+      return;
+    }
     if (s.shootout !== null) {
       this.kicked(s, s.shootout, s.ball, hit);
       return;
@@ -791,17 +885,21 @@ export class MatchController {
 
   /**
    * The child's kick of the shootout landed (FR-147): the target number scores and is celebrated; any other number is
-   * a miss of the kick, and its square shows its number until the opponent's turn. Both record the attempt.
+   * a miss of the kick, and its square shows its number until the opponent's turn. Both record the attempt. In "Papa
+   * gegen Kind" the grown-up's kicks land here too; they record nothing (FR-161).
    */
   private kicked(s: MatchState, shootout: ShootoutState, ball: Ball, hit: boolean): void {
     if (hit) {
+      // In "Papa gegen Kind" only the child's goals count and earn stars (FR-160).
+      const child = !grownupKicks(s);
       const { attempt, levelUp } = this.scored(s, ball);
       this.set({
         ...s,
         ball: { ...ball, outcome: 'goal' },
-        lastAttempt: attempt,
+        lastAttempt: child ? attempt : s.lastAttempt,
         phase: 'celebrating',
-        goals: s.goals + 1,
+        goals: child ? s.goals + 1 : s.goals,
+        starsThisRound: s.starsThisRound + (s.family !== null && child ? GOAL_STARS : 0),
         missesInRow: 0,
         shootout: { kicks: addKick(shootout.kicks, 'goal'), waitMs: 0 },
         message: levelUp === null ? { kind: 'goal' } : { kind: 'levelUp', level: levelUp },
@@ -837,8 +935,63 @@ export class MatchController {
     const next: MatchState = { ...s, ...TARGET_RESET, ball: null, entry: '', message: null, keeperShot: null, shootout };
     const winner = shootoutWinner(shootout.kicks);
     if (winner !== null) {
-      return { ...next, phase: 'roundOver', starsThisRound: s.starsThisRound + (winner === 0 ? SHOOTOUT_WIN_STARS : 0) };
+      const winStars = s.family !== null ? FAMILY_WIN_STARS : SHOOTOUT_WIN_STARS;
+      const family = s.family === null ? null : { ...s.family, card: false };
+      return { ...next, family, phase: 'roundOver', starsThisRound: s.starsThisRound + (winner === 0 ? winStars : 0) };
     }
+    // "Papa gegen Kind": the turn card names the next shooter (FR-158).
+    const family = s.family === null ? null : { ...s.family, card: true };
+    return this.withNextTarget({ ...next, family, phase: 'aiming' });
+  }
+
+  /**
+   * A shot at the board of "Torwandschießen" landed (FR-156): the target hole scores and is celebrated; a decoy hole or
+   * the board is a miss whose square shows its number until the next target. Both record the attempt.
+   */
+  private torwandLanded(s: MatchState, torwand: TorwandState, ball: Ball, hit: boolean): void {
+    const shots = Math.min(TORWAND_SHOTS, s.shots + 1);
+    if (hit) {
+      const counts = s.helpStep < ANSWER_STEP || this.roundSettings.pointAfterFullHelp;
+      const { attempt, levelUp } = this.scored(s, ball);
+      this.set({
+        ...s,
+        ball: { ...ball, outcome: 'goal' },
+        lastAttempt: attempt,
+        phase: 'celebrating',
+        shots,
+        goals: counts ? s.goals + 1 : s.goals,
+        starsThisRound: s.starsThisRound + GOAL_STARS,
+        missesInRow: 0,
+        message: levelUp === null ? { kind: 'goal' } : { kind: 'levelUp', level: levelUp },
+      });
+      return;
+    }
+    const decoy = torwand.holes.includes(ball.number);
+    const missed: MatchState = {
+      ...s,
+      ball: { ...ball, outcome: decoy ? 'decoy' : 'miss' },
+      targetMisses: s.targetMisses + 1,
+      missTimes: [...s.missTimes, ball.atMs].slice(-MISS_TIMES_KEPT),
+      lastGuess: ball.number,
+      helpChartOpen: false,
+    };
+    this.recordAttempt(missed, { solved: false, endedAt: ball.atMs });
+    this.feedbackMs = SHOWN_MS;
+    this.set({
+      ...missed,
+      phase: 'aiming',
+      shots,
+      shown: { number: ball.number, remainingMs: SHOWN_MS },
+      torwand: { ...torwand, waitMs: SHOWN_MS },
+      message: { kind: decoy ? 'decoy' : 'board', number: ball.number },
+    });
+  }
+
+  /** "Torwandschießen" after a shot: the next target with new holes, or the end after TORWAND_SHOTS shots (FR-157). */
+  private nextShot(s: MatchState): MatchState {
+    if (s.torwand === null) return s;
+    const next: MatchState = { ...s, ...TARGET_RESET, ball: null, entry: '', message: null, torwand: { ...s.torwand, waitMs: 0 } };
+    if (s.shots >= TORWAND_SHOTS) return { ...next, phase: 'roundOver' };
     return this.withNextTarget({ ...next, phase: 'aiming' });
   }
 
@@ -889,7 +1042,7 @@ export class MatchController {
     if (!s.started || s.paused || s.phase !== 'aiming') return;
     if (s.helpStep >= ANSWER_STEP) return;
     if (s.keeperShot !== null && s.keeperShot.result !== null) return;
-    if (shootoutWaits(s)) return;
+    if (waits(s)) return;
     // Help holds the opponent's shot until the next key, so asking never costs a save (FR-145).
     const keeperShot = s.keeperShot === null ? null : { ...s.keeperShot, held: true };
     this.set({ ...s, ...this.helpRaised(s.helpStep), keeperShot });
@@ -961,6 +1114,16 @@ export class MatchController {
         }
       }
     }
+    const torwand = s.torwand;
+    if (torwand !== null && torwand.waitMs > 0) {
+      // After a missed shot at the board, the next target comes once its square has shown its number.
+      const waitMs = Math.max(0, torwand.waitMs - ms);
+      next = { ...next, torwand: { ...torwand, waitMs } };
+      if (waitMs === 0) {
+        this.set(this.nextShot(next));
+        return;
+      }
+    }
     const shootout = s.shootout;
     if (shootout !== null && shootout.waitMs > 0) {
       // After a missed kick of the child, the opponent's turn comes once its square has shown its number.
@@ -976,7 +1139,7 @@ export class MatchController {
       this.endAtZero(next);
       return;
     }
-    if (elapsedMs === s.elapsedMs && shown === s.shown && next.keeperShot === s.keeperShot && next.shootout === s.shootout) return;
+    if (elapsedMs === s.elapsedMs && shown === s.shown && next.keeperShot === s.keeperShot && next.shootout === s.shootout && next.torwand === s.torwand) return;
     this.set(next, { save });
   }
 
@@ -1000,6 +1163,8 @@ export class MatchController {
   private afterCelebration(s: MatchState): MatchState {
     // The child's goal in the shootout was celebrated: the opponent's turn, or the end.
     if (s.shootout !== null) return this.nextKick(s);
+    // A goal through the board's hole was celebrated: the next target, or the end (FR-157).
+    if (s.torwand !== null) return this.nextShot(s);
     const next: MatchState = { ...s, ...TARGET_RESET, ball: null, message: null };
     if (s.roundType === 'goalCount' && s.goals >= this.roundSettings.goalsPerRound) return { ...next, phase: 'roundOver' };
     // A cup match is won at its goals (FR-108).
@@ -1017,10 +1182,15 @@ export class MatchController {
    */
   private withNextTarget(state: MatchState): MatchState {
     const fresh = { targetCount: state.targetCount + 1, targetStartMs: state.elapsedMs, targetMisses: 0, missTimes: [] };
-    // The shootout's turns take turns, so a shape or cutout never goes on into the next kick.
-    const inShape = state.target && state.shootout === null ? nextInShape(state.target) : null;
+    // The shootout's turns take turns and the board's holes move after every shot, so a shape or cutout never goes on.
+    const inShape = state.target && state.shootout === null && state.torwand === null ? nextInShape(state.target) : null;
     const target = inShape ?? (this.options.nextTarget ? this.options.nextTarget(state) : this.defaultTarget(state));
-    const next: MatchState = { ...state, ...fresh, target };
+    let next: MatchState = { ...state, ...fresh, target };
+    if (next.torwand !== null && target !== null) {
+      // The holes of the board for the new target (FR-155).
+      const rng = createRng(deriveSeed(next.seed, next.targetCount, TORWAND_SEED));
+      next = { ...next, torwand: { ...next.torwand, holes: torwandHoles(layoutChart(next.min, next.max), target, rng) } };
+    }
     // The first shot of the round flies at the slow speed: the first of "Selbst ins Tor", the opponent's first kick.
     const index = next.shootout !== null ? next.shootout.kicks[1].length : next.shots;
     const keeperShot = opponentShoots(next) && target !== null ? newShot(flightMsOf(this.roundSettings.keeperSpeed, index)) : null;
@@ -1050,20 +1220,29 @@ export class MatchController {
       const rng = createRng(deriveSeed(state.seed, state.targetCount));
       return keeperTarget(layoutChart(state.min, state.max), progress.level, rng, state.target?.number ?? null);
     }
-    return nextTarget({
-      layout: layoutChart(state.min, state.max),
+    // A cup match plays its level (FR-109); the grown-up of "Papa gegen Kind" plays the level of the start card (FR-159).
+    let level: TargetProgress = progress;
+    if (state.cupMatch !== null) level = { ...progress, level: state.cupMatch.level, xTwoEmpties: false };
+    else if (grownupKicks(state) && state.family !== null) level = { ...progress, level: state.family.level, xTwoEmpties: false };
+    const layout = layoutChart(state.min, state.max);
+    const base = nextTarget({
+      layout,
       settings: this.roundSettings,
-      progress: state.cupMatch === null ? progress : { ...progress, level: state.cupMatch.level, xTwoEmpties: false },
+      progress: level,
       rng: createRng(deriveSeed(state.seed, state.targetCount)),
       avoid: state.target?.number,
     });
+    // At the board the target has fewer hints, by the child's level (FR-156).
+    if (state.torwand !== null) return torwandTarget(layout, base, createRng(deriveSeed(state.seed, state.targetCount, TORWAND_SEED + 1)));
+    return base;
   }
 
   /** Hands the record of the finished current target of `s` to `onAttempt` (T043); returns a level it raised. */
   private recordAttempt(s: MatchState, end: { solved: boolean; endedAt: number }): Level | null {
     // The squares of "Selbst ins Tor" and of the opponent's kicks follow the level in reverse, so they never move the
     // child's level.
-    if (!this.options.onAttempt || !s.target || s.mode === 'keeper' || s.keeperShot !== null) return null;
+    // The grown-up's kicks of "Papa gegen Kind" are not the child's (FR-161).
+    if (!this.options.onAttempt || !s.target || s.mode === 'keeper' || s.keeperShot !== null || grownupKicks(s)) return null;
     const raised = this.options.onAttempt(
       makeAttemptRecord({
         min: s.min,

@@ -98,8 +98,8 @@ interface Question {
 }
 
 /**
- * A small moving picture of a mode (FR-140): the ball bounces off the wall, the keeper dives to the ball, or the ball
- * goes in and the score circles fill. It plays once when it shows and again when `play` changes.
+ * A small moving picture of a mode (FR-140): the ball bounces off the wall, the keeper dives to the ball, the ball
+ * goes in and the score circles fill, the board with its round holes (amendment 23), or two players side by side. It plays once when it shows and again when `play` changes.
  */
 export function ModePreview({ mode, play }: { mode: UnlockMode; play: number }): ReactElement {
   const chalk = css(COLOR.chalk);
@@ -127,6 +127,22 @@ export function ModePreview({ mode, play }: { mode: UnlockMode; play: number }):
             <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={42} r={2} fill={chalk} opacity={0.6} />
           </g>
         ))}
+      {mode === 'torwand' && (
+        <g>
+          <rect x={10} y={8} width={44} height={21} rx={1.5} fill={chalk} opacity={0.9} />
+          {[18, 32, 46].map((x, i) => (
+            <circle key={x} cx={x} cy={i === 1 ? 15 : 22} r={3.5} fill={css(COLOR.night)} />
+          ))}
+        </g>
+      )}
+      {mode === 'family' && (
+        <g className="mode-preview-keeper">
+          <rect x={18} y={20} width={8} height={14} rx={2} fill="#3b6fd6" />
+          <circle cx={22} cy={16} r={3.5} fill={css(COLOR.skin)} />
+          <rect x={38} y={24} width={8} height={10} rx={2} fill={kit} />
+          <circle cx={42} cy={20} r={3} fill={css(COLOR.skin)} />
+        </g>
+      )}
       <circle className="mode-preview-ball" cx={32} cy={40} r={3} fill="#ffffff" stroke={css(COLOR.ink)} strokeWidth={0.8} />
     </svg>
   );
@@ -335,7 +351,7 @@ function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): Reac
 export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = null, sounds }: Props): ReactElement {
   const L = t().lockerRoom;
   const [question, setQuestion] = useState<Question | null>(null);
-  const [modePlay, setModePlay] = useState<Record<UnlockMode, number>>({ wall: 0, keeper: 0, shootout: 0 });
+  const [modePlay, setModePlay] = useState<Record<UnlockMode, number>>({ wall: 0, keeper: 0, shootout: 0, torwand: 0, family: 0 });
   const modesGroup = useRef<HTMLElement>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);

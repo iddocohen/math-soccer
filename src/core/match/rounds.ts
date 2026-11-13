@@ -4,7 +4,8 @@
  *
  * - `play` ("Spielen"), `time` ("Zeit-Challenge") and `cup` ("Pokal") are always there (the time challenge only when the
  *   parent allows it).
- * - `wall` ("Mauer"), `keeper` ("Torwart") and `shootout` ("Elfmeter") are the modes bought in the locker room
+ * - `wall` ("Mauer"), `keeper` ("Torwart"), `shootout` ("Elfmeter"), `torwand` ("Torwand") and `family` ("Papa gegen
+ *   Kind", amendment 23) are the modes bought in the locker room
  *   (src/core/rewards/modes.ts). Their `mode` is the match mode the controller plays; a kind with the mode null is not
  *   built yet and never starts.
  *
@@ -16,14 +17,15 @@ import { isModeUnlocked, type UnlockMode } from '../rewards/modes';
 import type { LockerRoom } from '../storage/schemas';
 import type { RoundType } from '../types';
 
-export const START_KINDS = ['play', 'time', 'cup', 'wall', 'keeper', 'shootout'] as const;
+export const START_KINDS = ['play', 'time', 'cup', 'wall', 'keeper', 'shootout', 'torwand', 'family'] as const;
 export type StartKind = (typeof START_KINDS)[number];
 
 /**
  * The match modes the controller plays: the usual game, the free kick with the wall (FR-142), the child in goal
- * (FR-143), and the penalty shootout (FR-147).
+ * (FR-143), the penalty shootout (FR-147), the shooting wall (FR-155) and the shootout of the child against a grown-up
+ * (FR-158).
  */
-export const MATCH_MODES = ['normal', 'wall', 'keeper', 'shootout'] as const;
+export const MATCH_MODES = ['normal', 'wall', 'keeper', 'shootout', 'torwand', 'family'] as const;
 export type MatchMode = (typeof MATCH_MODES)[number];
 
 export interface StartKindInfo {
@@ -42,6 +44,8 @@ export const START_KIND_INFO: Record<StartKind, StartKindInfo> = {
   wall: { mode: 'wall', unlock: 'wall', roundType: 'settings' },
   keeper: { mode: 'keeper', unlock: 'keeper', roundType: 'settings' },
   shootout: { mode: 'shootout', unlock: 'shootout', roundType: 'settings' },
+  torwand: { mode: 'torwand', unlock: 'torwand', roundType: 'settings' },
+  family: { mode: 'family', unlock: 'family', roundType: 'settings' },
 };
 
 /** The kinds `MatchController.start` begins; the cup starts through `startCup`. */
