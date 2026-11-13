@@ -13,7 +13,7 @@
  * allows it, and starts a time challenge (amendment 07, FR-075 to FR-081).
  *
  * Parent screens (US3, FR-034): the gear on the start screen and in the match opens the parent menu after a 2-second
- * press. While the menu, the settings page or the progress page is open, a running round pauses (useAutoPause) and keys
+ * press. While the menu, the settings page or the progress page is open, a running round pauses (pause reason `parent`) and keys
  * do nothing in the game. Settings saved during a round reach it once, when the settings page closes after one or more
  * saves (amendment 01, FR-052, MatchController.applySettings); on the start screen, the locker room and the round end
  * the next round uses them. Every finished target goes to the progress
@@ -30,7 +30,7 @@
  *
  * Locker room from the match (amendment 01, FR-049, as math-tank amendment 23): with the locker room on, a "Kabine" icon
  * next to the gear opens the locker room over the match with one tap. The match stays loaded underneath; a running
- * round pauses through useAutoPause and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
+ * round pauses (pause reason `lockerRoom`) and the game keys do nothing while it is open. "Zurück" or Escape closes it, the
  * round continues (a round the child paused stays paused) and the chosen look shows at once.
  *
  * Cup (amendment 13, T101): "Pokal" (P, or Enter with `?start=cup`) starts the cup's next match with its level and
@@ -98,7 +98,7 @@ import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf, type CupMatch } from '../core/cup/cup';
 import type { CupTeam } from '../core/cup/teams';
-import { cupMatchWon, MatchController, START_HEARTS, turnOf, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
+import { cupMatchWon, MatchController, START_HEARTS, turnOf, type MatchView, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
@@ -110,7 +110,7 @@ import { scoreText, shootoutScore, shootoutWinner } from '../core/match/shootout
 import { modeButtons } from '../core/rewards/modes';
 import { defaultFamilySetup, type FamilySetup } from '../core/match/family';
 import type { Celebration } from '../core/rewards/items';
-import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
+import { lookOf, stadiumNameShown } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
 import { applyBaseline, clearRound, loadRound, saveRound } from '../core/storage/storage';
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
@@ -134,7 +134,7 @@ import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
 import { canApplyUpdate, swUpdate } from './swUpdate';
 import { TransferDialog, type TransferDialogState } from './TransferDialog';
-import { useAutoPause } from './useAutoPause';
+import { usePauseReason } from './usePauseReason';
 import { useMatchState, type ClockSource } from './useController';
 import { applyMatchAction, useKeyboard } from './useKeyboard';
 import { useNumberPadShown } from './useScreen';
@@ -274,22 +274,18 @@ function createApp() {
   const restored = controller.restore();
   // The cup match the scene shows for a restored cup match: the cup's next match (FR-107, FR-110).
   const restoredCup = controller.getState().roundType === 'cup' ? cupSceneOf(nextMatch(persistence.cup(), settings())) : null;
-  // Stars go to the locker room as soon as they are earned (FR-042). A restored round's stars were awarded before.
-  let seenStars = controller.getState().starsThisRound;
-  controller.subscribe(() => {
-    const current = controller.getState().starsThisRound;
-    const earned = newStars(seenStars, current);
-    seenStars = current;
-    if (earned > 0) saves.report(persistence.awardStars(earned));
+  // A round restored straight into 'roundOver' (a refresh during the final goal's celebration) still goes to the
+  // personal bests (review M2); it ended before the app listened.
+  const restoredOver = restored && controller.getState().phase === 'roundOver';
+  controller.subscribe((events) => {
+    for (const event of events) {
+      // Stars go to the locker room as soon as they are earned (FR-042). A restored round's stars were awarded before.
+      if (event.type === 'starsEarned') saves.report(persistence.awardStars(event.n));
+      // A small cheer, clapping on top of the goal's cheer, when a goal raised the level (FR-088).
+      else if (event.type === 'levelUp') sfx.clap();
+    }
   });
-  // A small cheer, clapping on top of the goal's cheer, when a goal raised the level (FR-088).
-  let seenMessage = controller.getState().message;
-  controller.subscribe(() => {
-    const message = controller.getState().message;
-    if (message !== seenMessage && message?.kind === 'levelUp') sfx.clap();
-    seenMessage = message;
-  });
-  return { persistence, controller, sfx, speaker, settings, restored, restoredCup, saves };
+  return { persistence, controller, sfx, speaker, settings, restored, restoredOver, restoredCup, saves };
 }
 
 /**
@@ -393,7 +389,7 @@ function clearSaveHash(): void {
 }
 
 export function App() {
-  const [{ persistence, controller, sfx, speaker, settings, restored, restoredCup, saves }] = useState(createApp);
+  const [{ persistence, controller, sfx, speaker, settings, restored, restoredOver, restoredCup, saves }] = useState(createApp);
   const saveFailed = useSyncExternalStore(saves.subscribe, saves.failed);
   // The note about data reset on load shows until the parent closes it (FR-036).
   const [resetLines, setResetLines] = useState(() => resetNoteLines(persistence.resetReasons()));
@@ -414,9 +410,8 @@ export function App() {
   // The locker room opened from the match, over the running round (FR-049).
   const [lockerOpen, setLockerOpen] = useState(false);
   const gameHandle = useRef<GameHandle | null>(null);
-  // A restored round has no phase before it: one restored straight into 'roundOver' (a refresh during the final goal's
-  // celebration) still goes to the personal bests (review M2).
-  const lastPhase = useRef<Phase | null>(restored ? null : state.phase);
+  // True until the result of a round restored straight into 'roundOver' went to the personal bests (review M2).
+  const restoredResultDue = useRef(restoredOver);
   // The cup match the scene shows (FR-107, FR-110); a restored cup match is the cup's next match.
   const cupScene = useRef<CupScene | null>(restoredCup);
   // What the scene shows of the cup, as `data-*` attributes for tests.
@@ -427,8 +422,8 @@ export function App() {
   const [extras, setExtras] = useState<SceneExtras | null>(null);
   // The match intro card of a cup match: "Gruppenspiel 1 gegen FC Blitz" (T102).
   const [intro, setIntro] = useState<{ stage: number; team: CupTeam } | null>(null);
-  const introShown = useRef(false);
-  introShown.current = intro !== null;
+  // The intro card of a cup match costs no time of the round.
+  usePauseReason(controller, 'cupIntro', intro !== null);
   // "Papa gegen Kind" (amendment 23): the start card while it shows, and the grown-up of the last match, for "Nochmal".
   const [familyCard, setFamilyCard] = useState(false);
   const lastFamily = useRef<FamilySetup>(defaultFamilySetup());
@@ -471,20 +466,37 @@ export function App() {
 
   // A round that just ended goes to the personal bests, once (FR-028).
   useEffect(() => {
-    const before = lastPhase.current;
-    lastPhase.current = state.phase;
-    if (state.phase !== 'roundOver' || before === 'roundOver' || !state.started) return;
-    const ended = controller.getState();
-    // A cup match goes to the cup, never to the personal bests (FR-108).
-    if (ended.roundType === 'cup') setResult({ kind: 'cup', cup: settleCup(persistence, saves, ended) });
-    else setResult({ kind: 'record', record: recordRound(persistence, saves, ended, settings().showRecords) });
-  }, [state.phase, state.started, persistence, controller, settings, saves]);
+    const settle = () => {
+      const ended = controller.getState();
+      // A cup match goes to the cup, never to the personal bests (FR-108).
+      if (ended.roundType === 'cup') setResult({ kind: 'cup', cup: settleCup(persistence, saves, ended) });
+      else setResult({ kind: 'record', record: recordRound(persistence, saves, ended, settings().showRecords) });
+    };
+    if (restoredResultDue.current) {
+      restoredResultDue.current = false;
+      settle();
+    }
+    return controller.subscribe((events) => {
+      if (events.some((e) => e.type === 'roundEnded')) settle();
+    });
+  }, [persistence, controller, settings, saves]);
 
   const lockerOn = settings().lockerRoom;
   const matchLocker = screen === 'match' && lockerOpen && lockerOn;
 
   // A running round pauses while a parent screen, the transfer dialog or the locker room is open (FR-034, FR-049).
-  useAutoPause(controller, state.phase, screen === 'match' && (parent !== 'closed' || transfer !== null || matchLocker));
+  usePauseReason(controller, 'parent', screen === 'match' && (parent !== 'closed' || transfer !== null));
+  usePauseReason(controller, 'lockerRoom', matchLocker);
+  // The clock stops while the tab is hidden (FR-029).
+  useEffect(() => {
+    const sync = () => (document.hidden ? controller.pause('hidden') : controller.resume('hidden'));
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      document.removeEventListener('visibilitychange', sync);
+      controller.resume('hidden');
+    };
+  }, [controller]);
 
   // A waiting new version is applied only between rounds, on the start screen or the cup's bracket, never during a
   // round (FR-051a, FR-103), and never while a parent screen or the transfer dialog is open (review R2). The start card
@@ -531,16 +543,16 @@ export function App() {
     closeTransfer();
   }, [transfer, persistence, closeTransfer, screen, controller]);
 
-  // Time played runs while the match shows and the tab is visible (FR-029); the controller stops it while paused. It
-  // waits for the scene, so loading the game, the font and the images costs no time of a time challenge.
+  // Time played runs while the match shows (FR-029); the controller stops it while a pause reason is set (paused, the
+  // cup's intro card, a hidden tab). It waits for the scene, so loading the game, the font and the images costs no time
+  // of a time challenge.
   useEffect(() => {
     if (screen !== 'match') return;
     const fromUrl = speedFromUrl(window.location.search);
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
-      // The intro card of a cup match costs no time of the round.
-      if (!document.hidden && gameHandle.current !== null && !introShown.current) controller.tick((now - last) * playSpeed(fromUrl));
+      if (gameHandle.current !== null) controller.tick((now - last) * playSpeed(fromUrl));
       last = now;
     }, TICK_MS);
     return () => window.clearInterval(id);
@@ -640,7 +652,7 @@ export function App() {
     setParent('closed');
     const saved = savedSettings.current;
     savedSettings.current = null;
-    // The round is still paused by the settings page here; useAutoPause resumes it, and a round the child paused stays
+    // The round is still paused by the settings page here; its pause reason ends after this, and a round the child paused stays
     // paused with the new target.
     if (saved !== null && screen === 'match') controller.applySettings(saved);
   }, [controller, screen]);

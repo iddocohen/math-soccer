@@ -68,7 +68,7 @@ import Phaser from 'phaser';
 import { ballKind, cellRect, center, layoutChart, type ChartLayout } from '../core/chart/layout';
 import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
-import { cupMatchWon, onlyTimeChanged, turnOf, type MatchController, type MatchView } from '../core/match/MatchController';
+import { cupMatchWon, onlyTimeChanged, turnOf, type MatchController, type MatchEvent, type MatchView } from '../core/match/MatchController';
 import { MODE_INFO, type MatchMode } from '../core/match/rounds';
 import { isCutoutFill, type Rect } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
@@ -222,8 +222,6 @@ export class MatchScene extends Phaser.Scene {
   private shotCount = -1;
   /** The target count of the shootout's kick the scene shows; -1 before the first. */
   private kickCount = -1;
-  /** True once the scene played how the current shot was decided. */
-  private shotDecided = false;
   /** The part of its way the rolling ball has gone, as drawn: it follows the shot's time left smoothly. */
   private shotK = 0;
   /** The square of the shot in flight, kept while its target and range stay, so a frame does not lay it out again. */
@@ -245,12 +243,13 @@ export class MatchScene extends Phaser.Scene {
   private extrasKey = '';
   /** The cup match of the round; null outside the cup. */
   private cupMatch: CupScene | null = null;
+  /** The state of the last draw, so a clock tick can be skipped. */
   private prev: MatchView | null = null;
-  /** True from the kick until the scene has called `ballLanded()`. */
-  private flying = false;
+  /** True until the scene drew its first started round: it shows that round as new, whatever happened before. */
+  private fresh = true;
   /** True when the keeper leaps for the ball in flight; false on a square of a cutout that is not its last (FR-126). */
   private keeperInPlay = true;
-  /** True while the ball of the last goal lies in the net. */
+  /** True while the scene's ball lies in the net: after a goal, a decoy hole or a conceded shot. */
   private ballInNet = false;
   private celebration: Phaser.Time.TimerEvent | null = null;
   private pausedNow = false;
@@ -297,20 +296,19 @@ export class MatchScene extends Phaser.Scene {
     this.shot = new ShotView(this);
     this.torwand = new TorwandView(this);
     this.shotCount = -1;
-    this.shotDecided = false;
     this.shotK = 0;
     this.extrasKey = '';
     this.cupMatch = null;
     this.prev = null;
-    this.flying = false;
+    this.fresh = true;
     this.ballInNet = false;
     this.celebration = null;
     this.pausedNow = false;
 
-    this.unsubscribe = this.controller.subscribe(() => this.draw(this.controller.getState()));
+    this.unsubscribe = this.controller.subscribe((events) => this.draw(this.controller.getState(), events));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.teardown, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.teardown, this);
-    this.draw(s);
+    this.draw(s, []);
   }
 
   update(_time: number, delta: number): void {
@@ -344,17 +342,24 @@ export class MatchScene extends Phaser.Scene {
     this.finalShow?.stop();
   }
 
-  private draw(s: MatchView): void {
+  /**
+   * Draws the state `s` and plays what `events` say happened. The first draw of a started round treats the state as
+   * new: a round restored or started before the scene was created, with a ball that may already fly or a shot that may
+   * already be decided.
+   */
+  private draw(s: MatchView, events: readonly MatchEvent[]): void {
     const prev = this.prev;
     this.prev = s;
     if (!s.started) return;
     // A clock tick changes nothing the scene draws.
-    if (prev !== null && onlyTimeChanged(prev, s)) return;
+    if (events.length === 0 && prev !== null && onlyTimeChanged(prev, s)) return;
     const layout = this.layoutOf(s);
+    const happened = (type: MatchEvent['type']) => events.some((e) => e.type === type);
+    const fresh = this.fresh;
+    this.fresh = false;
 
-    if (prev === null || this.isNewRound(prev, s)) {
+    if (fresh || happened('roundStarted')) {
       this.endCelebration();
-      this.flying = false;
       this.ballInNet = false;
       this.ball.reset();
       this.keeper.reset();
@@ -369,7 +374,7 @@ export class MatchScene extends Phaser.Scene {
       this.lookKey = '';
       this.kickCount = -1;
       if (s.phase !== 'roundOver') this.options.sounds?.whistle?.();
-    } else if (prev.phase !== 'roundOver' && s.phase === 'roundOver' && (s.roundType === 'cup' || s.shootout !== null)) {
+    } else if (happened('roundEnded') && (s.roundType === 'cup' || s.shootout !== null)) {
       // The final whistle of a cup match or a shootout (FR-150).
       this.options.sounds?.whistle?.();
     }
@@ -402,37 +407,37 @@ export class MatchScene extends Phaser.Scene {
       if (winner === 0 || (winner === 1 && s.family !== null)) this.shootoutWon();
     }
 
-    if (opponentShootsIn(s.mode)) this.drawShot(s, layout);
+    if (opponentShootsIn(s.mode)) this.drawShot(s, layout, happened('keeperShotDecided'));
     else this.shot.hide();
-    if (s.phase === 'ballInFlight' && s.ball && !this.flying) this.kick(s.ball.number);
-    // After the celebration the next target shows and the ball waits at the kick spot again.
-    if (s.phase === 'aiming' && s.ball === null && this.ballInNet) {
+    if (s.phase === 'ballInFlight' && s.ball && (fresh || happened('shot'))) this.kick(s.ball.number);
+    // With the next target the ball in the net waits at the kick spot again.
+    if (happened('targetChanged') && this.ballInNet) {
       this.ballInNet = false;
       this.ball.reset();
     }
   }
 
   /**
-   * The opponent's shot of "Selbst ins Tor": a new shot is kicked, a decided one plays its end. The rolling ball and the
-   * countdown ring follow the time left in `followShot`.
+   * The opponent's shot of "Selbst ins Tor": a new shot is kicked, a decided one plays its end when it was just decided
+   * (`decided`), or when the scene first shows it already decided. The rolling ball and the countdown ring follow the
+   * time left in `followShot`.
    */
-  private drawShot(s: MatchView, layout: ChartLayout): void {
+  private drawShot(s: MatchView, layout: ChartLayout, decided: boolean): void {
     const shot = s.keeperShot;
     if (shot === null || s.target === null) {
       this.shot.hide();
       return;
     }
-    if (this.shotCount !== s.targetCount) {
+    const newShot = this.shotCount !== s.targetCount;
+    if (newShot) {
       this.shotCount = s.targetCount;
-      this.shotDecided = false;
       this.shotK = 1 - shot.leftMs / shot.totalMs;
       this.ballInNet = false;
       this.ball.reset();
       this.player.kick();
       this.options.sounds?.kick();
     }
-    if (shot.result === null || this.shotDecided) return;
-    this.shotDecided = true;
+    if (shot.result === null || !(decided || newShot)) return;
     this.shot.hide();
     const target = cellRect(layout, CHART_RECT, s.target.number);
     const typed = shot.typed !== null ? cellRect(layout, CHART_RECT, shot.typed) : null;
@@ -467,7 +472,6 @@ export class MatchScene extends Phaser.Scene {
   private newKick(s: MatchView): void {
     if (s.phase === 'roundOver' || this.kickCount === s.targetCount) return;
     this.kickCount = s.targetCount;
-    this.flying = false;
     this.ballInNet = false;
     this.ball.reset();
     this.keeper.reset();
@@ -615,14 +619,8 @@ export class MatchScene extends Phaser.Scene {
     this.stands.setScarfColor(look.scarfColor);
   }
 
-  /** A round started again: from the start screen or with "Nochmal" (the seed can stay the same with `?seed=`). */
-  private isNewRound(prev: MatchView, s: MatchView): boolean {
-    return prev.seed !== s.seed || s.targetCount < prev.targetCount || (prev.phase === 'roundOver' && s.phase !== 'roundOver');
-  }
-
   private kick(n: number): void {
     const s = this.controller.getState();
-    this.flying = true;
     this.ballInNet = false;
     this.options.sounds?.kick();
     this.player.kick();
@@ -642,7 +640,6 @@ export class MatchScene extends Phaser.Scene {
   }
 
   private arrived(): void {
-    this.flying = false;
     this.controller.ballLanded();
     const s = this.controller.getState();
     if (s.ball?.outcome === 'goal') {

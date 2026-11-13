@@ -98,10 +98,19 @@
  *
  * Views get a deep read-only view of the state (`MatchView`). In development builds `set()` checks the rules between
  * fields (`matchInvariantErrors`) and throws when one is broken; the state type itself stays one flat record.
+ *
+ * Events (refactor R1): every listener of `subscribe` gets the events of the change (`MatchEvent`), so the views act on
+ * what happened instead of comparing states. One change can carry several events, in this order: `roundStarted`,
+ * `shot`, `landed`, `keeperShotDecided`, `levelUp`, `starsEarned`, `targetChanged`, `roundEnded`.
+ *
+ * Pause reasons (refactor R1): `pause(reason)` and `resume(reason)` keep a set of reasons. The clock runs only while the
+ * set is empty. The child, a parent screen and the locker room over the match also pause play (`paused`: keys, the
+ * scene and the help chart stop); the cup's intro card and a hidden tab only stop the clock. A new round, a restored
+ * round and "Zum Start" drop the child's pause; the other reasons belong to the app and stay until it resumes them.
  */
 import { layoutChart } from '../chart/layout';
 import { createRng, deriveSeed } from '../rng';
-import { starsAfter } from '../rewards/lockerRoom';
+import { newStars, starsAfter } from '../rewards/lockerRoom';
 import { MISSES_PER_HEART, type ChallengeMinutes, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { makeAttemptRecord } from '../progress/attempt';
@@ -158,6 +167,36 @@ export interface Ball {
   /** Play time of the shot (`elapsedMs`), for the attempt record. */
   atMs: number;
 }
+
+/**
+ * What happened in one state change, for the views (refactor R1):
+ * - `roundStarted`: `start`, `startCup` or `restore` began a round;
+ * - `shot`: the child's ball flies (phase 'ballInFlight');
+ * - `landed`: the ball arrived, with its outcome;
+ * - `keeperShotDecided`: the opponent's shot was saved, conceded or came too late;
+ * - `levelUp`: a scored target raised the child's level (FR-088);
+ * - `starsEarned`: `starsThisRound` grew by `n`; a started or restored round earns none;
+ * - `targetChanged`: a new target, also the first one of a round;
+ * - `roundEnded`: the round reached 'roundOver'.
+ */
+export type MatchEvent =
+  | { type: 'roundStarted' }
+  | { type: 'shot' }
+  | { type: 'landed'; outcome: NonNullable<Ball['outcome']> }
+  | { type: 'keeperShotDecided' }
+  | { type: 'levelUp'; level: Level }
+  | { type: 'starsEarned'; n: number }
+  | { type: 'targetChanged' }
+  | { type: 'roundEnded' };
+
+/**
+ * Why the round is paused: the child (Escape, the pause or home button), a parent screen or the transfer dialog, the
+ * locker room over the match, the cup's intro card, or a hidden tab.
+ */
+export type PauseReason = 'child' | 'parent' | 'lockerRoom' | 'cupIntro' | 'hidden';
+
+/** The reasons that only stop the clock; the round stays playable. */
+const CLOCK_ONLY_REASONS: ReadonlySet<PauseReason> = new Set<PauseReason>(['cupIntro', 'hidden']);
 
 /** A missed square that shows its number until `remainingMs` of play time has passed (FR-004). */
 export interface ShownSquare {
@@ -530,7 +569,11 @@ function waits(s: Pick<MatchState, 'shootout' | 'torwand' | 'family'>): boolean 
 
 export class MatchController {
   private state: MatchState;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Set<(events: readonly MatchEvent[]) => void>();
+  /** Events of the change being built; `set()` sends them with the new state. */
+  private queued: MatchEvent[] = [];
+  /** Why the round is paused; the clock runs only while this is empty. */
+  private readonly pauseReasons = new Set<PauseReason>();
   private readonly options: MatchControllerOptions;
   /** The settings the running round uses: those of its start, updated by `applySettings` (FR-052). */
   private roundSettings: Settings;
@@ -590,8 +633,8 @@ export class MatchController {
     });
   }
 
-  /** Calls `fn` after every state change; returns a function that stops it. */
-  subscribe(fn: () => void): () => void {
+  /** Calls `fn` after every state change, with the events of the change; returns a function that stops it. */
+  subscribe(fn: (events: readonly MatchEvent[]) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
   }
@@ -617,6 +660,7 @@ export class MatchController {
     this.clearPending();
     this.roundSettings = this.options.settings();
     const seed = this.options.newSeed?.() ?? Date.now() % 2_147_483_647;
+    this.queued.push({ type: 'roundStarted' });
     this.set(this.withNextTarget(freshState(this.roundSettings, seed, true, kind, cupMatch, family)));
   }
 
@@ -627,10 +671,14 @@ export class MatchController {
     this.set({ ...s, family: { ...s.family, card: false } }, { save: false });
   }
 
-  /** Drops a waiting settings change and the landing feedback's wait: a round starts, comes back or ends. */
+  /**
+   * Drops a waiting settings change, the landing feedback's wait and the child's pause: a round starts, comes back or
+   * ends.
+   */
   private clearPending(): void {
     this.newTargetPending = false;
     this.feedbackMs = 0;
+    this.pauseReasons.delete('child');
   }
 
   /**
@@ -654,6 +702,7 @@ export class MatchController {
     const roundType = stored.roundType === 'time' || stored.roundType === 'cup' ? s.roundType : stored.roundType;
     this.roundSettings = { ...s, roundType, goalsPerRound: stored.goalsPerRound };
     const state: MatchState = { ...freshState(this.roundSettings, stored.seed, true), ...storedFields(stored) };
+    this.queued.push({ type: 'roundStarted' });
     // A round saved during the celebration goes on as if the celebration had ended.
     if (stored.phase === 'celebrating') this.set(this.afterCelebration(state));
     else this.set(state);
@@ -676,8 +725,8 @@ export class MatchController {
       if (key === 'escape' || key === 'enter') return;
     }
     if (key === 'escape') {
-      if (this.state.paused) this.resume();
-      else this.pause();
+      if (this.state.paused) this.resume('child');
+      else this.pause('child');
       return;
     }
     if (this.state.paused) return;
@@ -730,6 +779,7 @@ export class MatchController {
       return;
     }
     if (waits(s)) return;
+    this.queued.push({ type: 'shot' });
     this.set({ ...s, entry: '', message: null, phase: 'ballInFlight', ball: { number: n, outcome: null, atMs: s.elapsedMs } }, { save: false });
   }
 
@@ -837,6 +887,7 @@ export class MatchController {
     const shown = saved ? null : { number: target.number, remainingMs: KEEPER_RESULT_MS };
     // Settings saved now give their new target after the result, so they never drop a decided shot (FR-052).
     this.feedbackMs = KEEPER_RESULT_MS;
+    this.queued.push({ type: 'keeperShotDecided' });
     if (s.shootout !== null) {
       // The opponent's kick of the shootout: a save is his miss. Saves earn no stars here (FR-148).
       this.set({
@@ -1028,6 +1079,7 @@ export class MatchController {
   private scored(s: MatchState, ball: Ball): { attempt: FinishedAttempt; levelUp: Level | null } {
     const solved = s.helpStep < ANSWER_STEP;
     const levelUp = this.recordAttempt(s, { solved, endedAt: ball.atMs });
+    if (levelUp !== null) this.queued.push({ type: 'levelUp', level: levelUp });
     return { attempt: { number: ball.number, solved, helpStep: s.helpStep }, levelUp };
   }
 
@@ -1061,14 +1113,34 @@ export class MatchController {
     this.set({ ...this.state, helpChartOpen: false }, { save: false });
   }
 
-  pause(): void {
-    if (!this.state.started || this.state.paused || this.state.phase === 'roundOver') return;
-    this.set({ ...this.state, paused: true }, { save: false });
+  /**
+   * Adds `reason` to the pause reasons. The child pauses only a running round that is not paused yet; the app's reasons
+   * are kept whatever the round does, so a round that starts while one is set starts paused or without its clock.
+   */
+  pause(reason: PauseReason = 'child'): void {
+    const s = this.state;
+    if (reason === 'child' && (!s.started || s.paused || s.phase === 'roundOver')) return;
+    if (this.pauseReasons.has(reason)) return;
+    this.pauseReasons.add(reason);
+    this.syncPaused();
   }
 
-  resume(): void {
-    if (!this.state.paused) return;
-    this.set({ ...this.state, paused: false }, { save: false });
+  /** Removes `reason`; the round plays again once no reason that pauses play is left. */
+  resume(reason: PauseReason = 'child'): void {
+    if (!this.pauseReasons.delete(reason)) return;
+    this.syncPaused();
+  }
+
+  /** True when a pause reason other than the clock-only ones holds the running round of `s`. */
+  private pausedNow(s: MatchState): boolean {
+    if (!s.started || s.phase === 'roundOver') return false;
+    for (const reason of this.pauseReasons) if (!CLOCK_ONLY_REASONS.has(reason)) return true;
+    return false;
+  }
+
+  /** A new state when the pause reasons changed whether play is paused. */
+  private syncPaused(): void {
+    if (this.pausedNow(this.state) !== this.state.paused) this.set({ ...this.state }, { save: false });
   }
 
   /**
@@ -1085,12 +1157,12 @@ export class MatchController {
   }
 
   /**
-   * Adds `ms` of time played while a round runs and is not paused (FR-029); the app does not tick while the tab is
-   * hidden. The shown square counts down with the same time.
+   * Adds `ms` of time played while a round runs and no pause reason is set (FR-029): not while paused, while the cup's
+   * intro card shows or while the tab is hidden. The shown square counts down with the same time.
    */
   tick(ms: number): void {
     const s = this.state;
-    if (!s.started || s.paused || s.phase === 'roundOver' || !(ms > 0)) return;
+    if (!s.started || this.pauseReasons.size > 0 || s.phase === 'roundOver' || !(ms > 0)) return;
     // A time challenge's time played stops at its length, so the countdown shows 0:00 while a last ball lands.
     const total = challengeMs(s);
     const elapsedMs = total === null ? s.elapsedMs + ms : Math.min(total, s.elapsedMs + ms);
@@ -1269,6 +1341,14 @@ export class MatchController {
   }
 
   private set(next: MatchState, { save = true }: { save?: boolean } = {}): void {
+    const prev = this.state;
+    const events = this.queued;
+    this.queued = [];
+    // Every way out of 'ballInFlight' but a new round or "Zum Start" is a landing, and the landing state carries the
+    // ball's outcome (read before a waiting settings change replaces the ball).
+    if (prev.phase === 'ballInFlight' && next.ball !== null && next.ball.outcome !== null) {
+      events.unshift({ type: 'landed', outcome: next.ball.outcome });
+    }
     // Settings saved while the ball flew or the goal was celebrated give their new target once the round aims again and
     // the landing feedback has finished (review M1).
     if (this.newTargetPending) {
@@ -1278,13 +1358,20 @@ export class MatchController {
         save = true;
       }
     }
+    next = { ...next, paused: this.pausedNow(next) };
     if (import.meta.env.DEV) {
       const errors = matchInvariantErrors(next);
       if (errors.length > 0) throw new Error(`MatchController: inconsistent state: ${errors.join('; ')}`);
     }
     this.state = next;
+    const roundStarted = events.some((e) => e.type === 'roundStarted');
+    // A started or restored round's stars were awarded before (FR-042).
+    const stars = roundStarted ? 0 : newStars(prev.starsThisRound, next.starsThisRound);
+    if (stars > 0) events.push({ type: 'starsEarned', n: stars });
+    if (next.started && (roundStarted || next.targetCount !== prev.targetCount)) events.push({ type: 'targetChanged' });
+    if (next.started && next.phase === 'roundOver' && prev.phase !== 'roundOver') events.push({ type: 'roundEnded' });
     if (save) this.persist();
-    for (const fn of this.listeners) fn();
+    for (const fn of this.listeners) fn(events);
   }
 
   /** Saves the round between shots, and deletes it once the round is over. */
