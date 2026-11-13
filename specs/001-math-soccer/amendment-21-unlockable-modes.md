@@ -67,7 +67,12 @@
   - The score shows as two rows of five circles (goal, miss, open).
   - If it is level after 5 rounds, single rounds follow until one side leads.
   - The opponent scores when the child does not save. The opponent's own shots never miss on purpose.
-- **FR-148**: Winning the shootout MUST show a short trophy moment ("Elfmeter-Sieger!") with confetti and earns 5 stars. A loss shows "Knapp verloren! Noch mal?". Nothing is taken away.
+- **FR-148**: Winning the shootout MUST show a short trophy moment ("Elfmeter-Sieger!") with confetti and earns 5 stars. A loss shows "Knapp! Noch mal?" (not "Knapp verloren!", since child texts never say "verloren", FR-023). Nothing is taken away.
+- Design calls (T115):
+  - All 5 rounds are always played, even when one side can no longer catch up, so the child always takes five kicks.
+  - The child's kick is one shot: a miss shows the typed number's square for 1.5 s, then the opponent shoots.
+  - Only the win earns stars (5); the child's goals and saves in the shootout earn none.
+  - The child's kicks record attempts for progress as in "Spielen"; the opponent's shots do not.
 - Targets come from the child's current level. Help works as in each half: as in "Spielen" for his shots, and as in FR-145 for saves.
 
 ## Stored data

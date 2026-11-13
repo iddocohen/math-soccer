@@ -43,6 +43,11 @@
  *   both follow the shot's time left on every frame and stop while help holds the shot. When the shot is decided the
  *   ball flies to the square: on a save the keeper dives there and holds it and the fans cheer; on a wrong number he
  *   dives to the typed square and the ball goes into the net with the "ohhh"; too late, he leaps and falls short.
+ * - "Elfmeterschießen" (amendment 21 part 3, FR-147, FR-148): the turns take turns. On the child's turn he stands at
+ *   the kick spot in his look and the keeper wears the opponent team's colors, as in a cup match; the kick plays as in
+ *   "Spielen". On the opponent's turn the shot plays as in "Selbst ins Tor", with the child in goal in his kit. Each new
+ *   turn puts the ball back at the kick spot and the keeper in the middle. A won shootout brings the short trophy
+ *   moment: confetti and fireworks (FinalShow), the cup lift, a cheer.
  * - While the round is paused the scene's tweens, timers and fans stop, so a flight or a celebration goes on where it
  *   stopped.
  * - The controller's state can be ahead of the scene: a shot typed before the scene was created flies when it starts.
@@ -59,6 +64,7 @@ import { wallBlocks } from '../core/match/wall';
 import { WallView } from './WallView';
 import { ShotView } from './ShotView';
 import { keeperOpponent } from '../core/match/keeper';
+import { shootoutWinner } from '../core/match/shootout';
 import { helpHint, HINT_STEP, hintsVisible, targetHintDisplay } from '../core/match/help';
 import { CHART_RECT, GOAL_FRAME, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
 import type { Settings } from '../core/settings/schema';
@@ -182,6 +188,8 @@ export class MatchScene extends Phaser.Scene {
   private shot!: ShotView;
   /** The target count of the opponent's shot the scene shows; -1 before the first. */
   private shotCount = -1;
+  /** The target count of the shootout's kick the scene shows; -1 before the first. */
+  private kickCount = -1;
   /** True once the scene played how the current shot was decided. */
   private shotDecided = false;
   /** The part of its way the rolling ball has gone, as drawn: it follows the shot's time left smoothly. */
@@ -322,7 +330,11 @@ export class MatchScene extends Phaser.Scene {
       this.startCup(s);
       this.shotCount = -1;
       this.shot.hide();
+      // The keeper's team is set again for the shootout (applyLook), also when the seed stays the same.
+      this.lookKey = '';
+      this.kickCount = -1;
     }
+    if (s.shootout !== null) this.newKick(s);
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
     if (s.target) {
       this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
@@ -342,8 +354,9 @@ export class MatchScene extends Phaser.Scene {
     if (this.celebration !== null && s.phase !== 'celebrating') this.endCelebration();
 
     if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
+    if (s.phase === 'roundOver' && s.shootout !== null && shootoutWinner(s.shootout.kicks) === 0 && !this.finalShow.running) this.shootoutWon();
 
-    if (s.mode === 'keeper') this.drawShot(s, layout);
+    if (s.mode === 'keeper' || s.mode === 'shootout') this.drawShot(s, layout);
     else this.shot.hide();
     if (s.phase === 'ballInFlight' && s.ball && !this.flying) this.kick(s.ball.number);
     // After the celebration the next target shows and the ball waits at the kick spot again.
@@ -400,11 +413,33 @@ export class MatchScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * A new kick of the shootout (a new target): the ball waits at the kick spot and the keeper in the middle. The
+   * opponent's shot then kicks off in `drawShot`.
+   */
+  private newKick(s: MatchView): void {
+    if (s.phase === 'roundOver' || this.kickCount === s.targetCount) return;
+    this.kickCount = s.targetCount;
+    this.flying = false;
+    this.ballInNet = false;
+    this.ball.reset();
+    this.keeper.reset();
+  }
+
+  /** The won shootout (FR-148): confetti and fireworks, the cup lift, a cheer. */
+  private shootoutWon(): void {
+    this.finalShow.start();
+    this.player.liftCup();
+    this.stands.cheer();
+    this.options.sounds?.cheer();
+    this.options.sounds?.fireworks?.();
+  }
+
   /** Every frame: the rolling ball and the countdown ring of a shot in flight follow its time left (FR-144). */
   private followShot(delta: number): void {
     const s = this.controller.getState();
     const shot = s.keeperShot;
-    if (s.mode !== 'keeper' || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
+    if ((s.mode !== 'keeper' && s.mode !== 'shootout') || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
     const goal = 1 - shot.leftMs / shot.totalMs;
     // The controller's time moves in steps of a tick; the drawing eases toward it.
     this.shotK += (goal - this.shotK) * Math.min(1, delta / 250);
@@ -492,17 +527,21 @@ export class MatchScene extends Phaser.Scene {
   }
 
   /**
-   * Redraws the shirt and recolors the scarves when the look changed. In "Selbst ins Tor" the child is the keeper in his
-   * kit, and the player at the kick spot wears the opponent's colors (amendment 21).
+   * Redraws the shirt and recolors the scarves when the look changed. In "Selbst ins Tor", and on the opponent's turn of
+   * the shootout, the child is the keeper in his kit and the player at the kick spot wears the opponent's colors
+   * (amendment 21). On the child's turn of the shootout the keeper wears the opponent team's colors.
    */
   private applyLook(look: Look, s: MatchView): void {
-    const keeperMode = s.started && s.mode === 'keeper';
-    const opponent = keeperMode ? keeperOpponent(s.seed) : null;
-    const key = `${lookKey(look)}|${opponent?.id ?? ''}`;
+    const shootout = s.started && s.mode === 'shootout';
+    const opponentShoots = s.started && (s.mode === 'keeper' || (shootout && s.keeperShot !== null));
+    const team = opponentShoots || shootout ? keeperOpponent(s.seed) : null;
+    const opponent = opponentShoots ? team : null;
+    const key = `${lookKey(look)}|${team?.id ?? ''}|${opponentShoots}`;
     if (key === this.lookKey) return;
     this.lookKey = key;
     this.player.setLook(opponent ? { ...look, shirtColor: hexColor(opponent.color), shirtNumber: OPPONENT_NUMBER, shirtName: opponent.name } : look);
-    this.keeper.setKit(keeperMode ? { color: look.shirtColor, number: look.shirtNumber } : null);
+    this.keeper.setKit(opponentShoots ? { color: look.shirtColor, number: look.shirtNumber } : null);
+    if (shootout) this.keeper.setTeam(opponentShoots ? null : team);
     this.stands.setScarfColor(look.scarfColor);
   }
 

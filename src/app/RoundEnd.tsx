@@ -16,6 +16,9 @@
  * the fireworks and the cup lift stay in view.
  * "Selbst ins Tor" (amendment 21, FR-146): with `keeperShots` the result reads "7 von 10 gehalten" and the record
  * "Dein Rekord: 8 gehalten"; `goals` are the saves.
+ * "Elfmeterschießen" (amendment 21 part 3, FR-148): with `shootout` the heading is "Elfmeter-Sieger!" after a win
+ * (placed low like a won cup final, so the confetti stays in view) or "Knapp! Noch mal?" after a loss, the
+ * result reads "4:3 gegen FC Blitz", and the record line counts the shootouts won (`data-shootout-won`).
  * With the locker room on, the stars earned in the round show as "+6 Sterne" (`data-testid="round-stars"`).
  * Amendment 12 (FR-103): when a new version waits, a short neutral line "Neue Version, startet gleich" shows
  * (`data-testid="update-note"`); "Zurück" and "Nochmal" then apply it (App.tsx, swUpdate.ts).
@@ -32,6 +35,13 @@ export interface CupRoundResult {
   cupWon?: boolean;
   /** The cup was replaced during the match, so its result counts for nothing; "Weiter" goes to the bracket. */
   replaced?: boolean;
+}
+
+/** The end of a shootout: won or not, the score (the child's goals first) and the opponent team's name. */
+export interface ShootoutResult {
+  won: boolean;
+  score: readonly [number, number];
+  opponent: string;
 }
 
 export interface RoundRecord {
@@ -55,29 +65,36 @@ interface Props {
   updateWaiting?: boolean;
   /** "Selbst ins Tor": the shots of the round, and `goals` are the saves; null for the other modes. */
   keeperShots?: number | null;
+  /** "Elfmeterschießen": how it ended; null for the other modes. */
+  shootout?: ShootoutResult | null;
   onAgain: () => void;
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, keeperShots = null, onAgain, onBack }: Props) {
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, keeperShots = null, shootout = null, onAgain, onBack }: Props) {
   const text = t().roundEnd;
   let result = challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs);
   if (keeperShots !== null) result = text.keeperSummary(goals, keeperShots);
+  if (shootout !== null) result = text.shootoutSummary(shootout.score[0], shootout.score[1], shootout.opponent);
+  let heading = text.cheer;
+  if (shootout !== null) heading = shootout.won ? text.shootoutWon : text.shootoutLost;
   const best = record?.best ?? null;
   let bestLine = '';
   if (best !== null) {
     if (keeperShots !== null) bestLine = text.keeperRecord(best.goals);
+    else if (shootout !== null) bestLine = text.shootoutRecord(best.goals);
     else bestLine = roundType === 'goalCount' ? text.recordTime(best.goals, best.timeMs) : text.record(best.goals);
   }
   return (
     <div
-      className={cup?.cupWon ? 'round-end cup-final-won' : 'round-end'}
+      className={cup?.cupWon || shootout?.won ? 'round-end cup-final-won' : 'round-end'}
       data-testid="round-end"
+      data-shootout-won={shootout === null ? undefined : shootout.won}
       role="dialog"
       aria-modal="true"
-      aria-label={text.cheer}
+      aria-label={heading}
     >
-      <h2>{text.cheer}</h2>
+      <h2>{heading}</h2>
       <p className="round-result" data-testid="round-result">
         {result}
       </p>

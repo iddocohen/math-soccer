@@ -50,6 +50,7 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     wall: null,
     shots: 0,
     keeperShot: null,
+    shootout: null,
     goalsPerRound: 10,
     min: 1,
     max: 100,

@@ -121,7 +121,7 @@ Per `mode|direction`: `masteryWindow`, `attempts`, `independent`, `assisted`, `g
 
 ## PersonalBest (`mathsoccer.records.v1`)
 
-Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|minutes` for time challenges, so a time challenge compares only with the same range and challenge time (FR-080). Value: `{ goals, timeMs, at }`. Stored as `{ version: 1, bests }`. The progress page skips keys it cannot read.
+Key: `min-max|keeper|roundType` for "Spielen" rounds and `min-max|keeper|time|minutes` for time challenges, so a time challenge compares only with the same range and challenge time (FR-080). The modes of amendment 21 keep their own bests: `min-max|keeper|roundType|wall` for "Mauer", `min-max|keeper|keeper` for "Torwart" (the most saves out of 10) and `min-max|keeper|shootout` for "Elfmeter" (`goals` is the number of shootouts won, `timeMs` 0). Value: `{ goals, timeMs, at }`. Stored as `{ version: 1, bests }`. The progress page skips keys it cannot read.
 
 ## LockerRoom (`mathsoccer.lockerroom.v1`, version 1)
 

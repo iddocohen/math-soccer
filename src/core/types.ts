@@ -72,9 +72,14 @@ export function isCutoutFill(target: { cutout?: unknown; queue?: readonly unknow
   return target?.cutout !== undefined && (target.queue?.length ?? 0) > 0;
 }
 
-/** A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). */
-export type DeepReadonly<T> = T extends (infer U)[]
-  ? ReadonlyArray<DeepReadonly<U>>
-  : T extends object
-    ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-    : T;
+/**
+ * A read-only view of `T`, nested objects and arrays included (review H1: views cannot change the match state). A tuple
+ * stays a tuple, so the shootout's two rows of kicks keep their two places.
+ */
+export type DeepReadonly<T> = T extends readonly [unknown, ...unknown[]]
+  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T extends (infer U)[]
+    ? ReadonlyArray<DeepReadonly<U>>
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T;

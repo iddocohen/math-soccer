@@ -259,12 +259,27 @@ export const roundSchema = z
       })
       .nullable()
       .default(null),
+    /**
+     * "Elfmeterschießen" (amendment 21 part 3, FR-147): the kicks of the child and of the opponent, and the play time
+     * left before the opponent's turn after a missed kick; null in the other modes. Added with a default.
+     */
+    shootout: z
+      .object({
+        kicks: z.tuple([z.array(z.enum(['goal', 'miss'])), z.array(z.enum(['goal', 'miss']))]),
+        waitMs: z.number().min(0),
+      })
+      .nullable()
+      .default(null),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);
 export type StoredRound = z.infer<typeof roundSchema>;
 
-/** Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, a wall belongs to the wall mode and a shot at the child in goal to the keeper mode. */
+/**
+ * Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, a
+ * wall belongs to the wall mode, a shot at the child in goal to the keeper or the shootout mode, and the kicks of a
+ * shootout to the shootout mode.
+ */
 function roundRules(
   r: {
     phase: string;
@@ -276,6 +291,7 @@ function roundRules(
     mode: string;
     wall: { from: number; to: number } | null;
     keeperShot: unknown;
+    shootout: unknown;
     target: { number: number; queue?: Array<{ number: number }>; cutout?: { squares: number[] } } | null;
   },
   ctx: z.RefinementCtx,
@@ -286,7 +302,8 @@ function roundRules(
   if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
   if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
   if (r.wall !== null && (r.mode !== 'wall' || r.wall.from > r.wall.to)) issue('a wall stands only in the wall mode, left to right', 'wall');
-  if (r.keeperShot !== null && r.mode !== 'keeper') issue('a shot at the child in goal belongs to the keeper mode', 'keeperShot');
+  if (r.keeperShot !== null && r.mode !== 'keeper' && r.mode !== 'shootout') issue('a shot at the child in goal belongs to the keeper or the shootout mode', 'keeperShot');
+  if ((r.shootout !== null) !== (r.mode === 'shootout')) issue('the kicks of a shootout belong to the shootout mode, and it has them', 'shootout');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number), ...(r.target.cutout?.squares ?? [])] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

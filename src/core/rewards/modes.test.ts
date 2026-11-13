@@ -59,7 +59,7 @@ describe('modes to unlock (amendment 21, FR-140)', () => {
 });
 
 describe('start buttons and startable modes (FR-141)', () => {
-  it('locked modes show greyed with their price; unlocked ones start, the ones built later say "kommt bald"', () => {
+  it('locked modes show greyed with their price; unlocked ones start', () => {
     expect(modeButtons(emptyLockerRoom(), ALL, true)).toEqual([
       { mode: 'wall', key: 'M', state: 'locked', price: 200 },
       { mode: 'keeper', key: 'T', state: 'locked', price: 300 },
@@ -69,7 +69,7 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(modeButtons(owned, ALL, true).map((b) => [b.mode, b.state])).toEqual([
       ['wall', 'ready'],
       ['keeper', 'ready'],
-      ['shootout', 'soon'],
+      ['shootout', 'ready'],
     ]);
   });
 
@@ -87,8 +87,9 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(canStart('wall', owned, { ...settings, modesAllowed: { ...ALL, wall: false } })).toBe(false);
     expect(canStart('keeper', owned, settings)).toBe(true);
     expect(canStart('keeper', owned, { ...settings, modesAllowed: { ...ALL, keeper: false } })).toBe(false);
-    // Built in amendment 21 part 3.
-    expect(canStart('shootout', owned, settings)).toBe(false);
+    expect(canStart('shootout', owned, settings)).toBe(true);
+    expect(canStart('shootout', owned, { ...settings, modesAllowed: { ...ALL, shootout: false } })).toBe(false);
+    expect(canStart('shootout', withStars(0, ['keeper']), settings)).toBe(false);
     expect(canStart('play', emptyLockerRoom(), settings)).toBe(true);
     expect(canStart('time', emptyLockerRoom(), { ...settings, timeChallenge: { allowed: false, minutes: 2 } })).toBe(false);
   });
@@ -111,5 +112,12 @@ describe('start buttons and startable modes (FR-141)', () => {
   it('a wall round keeps its bests apart from "Spielen"', () => {
     expect(recordKey(1, 100, 'untilHearts')).toBe('1-100|keeper|untilHearts');
     expect(recordKey(1, 100, 'untilHearts', null, 'wall')).toBe('1-100|keeper|untilHearts|wall');
+  });
+
+  it('"Torwart" and "Elfmeter" keep one best per range, whatever the round type', () => {
+    expect(recordKey(1, 100, 'untilHearts', null, 'keeper')).toBe('1-100|keeper|keeper');
+    expect(recordKey(1, 100, 'goalCount', null, 'keeper')).toBe('1-100|keeper|keeper');
+    expect(recordKey(1, 100, 'goalCount', null, 'shootout')).toBe('1-100|keeper|shootout');
+    expect(startKindOf({ roundType: 'untilHearts', mode: 'shootout' })).toBe('shootout');
   });
 });

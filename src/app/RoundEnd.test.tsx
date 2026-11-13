@@ -53,3 +53,38 @@ describe('RoundEnd after a cup match (amendment 13, FR-108, T102)', () => {
     expect(screen.getByTestId('round-end').className).toContain('cup-final-won');
   });
 });
+
+describe('RoundEnd after a shootout (amendment 21 part 3, FR-148)', () => {
+  const best = { goals: 3, timeMs: 0, at: 'x' };
+
+  it('a win reads "Elfmeter-Sieger!" with the score, sits low for the confetti, and counts the wins', () => {
+    render(
+      <RoundEnd
+        goals={4}
+        elapsedMs={65_000}
+        roundType="untilHearts"
+        record={{ newRecord: false, best }}
+        stars={5}
+        shootout={{ won: true, score: [4, 3], opponent: 'FC Blitz' }}
+        onAgain={() => {}}
+        onBack={() => {}}
+      />,
+    );
+    expect(screen.getByRole('heading').textContent).toBe('Elfmeter-Sieger!');
+    expect(screen.getByTestId('round-result').textContent).toBe('4:3 gegen FC Blitz');
+    expect(screen.getByTestId('record').textContent).toBe('3 Elfmeterschießen gewonnen');
+    expect(screen.getByTestId('round-stars').textContent).toBe('+5 Sterne');
+    expect(screen.getByTestId('round-end').className).toContain('cup-final-won');
+    expect(screen.getByTestId('round-end').getAttribute('data-shootout-won')).toBe('true');
+  });
+
+  it('a loss reads "Knapp! Noch mal?" and offers "Nochmal"', () => {
+    render(
+      <RoundEnd goals={2} elapsedMs={65_000} roundType="untilHearts" record={null} stars={0} shootout={{ won: false, score: [2, 3], opponent: 'Adler 09' }} onAgain={() => {}} onBack={() => {}} />,
+    );
+    expect(screen.getByRole('heading').textContent).toBe('Knapp! Noch mal?');
+    expect(screen.getByTestId('round-result').textContent).toBe('2:3 gegen Adler 09');
+    expect(screen.getByText('Nochmal')).toBeTruthy();
+    expect(screen.getByTestId('round-end').className).toBe('round-end');
+  });
+});

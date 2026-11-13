@@ -1,6 +1,6 @@
 // Copied from math-tank src/core/records/records.test.ts and adapted to goals and round types.
 import { describe, expect, it } from 'vitest';
-import { emptyRecords, recordKey, recordsSchema, submitResult, type Records } from './records';
+import { emptyRecords, recordKey, recordsSchema, submitResult, submitShootout, type Records } from './records';
 
 describe('recordKey (data-model "PersonalBest")', () => {
   it('names the range, the goalkeeper game and the round type', () => {
@@ -83,5 +83,25 @@ describe('submitResult (FR-028)', () => {
     const r = submitResult(emptyRecords(), key, result(2));
     expect(recordsSchema.safeParse(r.records).success).toBe(true);
     expect(recordsSchema.safeParse({ version: 1, bests: { k: { goals: -1, timeMs: 0, at: 'x' } } }).success).toBe(false);
+  });
+});
+
+describe('the best of "Elfmeterschießen" (amendment 21 part 3): shootouts won', () => {
+  const key = recordKey(1, 100, 'untilHearts', null, 'shootout');
+
+  it('each win adds one; a loss leaves the records as they are', () => {
+    const one = submitShootout(emptyRecords(), key, true, 'a');
+    expect(one.best).toEqual({ goals: 1, timeMs: 0, at: 'a' });
+    expect(one.newRecord).toBe(false);
+    const lost = submitShootout(one.records, key, false, 'b');
+    expect(lost.records).toBe(one.records);
+    expect(lost.best).toEqual({ goals: 1, timeMs: 0, at: 'a' });
+    const two = submitShootout(lost.records, key, true, 'c');
+    expect(two.best?.goals).toBe(2);
+    expect(recordsSchema.safeParse(two.records).success).toBe(true);
+  });
+
+  it('a loss before any win shows no best', () => {
+    expect(submitShootout(emptyRecords(), key, false, 'a')).toEqual({ records: emptyRecords(), newRecord: false, best: null });
   });
 });

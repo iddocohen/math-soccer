@@ -4,13 +4,14 @@
  * same gate as the settings. It shows the child's current difficulty level (with how many more targets alone raise it)
  * and per level the targets solved alone and with help (FR-090). Then per direction the attempts, the targets solved
  * alone and with help in separate columns and whether the direction is mastered. Then the personal bests as a plain
- * list. "Fortschritt zurücksetzen" asks first and then empties the
+ * list, with the bests per mode of amendment 21: "Mauer" by round type, "Torwart" as saves out of 10, "Elfmeter" as
+ * shootouts won. "Fortschritt zurücksetzen" asks first and then empties the
  * progress; the personal bests and the stars stay. "Alles zurücksetzen" (amendment 01, FR-051, as math-tank amendment 24)
  * asks first, reminding the parent to save the data before, then clears progress, personal bests, stars and the locker
  * room together or not at all; the settings stay.
  */
 import { useMemo, useState } from 'react';
-import { summarize } from '../core/progress/summarize';
+import { summarize, type BestRow } from '../core/progress/summarize';
 import { t } from '../i18n';
 import type { Persistence } from './persistence';
 
@@ -129,9 +130,8 @@ export function ProgressPage({ persistence, onClose }: Props) {
         ) : (
           <ul className="progress-bests" data-testid="progress-bests">
             {summary.bests.map((b) => (
-              <li key={`${b.min}-${b.max}|${b.roundType}|${b.challengeMinutes ?? ''}`}>
-                {P.range(b.min, b.max)}, {P.roundTypes[b.roundType]}:{' '}
-                {b.challengeMinutes === null ? P.bestLine(b.goals, b.timeMs) : P.challengeBestLine(b.goals, b.challengeMinutes)}
+              <li key={`${b.min}-${b.max}|${b.matchMode}|${b.roundType ?? ''}|${b.challengeMinutes ?? ''}`} data-match-mode={b.matchMode}>
+                {P.range(b.min, b.max)}, {bestLabel(b)}: {bestValue(b)}
               </li>
             ))}
           </ul>
@@ -144,6 +144,25 @@ export function ProgressPage({ persistence, onClose }: Props) {
       </section>
     </div>
   );
+}
+
+/**
+ * What a best is for (amendment 21): the round type for "Spielen" and the time challenge, "Mauer (round type)",
+ * "Torwart" or "Elfmeter".
+ */
+function bestLabel(b: BestRow): string {
+  const P = t().progressPage;
+  if (b.matchMode === 'normal') return b.roundType === null ? '' : P.roundTypes[b.roundType];
+  const mode = P.matchModes[b.matchMode];
+  return b.roundType === null ? mode : `${mode} (${P.roundTypes[b.roundType]})`;
+}
+
+/** The best itself: goals and time, goals in a time challenge, saves out of 10, or shootouts won. */
+function bestValue(b: BestRow): string {
+  const P = t().progressPage;
+  if (b.matchMode === 'keeper') return P.keeperBestLine(b.goals);
+  if (b.matchMode === 'shootout') return P.shootoutBestLine(b.goals);
+  return b.challengeMinutes === null ? P.bestLine(b.goals, b.timeMs) : P.challengeBestLine(b.goals, b.challengeMinutes);
 }
 
 /**

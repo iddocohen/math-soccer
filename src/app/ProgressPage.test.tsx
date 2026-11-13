@@ -81,6 +81,25 @@ describe('ProgressPage (T045)', () => {
     expect(screen.getByTestId('progress-bests').textContent).toBe('1 bis 100, bis die Bälle weg sind: 6 Tore in 2:05');
   });
 
+  it('lists the bests per mode: "Mauer", "Torwart", "Elfmeter" (amendment 21)', () => {
+    const kv = memoryKeyValue();
+    const records = emptyRecords();
+    const at = '2026-11-13T12:00:00.000Z';
+    records.bests['1-100|keeper|untilHearts'] = { goals: 6, timeMs: 125_000, at };
+    records.bests['1-100|keeper|goalCount|wall'] = { goals: 5, timeMs: 61_000, at };
+    records.bests['1-100|keeper|keeper'] = { goals: 7, timeMs: 90_000, at };
+    records.bests['1-100|keeper|shootout'] = { goals: 2, timeMs: 0, at };
+    saveRecords(kv, records);
+    render(<ProgressPage persistence={createPersistence(kv)} onClose={() => {}} />);
+    const lines = [...screen.getByTestId('progress-bests').querySelectorAll('li')].map((li) => [li.getAttribute('data-match-mode'), li.textContent]);
+    expect(lines).toEqual([
+      ['normal', '1 bis 100, bis die Bälle weg sind: 6 Tore in 2:05'],
+      ['wall', '1 bis 100, Mauer (feste Zahl an Toren): 5 Tore in 1:01'],
+      ['keeper', '1 bis 100, Torwart: 7 von 10 gehalten'],
+      ['shootout', '1 bis 100, Elfmeter: 2 Elfmeterschießen gewonnen'],
+    ]);
+  });
+
   it('asks before resetting, then empties the progress and keeps the stars and the bests', () => {
     const { kv } = setup();
     fireEvent.click(screen.getByRole('button', { name: P.reset }));

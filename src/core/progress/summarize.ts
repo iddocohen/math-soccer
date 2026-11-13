@@ -5,6 +5,7 @@
  */
 import type { Settings } from '../settings/schema';
 import type { Progress, Records } from '../storage/schemas';
+import type { MatchMode } from '../match/rounds';
 import { DIRECTIONS, PLAYED_MODE, type Direction, type Mode, type RoundType } from '../types';
 import { directionKey, emptyLevelCount, rowToRaise } from './adaptive';
 import { currentLevel, LEVELS, type Level } from './levels';
@@ -42,7 +43,13 @@ export interface BestRow {
   min: number;
   max: number;
   mode: Mode;
-  roundType: RoundType;
+  /**
+   * The match mode of the best (amendment 21): "Spielen" and the time challenge are 'normal'. "Torwart" counts the
+   * most saves out of 10, "Elfmeter" the shootouts won, "Mauer" goals as the normal round type does.
+   */
+  matchMode: MatchMode;
+  /** The round type; null for "Torwart" and "Elfmeter", which do not follow it. */
+  roundType: RoundType | null;
   /** The challenge time of a time challenge best; null for the other round types. */
   challengeMinutes: number | null;
   goals: number;
@@ -60,14 +67,21 @@ export interface ProgressSummary {
   bests: BestRow[];
 }
 
-/** A record key `${min}-${max}|${mode}|${roundType}`, with `|${minutes}` for a time challenge (records.ts recordKey), or null. */
+/**
+ * A record key (records.ts recordKey), or null: `${min}-${max}|${mode}|${roundType}`, with `|${minutes}` for a time
+ * challenge and `|wall` for "Mauer"; `${min}-${max}|${mode}|keeper` for "Torwart" and `|shootout` for "Elfmeter".
+ */
 export function parseRecordKey(key: string): Omit<BestRow, 'goals' | 'timeMs'> | null {
-  const m = /^(\d+)-(\d+)\|(keeper)\|(?:(untilHearts|goalCount)|time\|(\d+))$/.exec(key);
+  const m = /^(\d+)-(\d+)\|(keeper)\|(?:(untilHearts|goalCount)(\|wall)?|time\|(\d+)|(keeper|shootout))$/.exec(key);
   if (!m) return null;
   const base = { min: Number(m[1]), max: Number(m[2]), mode: m[3] as Mode };
-  if (m[4] !== undefined) return { ...base, roundType: m[4] as BestRow['roundType'], challengeMinutes: null };
-  return { ...base, roundType: 'time', challengeMinutes: Number(m[5]) };
+  if (m[4] !== undefined) return { ...base, matchMode: m[5] ? 'wall' : 'normal', roundType: m[4] as RoundType, challengeMinutes: null };
+  if (m[7] !== undefined) return { ...base, matchMode: m[7] as MatchMode, roundType: null, challengeMinutes: null };
+  return { ...base, matchMode: 'normal', roundType: 'time', challengeMinutes: Number(m[6]) };
 }
+
+/** The order of the bests per range: "Spielen" and the time challenge, then "Mauer", "Torwart", "Elfmeter". */
+const MODE_ORDER: Record<MatchMode, number> = { normal: 0, wall: 1, keeper: 2, shootout: 3 };
 
 /** `settings` gives the current level. */
 export function summarize(p: Progress, records: Records, settings?: Settings): ProgressSummary {
@@ -89,7 +103,14 @@ export function summarize(p: Progress, records: Records, settings?: Settings): P
     const parsed = parseRecordKey(key);
     if (parsed) all.push({ ...parsed, goals: best.goals, timeMs: best.timeMs });
   }
-  all.sort((a, b) => a.min - b.min || a.max - b.max || a.roundType.localeCompare(b.roundType) || (a.challengeMinutes ?? 0) - (b.challengeMinutes ?? 0));
+  all.sort(
+    (a, b) =>
+      a.min - b.min ||
+      a.max - b.max ||
+      MODE_ORDER[a.matchMode] - MODE_ORDER[b.matchMode] ||
+      (a.roundType ?? '').localeCompare(b.roundType ?? '') ||
+      (a.challengeMinutes ?? 0) - (b.challengeMinutes ?? 0),
+  );
   const levels: LevelRow[] = LEVELS.map((level) => {
     const c = p.levels[String(level)] ?? emptyLevelCount();
     return { level, independent: c.independent, withHelp: c.assisted, guesses: c.guesses };

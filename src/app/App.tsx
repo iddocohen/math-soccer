@@ -70,6 +70,12 @@
  * `data-shot-state` and `data-opponent` (the cup team that shoots). The round end reads "N von 10 gehalten", and its
  * best is the most saves (`recordKey` with the mode 'keeper').
  *
+ * Amendment 21 part 3 (T115): "Elfmeterschießen" starts with "Elfmeter" or E. The match carries `data-mode="shootout"`,
+ * `data-shootout-score` ("2:1", the child's goals first), `data-shootout-turn` (`child` or `opponent`; '' after the
+ * end), and `data-opponent`; the opponent's shots use the same `data-shot-*` attributes as "Selbst ins Tor". The round
+ * end reads "Elfmeter-Sieger!" or "Knapp! Noch mal?", and its best counts the shootouts won
+ * (`submitShootout`).
+ *
  * Review fixes: a round restored after a refresh during the final goal's celebration ends at once, and its result still
  * goes to the personal bests (M2). Accepting a transfer during a match takes its settings into the round (M3, FR-052).
  * Attempts are recorded with the settings the round uses (M4). When a save during play fails, or stored data was reset on
@@ -90,10 +96,11 @@ import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase,
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
-import { recordKey, submitResult } from '../core/records/records';
+import { recordKey, submitResult, submitShootout } from '../core/records/records';
 import { canStart, isControllerKind, startKindOf } from '../core/match/rounds';
 import { wallColumns } from '../core/match/wall';
 import { KEEPER_SHOTS, keeperOpponent } from '../core/match/keeper';
+import { nextSide, scoreText, shootoutScore, shootoutWinner } from '../core/match/shootout';
 import { modeButtons } from '../core/rewards/modes';
 import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
@@ -114,7 +121,7 @@ import { ParentGate } from './ParentGate';
 import { PauseScreen } from './PauseScreen';
 import { createPersistence, type DataKind, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
-import { RoundEnd, type CupRoundResult, type RoundRecord } from './RoundEnd';
+import { RoundEnd, type CupRoundResult, type RoundRecord, type ShootoutResult } from './RoundEnd';
 import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
 import { canApplyUpdate, swUpdate } from './swUpdate';
@@ -291,8 +298,14 @@ function shotState(s: MatchView): string {
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
 function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
   const key = recordKey(s.min, s.max, s.roundType, s.challengeMinutes, s.mode);
-  const outcome = submitResult(persistence.records(), key, { goals: s.goals, timeMs: s.elapsedMs, at: new Date().toISOString() });
-  if (outcome.newRecord) saves.report(persistence.saveRecords(outcome.records));
+  const at = new Date().toISOString();
+  // "Elfmeterschießen" counts the shootouts won (amendment 21); the other modes keep their most goals or saves.
+  const before = persistence.records();
+  const outcome =
+    s.shootout !== null
+      ? submitShootout(before, key, shootoutWinner(s.shootout.kicks) === 0, at)
+      : submitResult(before, key, { goals: s.goals, timeMs: s.elapsedMs, at });
+  if (outcome.records !== before) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
 }
 
@@ -317,6 +330,21 @@ function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): Cu
   else if (update.cupWon) line = text.cupWon(before.cup);
   else line = text.won(text.onTo[CUP_STAGES[update.cup.stage]!]);
   return { won, line, bonus: update.stars, cupWon: update.cupWon };
+}
+
+/** The end of a finished shootout for the round end; null for the other modes or while it goes on. */
+function shootoutResult(s: MatchView): ShootoutResult | null {
+  if (s.shootout === null) return null;
+  const winner = shootoutWinner(s.shootout.kicks);
+  if (winner === null) return null;
+  return { won: winner === 0, score: shootoutScore(s.shootout.kicks), opponent: keeperOpponent(s.seed).name };
+}
+
+/** Whose turn it is in the shootout for tests (`data-shootout-turn`): `child`, `opponent`, or '' outside it or after the end. */
+function shootoutTurn(s: MatchView): string {
+  const side = s.shootout === null ? null : nextSide(s.shootout.kicks);
+  if (side === null) return '';
+  return side === 0 ? 'child' : 'opponent';
 }
 
 /** Which keys the game takes on `screen`. */
@@ -686,6 +714,10 @@ export function App() {
     [cupShow],
   );
   const closeHelpChart = useCallback(() => controller.closeHelpChart(), [controller]);
+  // The names on the score circles of the shootout: the child's shirt name ("Du" without one) and the opponent team.
+  const childName = locker.shirtName.trim() || t().match.you;
+  const opponentName = state.mode === 'shootout' ? keeperOpponent(state.seed).name : '';
+  const shootoutNames = useMemo(() => ({ child: childName, opponent: opponentName }), [childName, opponentName]);
 
   if (screen === 'lockerRoom' && lockerOn) {
     return (
@@ -757,7 +789,9 @@ export function App() {
       data-saves={state.mode === 'keeper' ? state.goals : ''}
       data-shot-target={state.keeperShot?.result === null ? (state.target?.number ?? '') : ''}
       data-shot-state={shotState(state)}
-      data-opponent={state.mode === 'keeper' ? keeperOpponent(state.seed).id : ''}
+      data-opponent={state.mode === 'keeper' || state.mode === 'shootout' ? keeperOpponent(state.seed).id : ''}
+      data-shootout-score={state.shootout === null ? '' : scoreText(state.shootout.kicks)}
+      data-shootout-turn={shootoutTurn(state)}
       onPointerDown={skipCelebration}
     >
       <div className="game-parent" ref={gameParent} />
@@ -769,6 +803,7 @@ export function App() {
         ball={locker.ball}
         shirt={locker.shirtColor}
         stadium={stadiumNameShown(locker.stadiumName)}
+        shootoutNames={shootoutNames}
         settings={overlaySettings}
         gear={gear}
         onLockerRoom={lockerOn ? openMatchLocker : undefined}
@@ -803,6 +838,7 @@ export function App() {
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
           keeperShots={state.mode === 'keeper' ? KEEPER_SHOTS : null}
+          shootout={shootoutResult(state)}
           onAgain={playAgain}
           onBack={() => setScreen(state.roundType === 'cup' ? 'cup' : 'start')}
         />

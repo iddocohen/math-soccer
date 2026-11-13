@@ -5,8 +5,8 @@
  * - `play` ("Spielen"), `time` ("Zeit-Challenge") and `cup` ("Pokal") are always there (the time challenge only when the
  *   parent allows it).
  * - `wall` ("Mauer"), `keeper` ("Torwart") and `shootout` ("Elfmeter") are the modes bought in the locker room
- *   (src/core/rewards/modes.ts). Their `mode` is the match mode the controller plays; null while the mode's game is not
- *   built yet (amendment 21 part 3).
+ *   (src/core/rewards/modes.ts). Their `mode` is the match mode the controller plays; a kind with the mode null is not
+ *   built yet and never starts.
  *
  * A round's round type stays the one the parent chose for "Spielen", except in the time challenge and the cup. The match
  * mode is a separate field of the round, so "Freistoß mit Mauer" follows the parent's round type (FR-142).
@@ -19,8 +19,11 @@ import type { RoundType } from '../types';
 export const START_KINDS = ['play', 'time', 'cup', 'wall', 'keeper', 'shootout'] as const;
 export type StartKind = (typeof START_KINDS)[number];
 
-/** The match modes the controller plays: the usual game, the free kick with the wall (FR-142), the child in goal (FR-143). */
-export const MATCH_MODES = ['normal', 'wall', 'keeper'] as const;
+/**
+ * The match modes the controller plays: the usual game, the free kick with the wall (FR-142), the child in goal
+ * (FR-143), and the penalty shootout (FR-147).
+ */
+export const MATCH_MODES = ['normal', 'wall', 'keeper', 'shootout'] as const;
 export type MatchMode = (typeof MATCH_MODES)[number];
 
 export interface StartKindInfo {
@@ -38,11 +41,11 @@ export const START_KIND_INFO: Record<StartKind, StartKindInfo> = {
   cup: { mode: 'normal', unlock: null, roundType: 'cup' },
   wall: { mode: 'wall', unlock: 'wall', roundType: 'settings' },
   keeper: { mode: 'keeper', unlock: 'keeper', roundType: 'settings' },
-  shootout: { mode: null, unlock: 'shootout', roundType: 'settings' },
+  shootout: { mode: 'shootout', unlock: 'shootout', roundType: 'settings' },
 };
 
-/** The kinds `MatchController.start` begins; the cup starts through `startCup`, and modes not built yet not at all. */
-export type ControllerKind = 'play' | 'time' | 'wall' | 'keeper';
+/** The kinds `MatchController.start` begins; the cup starts through `startCup`. */
+export type ControllerKind = Exclude<StartKind, 'cup'>;
 
 /** The round type of a round started as `kind`. */
 export function roundTypeOf(kind: StartKind, settings: Pick<Settings, 'roundType'>): RoundType {
@@ -58,7 +61,7 @@ export function startKindOf(s: { roundType: RoundType; mode: MatchMode }): Start
 
 /** True for the kinds `MatchController.start` begins. */
 export function isControllerKind(kind: StartKind): kind is ControllerKind {
-  return kind === 'play' || kind === 'time' || kind === 'wall' || kind === 'keeper';
+  return kind !== 'cup' && START_KIND_INFO[kind].mode !== null;
 }
 
 /**

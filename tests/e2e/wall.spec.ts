@@ -6,8 +6,8 @@
  *   "Selbst ins Tor" first. Back on the start screen "Mauer" starts with M.
  * - In the match `data-mode="wall"` and `data-wall-cols` name the covered columns; the target and its hints are never
  *   in them. A shot at a number behind the wall is a miss with "Die Mauer! Hier ist N."; a goal moves the wall.
- * - "Elfmeterschießen" can be bought after "Selbst ins Tor" and says "kommt bald" until its game exists; "Spielarten
- *   erlauben" hides a button.
+ * - "Elfmeterschießen" can be bought after "Selbst ins Tor" and is then ready to start; "Spielarten erlauben" hides a
+ *   button.
  * - The defenders stand clear of the child's player (`data-wall-cols` avoids his columns 3 and 4 when it can).
  *
  * Every wait is on data-* state or text, never a fixed sleep.
@@ -100,7 +100,7 @@ test('unlock "Mauer" with stars, then score past the wall and hit it once', asyn
   await expect(scene).not.toHaveAttribute('data-wall-cols', cols.join(','));
 });
 
-test('"Selbst ins Tor" unlocks; "Elfmeterschießen" follows it and says "kommt bald"; the parent can hide a mode', async ({ page }) => {
+test('"Selbst ins Tor" unlocks; "Elfmeterschießen" follows it; the parent can hide a mode', async ({ page }) => {
   await seedStorage(
     page,
     { [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), stars: 900, totalEarned: 900, modes: ['wall'] } },
@@ -119,15 +119,10 @@ test('"Selbst ins Tor" unlocks; "Elfmeterschießen" follows it and says "kommt b
   await expect(page.getByTestId('locker-room')).toHaveAttribute('data-stars', '0');
   await page.keyboard.press('Escape');
 
-  // "Selbst ins Tor" is ready (amendment 21 part 2); "Elfmeterschießen" comes later: "kommt bald", and E starts nothing.
+  // Both are ready now (amendment 21 parts 2 and 3).
   await expect(page.locator('[data-start="keeper"]')).toHaveAttribute('data-mode-state', 'ready');
-  await expect(page.locator('[data-start="shootout"]')).toHaveAttribute('data-mode-state', 'soon');
-  await expect(page.locator('[data-start="shootout"]')).toContainText('kommt bald');
-  await page.keyboard.press('e');
-  // The button is marked disabled for screen readers; a tap on it still does nothing.
-  await expect(page.locator('[data-start="shootout"]')).toHaveAttribute('aria-disabled', 'true');
-  await page.locator('[data-start="shootout"]').click({ force: true });
-  await expect(page.getByTestId('start')).toBeVisible();
+  await expect(page.locator('[data-start="shootout"]')).toHaveAttribute('data-mode-state', 'ready');
+  await expect(page.locator('[data-start="shootout"]')).not.toContainText('kommt bald');
 
   // "Spielarten erlauben": with "Freistoß mit Mauer" off, its button is gone and M does nothing.
   await seedStorage(page, { [SETTINGS_KEY]: { ...settings, modesAllowed: { wall: false, keeper: true, shootout: true } } });

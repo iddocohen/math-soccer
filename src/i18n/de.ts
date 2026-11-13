@@ -84,6 +84,14 @@ export const de = {
     goalsOf: (n: number, total: number) => `${n} von ${total} Toren`,
     /** "Selbst ins Tor" (amendment 21, FR-146): the saves and the shot that flies now. */
     keeperCount: (saves: number, shot: number, total: number) => `${saves} gehalten · Schuss ${shot} von ${total}`,
+    /** "Elfmeterschießen" (amendment 21 part 3, FR-147): the round, then each round of sudden death. */
+    shootoutRound: (round: number, rounds: number) => (round <= rounds ? `Elfmeter · Runde ${round} von ${rounds}` : `Elfmeter · Entscheidung ${round - rounds}`),
+    /** The score circles' label: "Leo 2, FC Blitz 1". */
+    shootoutScore: (child: string, a: number, opponent: string, b: number) => `${child} ${a}, ${opponent} ${b}`,
+    /** Whose turn it is: the child shoots or keeps. */
+    shootoutTurn: { child: 'Du schießt!', opponent: 'Du hältst!' },
+    /** The child's name on the score circles when he has no shirt name. */
+    you: 'Du',
     hearts: (n: number) => `${n} Bälle übrig`,
     speaker: 'Vorlesen',
     numberPad: { label: 'Zahlenfeld', delete: 'Löschen', shoot: 'Schießen' },
@@ -103,6 +111,8 @@ export const de = {
     saved: 'Gehalten!',
     conceded: (n: number) => `Tor! Hier war ${n}.`,
     late: (n: number) => `Zu spät! Hier war ${n}.`,
+    /** "Elfmeterschießen" (amendment 21 part 3): the child's kick missed, the opponent's turn comes. */
+    kickMissed: (n: number) => `Daneben! Hier ist ${n}.`,
     outOfRange: (min: number, max: number) => `Zahlen von ${min} bis ${max}`,
     heartLost: "Weiter geht's!",
     /** A goal that raised the difficulty level (FR-088). */
@@ -136,6 +146,12 @@ export const de = {
     /** "Selbst ins Tor" (amendment 21, FR-146): the saves of the round and the best. */
     keeperSummary: (saves: number, shots: number) => `${saves} von ${shots} gehalten`,
     keeperRecord: (saves: number) => `Dein Rekord: ${saves} gehalten`,
+    /** "Elfmeterschießen" (amendment 21 part 3, FR-148): the trophy moment, the gentle loss, the score and the wins. */
+    shootoutWon: 'Elfmeter-Sieger!',
+    /** Not "Knapp verloren!" as the amendment's draft said: child texts never say "verloren" (FR-023). */
+    shootoutLost: 'Knapp! Noch mal?',
+    shootoutSummary: (a: number, b: number, opponent: string) => `${a}:${b} gegen ${opponent}`,
+    shootoutRecord: (wins: number) => (wins === 1 ? '1 Elfmeterschießen gewonnen' : `${wins} Elfmeterschießen gewonnen`),
     stars: (n: number) => `+${starCount(n)}`,
     /** A new version waits (amendment 12, FR-103). */
     updateWaiting: 'Neue Version, startet gleich',
@@ -470,6 +486,10 @@ export const de = {
     masteredNo: 'noch nicht',
     noBests: 'Noch keine Rekorde.',
     roundTypes: { untilHearts: 'bis die Bälle weg sind', goalCount: 'feste Zahl an Toren', time: 'Zeit-Challenge', cup: 'Pokal' },
+    /** The bests per mode (amendment 21): the mode's start button name. */
+    matchModes: { wall: 'Mauer', keeper: 'Torwart', shootout: 'Elfmeter' },
+    keeperBestLine: (saves: number) => `${saves} von 10 gehalten`,
+    shootoutBestLine: (wins: number) => (wins === 1 ? '1 Elfmeterschießen gewonnen' : `${wins} Elfmeterschießen gewonnen`),
     range: (min: number, max: number) => `${min} bis ${max}`,
   },
 

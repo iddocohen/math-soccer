@@ -10,8 +10,8 @@
  * its start screen button. The locker room keeps them in `modes`, apart from `owned`. Once bought, a mode stays
  * unlocked; only `unlockMode` takes stars.
  *
- * `playable` is false for the modes whose game comes in a later part of amendment 21 (T114, T115): they can be bought,
- * and the start screen button says "kommt bald".
+ * `playable` is false for a mode whose game is not built yet: it can be bought, and the start screen button says
+ * "kommt bald". All three modes of amendment 21 are playable.
  */
 import type { LockerRoom } from '../storage/schemas';
 
@@ -34,7 +34,7 @@ export interface ModeOffer {
 export const MODE_OFFERS: Record<UnlockMode, ModeOffer> = {
   wall: { mode: 'wall', price: 200, requires: null, key: 'M', playable: true },
   keeper: { mode: 'keeper', price: 300, requires: null, key: 'T', playable: true },
-  shootout: { mode: 'shootout', price: 600, requires: 'keeper', key: 'E', playable: false },
+  shootout: { mode: 'shootout', price: 600, requires: 'keeper', key: 'E', playable: true },
 };
 
 export function isUnlockMode(value: string): value is UnlockMode {

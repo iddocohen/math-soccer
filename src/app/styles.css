@@ -328,6 +328,70 @@ button:focus-visible {
   text-shadow: 0 0 6px rgb(255 200 60 / 55%);
 }
 
+/*
+ * The score circles of "Elfmeterschießen" (amendment 21 part 3, FR-147): one row per side with its name, a filled
+ * circle in kit yellow for a goal, a crossed grey one for a miss, an empty ring for a kick still to come.
+ */
+.shootout-score {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 3px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: var(--night);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.shootout-row {
+  display: contents;
+}
+
+.shootout-name {
+  max-width: 9em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.75;
+}
+
+.shootout-row-turn .shootout-name {
+  color: var(--kit);
+  opacity: 1;
+}
+
+.shootout-circles {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.shootout-circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.55);
+  box-sizing: border-box;
+}
+
+.shootout-goal {
+  background: var(--kit);
+  border-color: var(--kit);
+}
+
+.shootout-miss {
+  background: linear-gradient(45deg, transparent 42%, #e9eef3 42%, #e9eef3 58%, transparent 58%), #56606b;
+  border-color: #56606b;
+}
+
+.shootout-turn {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--kit);
+}
+
 .hearts {
   display: inline-flex;
   gap: 6px;

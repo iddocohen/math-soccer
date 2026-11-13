@@ -31,6 +31,11 @@
  * Home (amendment 14, FR-116): with `onHome` a house icon with the accessible name "Zum Start" sits next to pause. One
  * tap pauses the round and the app asks "Runde beenden?" (PauseScreen.tsx). The icon never takes focus.
  *
+ * "Elfmeterschießen" (amendment 21 part 3, FR-147): in the mode 'shootout' the goal counter names the round, and the score
+ * shows as two rows of circles (goal, miss, open) with the child's name and the opponent's team name
+ * (`data-testid="shootout-score"`, each circle with `data-kick`). The rows have five circles and grow by one per round
+ * of sudden death. A line under them says whose turn it is.
+ *
  * Polish (T061 to T063): with `pad` the on-screen number pad (NumberPad.tsx, FR-031) shows at the bottom and
  * `data-number-pad` is true. With `onSpeak` ("Vorlesen" on and a German voice, FR-032) a speaker icon reads the task
  * again. The fullscreen icon (FR-033) shows where the browser lets a page use fullscreen. Like the locker room icon,
@@ -40,6 +45,7 @@ import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { KEEPER_SHOTS } from '../core/match/keeper';
+import { nextSide, scoreCircles, shootoutRound, shootoutScore, SHOOTOUT_ROUNDS, type ShootoutKicks } from '../core/match/shootout';
 import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
@@ -85,6 +91,8 @@ export function messageText(message: MatchMessage | null): string {
       return f.conceded(message.number);
     case 'late':
       return f.late(message.number);
+    case 'kickMissed':
+      return f.kickMissed(message.number);
     case 'heartLost':
       return f.heartLost;
   }
@@ -131,6 +139,8 @@ interface Props {
   shirt?: string;
   /** The stadium name on the scoreboard next to the goal counter (amendment 20, FR-135); no scoreboard without it. */
   stadium?: string;
+  /** "Elfmeterschießen": the names on the score circles, the child's and the opponent team's. */
+  shootoutNames?: { child: string; opponent: string };
   /** The parent gate's gear (T041), at the end of the top buttons. */
   gear?: ReactNode;
   /** Opens the locker room over the match (FR-049); the icon shows only when this is given. */
@@ -154,6 +164,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   ball = STARTER.ball,
   shirt = STARTER.shirt,
   stadium,
+  shootoutNames,
   settings,
   gear,
   onLockerRoom,
@@ -179,6 +190,7 @@ export const MatchOverlay = memo(function MatchOverlay({
     const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
     goals = text.match.keeperCount(state.goals, Math.max(1, shot), KEEPER_SHOTS);
   }
+  if (state.shootout !== null) goals = text.match.shootoutRound(shootoutRound(state.shootout.kicks), SHOOTOUT_ROUNDS);
   return (
     <div
       className="overlay"
@@ -221,7 +233,10 @@ export const MatchOverlay = memo(function MatchOverlay({
               {stadium}
             </span>
           )}
-          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && (
+          {state.shootout !== null && (
+            <ShootoutScore kicks={state.shootout.kicks} names={shootoutNames ?? { child: text.match.you, opponent: '' }} />
+          )}
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && state.mode !== 'shootout' && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
@@ -303,6 +318,33 @@ export const MatchOverlay = memo(function MatchOverlay({
 });
 
 const noSubscribe = () => () => {};
+
+/** The score circles of the shootout (FR-147): one row per side with its name, and whose turn it is. */
+function ShootoutScore({ kicks, names }: { kicks: ShootoutKicks; names: { child: string; opponent: string } }) {
+  const text = t().match;
+  const rows = scoreCircles(kicks);
+  const [a, b] = shootoutScore(kicks);
+  const side = nextSide(kicks);
+  return (
+    <div className="shootout-score" data-testid="shootout-score" role="img" aria-label={text.shootoutScore(names.child, a, names.opponent, b)}>
+      {([0, 1] as const).map((i) => (
+        <div key={i} className={side === i ? 'shootout-row shootout-row-turn' : 'shootout-row'} data-side={i}>
+          <span className="shootout-name">{i === 0 ? names.child : names.opponent}</span>
+          <span className="shootout-circles" aria-hidden="true">
+            {rows[i].map((kick, k) => (
+              <span key={k} className={`shootout-circle shootout-${kick}`} data-kick={kick} />
+            ))}
+          </span>
+        </div>
+      ))}
+      {side !== null && (
+        <span className="shootout-turn" data-testid="shootout-turn">
+          {side === 0 ? text.shootoutTurn.child : text.shootoutTurn.opponent}
+        </span>
+      )}
+    </div>
+  );
+}
 
 /** The time played; it re-renders on its own when the source ticks. */
 function Clock({ source }: { source: ClockSource }) {
