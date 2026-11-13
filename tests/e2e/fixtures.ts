@@ -84,6 +84,23 @@ export async function typeAndShoot(page: Page, n: number): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
+/**
+ * Saves a screenshot once the browser has drawn two more frames, so the capture does not race a frame of the game's
+ * canvas. Headless Chromium can still answer "Unable to capture screenshot" while a frame is in progress; then it waits
+ * for the next frames and captures once more. The screenshot is for people to look at; no check reads it.
+ */
+export async function screenshotWhenDrawn(page: Page, path: string): Promise<void> {
+  const nextFrames = () => page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+  await nextFrames();
+  try {
+    await page.screenshot({ path });
+  } catch (error) {
+    if (!String(error).includes('Unable to capture screenshot')) throw error;
+    await nextFrames();
+    await page.screenshot({ path });
+  }
+}
+
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(silenceAudio);

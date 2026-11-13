@@ -218,7 +218,15 @@ export const loadLockerRoom = (kv: KeyValue) => load(kv, LOCKER_ROOM);
 export const saveLockerRoom = (kv: KeyValue, l: LockerRoom) => save(kv, LOCKER_ROOM, l);
 export const loadCup = (kv: KeyValue) => load(kv, CUP);
 export const saveCup = (kv: KeyValue, c: Cup) => save(kv, CUP, c);
-export const loadRound = (kv: KeyValue) => load(kv, ROUND);
+/**
+ * Loads the stored round. A round that cannot be read is removed once its copy is kept under `unreadableKey`, so later
+ * loads do not parse it and copy it again.
+ */
+export function loadRound(kv: KeyValue): { value: StoredRound | null; resetReason: ResetReason } {
+  const loaded = load(kv, ROUND);
+  if (loaded.resetReason === 'invalid' || loaded.resetReason === 'newer') clear(kv, ROUND);
+  return loaded;
+}
 export const saveRound = (kv: KeyValue, r: StoredRound) => save(kv, ROUND, r);
 export const clearRound = (kv: KeyValue) => clear(kv, ROUND);
 

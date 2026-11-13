@@ -56,7 +56,7 @@
  *
  * Amendment 20 (T111): `data-trail`, `data-goal-effect` and `data-mascot` on the match name the trail, the goal effect
  * and the mascot the scene shows; `data-trail-showing`, `data-goal-effect-playing` and `data-mascot-mood` say what they
- * do right now. Part 2 (T112): `data-weather`, `data-floodlight`, `data-stands` and `data-stadium-name` name the
+ * do right now; `data-extras-at` is the scene's game time of their last change. Part 2 (T112): `data-weather`, `data-floodlight`, `data-stands` and `data-stadium-name` name the
  * weather, the floodlight color, the stands and the scoreboard's name; `data-weather-drops` counts the falling snowflakes
  * or raindrops.
  *
@@ -116,7 +116,7 @@ import { applyBaseline, clearRound, loadRound, saveRound } from '../core/storage
 import { decodeTransfer, saveCodeFromHash, type SaveData } from '../core/transfer/transfer';
 import type { Digit } from '../core/match/entry';
 import type { GameHandle } from '../game/createGame';
-import type { CupScene, CupShow, SceneExtras } from '../game/MatchScene';
+import type { CupScene, CupShow, ReportedExtras } from '../game/MatchScene';
 import type { KeeperPhase } from '../game/KeeperView';
 import { resetMessage, t } from '../i18n';
 import { START_KINDS, type KeyAction, type KeyScreen, type StartKind } from './keyboard';
@@ -429,7 +429,7 @@ export function App() {
   // The goal celebration that plays (FR-114), as `data-celebration` for tests.
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   // What the scene shows of the trail, the goal effect and the mascot (amendment 20), as `data-*` attributes for tests.
-  const [extras, setExtras] = useState<SceneExtras | null>(null);
+  const [extras, setExtras] = useState<ReportedExtras | null>(null);
   // The match intro card of a cup match: "Gruppenspiel 1 gegen FC Blitz" (T102).
   const [intro, setIntro] = useState<{ stage: number; team: CupTeam } | null>(null);
   // The intro card of a cup match costs no time of the round.
@@ -887,6 +887,7 @@ export function App() {
       data-goal-effect-playing={extras?.goalEffectPlaying === true}
       data-mascot={extras?.mascot ?? ''}
       data-mascot-mood={extras?.mascotMood ?? ''}
+      data-extras-at={extras?.at ?? 0}
       data-weather={extras?.weather ?? ''}
       data-weather-drops={extras?.weatherDrops ?? 0}
       data-floodlight={extras?.floodlight ?? ''}

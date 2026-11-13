@@ -161,6 +161,15 @@ export interface SceneExtras {
   weatherDrops: number;
 }
 
+/** The extras as `onExtras` hears them, with the scene's game time of the change (`data-extras-at`). */
+export interface ReportedExtras extends SceneExtras {
+  /**
+   * The scene's game time in ms: the sum of the frame times the trail, the effect and the mascot moved on by. Tests
+   * measure their durations with it, because the game's clock runs slower than the wall clock when frames are slow.
+   */
+  at: number;
+}
+
 export interface MatchSceneOptions {
   sounds?: MatchSounds;
   /** The parent's settings; the scene reads the hint display ("immer" or "auf Wunsch") and the row and column helper. */
@@ -179,7 +188,7 @@ export interface MatchSceneOptions {
   /** Hears the goal celebration that starts, and null when it ends or is skipped. */
   onCelebration?: (celebration: Celebration | null) => void;
   /** Hears what shows of the trail, the goal effect and the mascot, whenever it changes. */
-  onExtras?: (extras: SceneExtras) => void;
+  onExtras?: (extras: ReportedExtras) => void;
 }
 
 /** How long the ball rests on a filled square of a cutout before it fades, uncovering the square's number. */
@@ -241,6 +250,8 @@ export class MatchScene extends Phaser.Scene {
   };
   /** The extras last reported to `onExtras`, as one string. */
   private extrasKey = '';
+  /** The scene's own clock: the sum of the frame times the views moved on by, so it stops while the round is paused. */
+  private gameMs = 0;
   /** The cup match of the round; null outside the cup. */
   private cupMatch: CupScene | null = null;
   /** The state of the last draw, so a clock tick can be skipped. */
@@ -298,6 +309,7 @@ export class MatchScene extends Phaser.Scene {
     this.shotCount = -1;
     this.shotK = 0;
     this.extrasKey = '';
+    this.gameMs = 0;
     this.cupMatch = null;
     this.prev = null;
     this.fresh = true;
@@ -313,6 +325,7 @@ export class MatchScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     if (this.pausedNow) return;
+    this.gameMs += delta;
     this.stands.update(delta);
     this.trail.update(delta, this.ball.flightPoint);
     this.goalEffect.update(delta);
@@ -330,7 +343,7 @@ export class MatchScene extends Phaser.Scene {
     const key = JSON.stringify(this.extras);
     if (key === this.extrasKey) return;
     this.extrasKey = key;
-    this.options.onExtras?.(this.extras);
+    this.options.onExtras?.({ ...this.extras, at: this.gameMs });
   }
 
   private teardown(): void {

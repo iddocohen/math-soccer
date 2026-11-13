@@ -11,7 +11,7 @@
  * The speed-up hook stops play time while a decided shot is checked, so its short result stays on screen.
  * Every wait is on data-* state or text, never a fixed sleep.
  */
-import { expect, seedStorage, test, typeAndShoot } from './fixtures';
+import { expect, screenshotWhenDrawn, seedStorage, test, typeAndShoot } from './fixtures';
 import { defaultSettings } from '../../src/core/settings/defaults';
 import { emptyLockerRoom } from '../../src/core/storage/schemas';
 import { LOCKER_ROOM_KEY, ROUND_KEY, SETTINGS_KEY } from '../../src/core/storage/storage';
@@ -124,5 +124,5 @@ test('screenshot: the flashing square with the countdown ring, mid-flight', asyn
   await expect(page.getByTestId('match')).toHaveAttribute('data-keeper', 'idle');
   await page.keyboard.type('4');
   await expect(page.getByTestId('entry')).toHaveText('4');
-  await page.screenshot({ path: test.info().outputPath('keeper-mode.png') });
+  await screenshotWhenDrawn(page, test.info().outputPath('keeper-mode.png'));
 });

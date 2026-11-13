@@ -150,6 +150,24 @@ describe('damaged data resets with a reason (FR-036)', () => {
     expect(loadRound(kv)).toEqual({ value: null, resetReason: 'invalid' });
   });
 
+  it('an unreadable round is kept once and its key is cleared, so the next load finds no round', () => {
+    const kv = memoryKeyValue({ [ROUND_KEY]: '{not json' });
+    expect(loadRound(kv)).toEqual({ value: null, resetReason: 'invalid' });
+    expect(kv.get(unreadableKey(ROUND_KEY))).toBe('{not json');
+    expect(kv.get(ROUND_KEY)).toBeNull();
+    kv.set(unreadableKey(ROUND_KEY), 'older copy');
+    expect(loadRound(kv)).toEqual({ value: null, resetReason: 'none' });
+    expect(kv.get(unreadableKey(ROUND_KEY))).toBe('older copy');
+  });
+
+  it('a round from a newer version is kept and its key is cleared', () => {
+    const text = JSON.stringify({ ...storedRound(), version: 99 });
+    const kv = memoryKeyValue({ [ROUND_KEY]: text });
+    expect(loadRound(kv)).toEqual({ value: null, resetReason: 'newer' });
+    expect(kv.get(unreadableKey(ROUND_KEY))).toBe(text);
+    expect(kv.get(ROUND_KEY)).toBeNull();
+  });
+
   it('settings that break a settings rule give defaults with resetReason invalid', () => {
     const bad = { ...defaultSettings(), levels: { start: 4, hardest: 2 } };
     const kv = memoryKeyValue({ [SETTINGS_KEY]: JSON.stringify(bad) });

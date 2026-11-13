@@ -4,17 +4,21 @@
  * the match `data-trail`, `data-goal-effect` and `data-mascot` name them. A goal shows the trail in flight, gone within
  * about 0.4 s after the landing, runs the fireworks and makes the lion cheer; a miss makes it cover its eyes.
  *
- * The short states (the trail, the effect, the mascot's mood) are recorded by a MutationObserver with their times, so
- * no wait can miss them; every other wait is on data-* state, never fixed sleeps.
+ * The short states (the trail, the effect, the mascot's mood) are recorded by a MutationObserver with the scene's game
+ * time (`data-extras-at`), so no wait can miss them and slow frames do not stretch the measured times; every other wait
+ * is on data-* state, never fixed sleeps.
  */
 import { expect, seedStorage, startRound, targetNumber, test, typeAndShoot } from './fixtures';
 import { defaultSettings } from '../../src/core/settings/defaults';
 import { emptyLockerRoom } from '../../src/core/storage/schemas';
 import { LOCKER_ROOM_KEY, SETTINGS_KEY } from '../../src/core/storage/storage';
 
+/** One recorded change: `at` is the scene's game time in ms (`data-extras-at` on the match) when it was seen. */
+type Seen = { name: string; value: string; at: number };
+
 declare global {
   interface Window {
-    __seen?: Array<{ name: string; value: string; at: number }>;
+    __seen?: Seen[];
   }
 }
 
@@ -25,16 +29,17 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript((names) => {
     window.__seen = [];
     new MutationObserver((records) => {
+      const at = Number(document.querySelector('main.match')?.getAttribute('data-extras-at') ?? 0);
       for (const r of records) {
         const value = (r.target as Element).getAttribute(r.attributeName!) ?? '';
-        window.__seen!.push({ name: r.attributeName!, value, at: performance.now() });
+        window.__seen!.push({ name: r.attributeName!, value, at });
       }
     }).observe(document, { subtree: true, attributes: true, attributeFilter: names });
   }, WATCHED);
 });
 
 /** The recorded changes of the watched attributes since the last call. */
-async function seen(page: import('@playwright/test').Page): Promise<Array<{ name: string; value: string; at: number }>> {
+async function seen(page: import('@playwright/test').Page): Promise<Seen[]> {
   return page.evaluate(() => window.__seen!.splice(0));
 }
 
@@ -87,20 +92,21 @@ test('buy a fire trail, fireworks and the lion; they show in the match, on a goa
   expect(trailOn, 'the trail showed').toBeDefined();
   expect(first('data-goal-effect-playing', 'true'), 'the fireworks ran').toBeDefined();
   expect(first('data-mascot-mood', 'cheer'), 'the lion cheered').toBeDefined();
-  // The trail starts during the flight and is gone within about 0.4 s of the landing. When the test browser draws
-  // slowly, the game's clock runs slower than the wall clock, so times are measured against the lion's cheer, which
-  // starts at the landing and lasts 1 s of the game's clock (MASCOT_CHEER_MS).
-  const landed = goal.find((c) => c.name === 'data-phase' && c.value !== 'ballInFlight' && c.at > flying!.at)!;
-  const trailOff = goal.find((c) => c.name === 'data-trail-showing' && c.value === 'false' && c.at > trailOn!.at)!;
-  const cheerOff = goal.find((c) => c.name === 'data-mascot-mood' && c.value === 'idle' && c.at > landed.at)!;
-  const second = cheerOff.at - landed.at;
+  // The trail starts during the flight and is gone within about 0.4 s of the landing (TRAIL_FADE_MS). Times are the
+  // scene's game time, which slow frames do not stretch. The lion's cheer starts at the landing and lasts 1 s
+  // (MASCOT_CHEER_MS), and the effect runs about 1 s (GOAL_EFFECT_MS).
+  const after = (from: Seen, name: string, value: string) => goal.slice(goal.indexOf(from) + 1).find((c) => c.name === name && c.value === value)!;
+  const landed = first('data-mascot-mood', 'cheer')!;
+  const trailOff = after(trailOn!, 'data-trail-showing', 'false');
+  const cheerOff = after(landed, 'data-mascot-mood', 'idle');
   expect(trailOn!.at).toBeLessThan(landed.at);
-  expect((trailOff.at - landed.at) / second).toBeLessThan(0.4 + 0.1);
-  // The effect runs about 1 s.
+  expect(trailOff.at - landed.at).toBeLessThan(400 + 100);
+  expect(cheerOff.at - landed.at).toBeGreaterThan(900);
+  expect(cheerOff.at - landed.at).toBeLessThan(1200);
   const effectOn = first('data-goal-effect-playing', 'true')!;
-  const effectOff = goal.find((c) => c.name === 'data-goal-effect-playing' && c.value === 'false' && c.at > effectOn.at)!;
-  expect((effectOff.at - effectOn.at) / second).toBeGreaterThan(0.9);
-  expect((effectOff.at - effectOn.at) / second).toBeLessThan(1.4);
+  const effectOff = after(effectOn, 'data-goal-effect-playing', 'false');
+  expect(effectOff.at - effectOn.at).toBeGreaterThan(900);
+  expect(effectOff.at - effectOn.at).toBeLessThan(1400);
 
   // A miss: the lion covers its eyes, and no goal effect plays.
   const target = await targetNumber(match);
