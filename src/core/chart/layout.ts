@@ -62,6 +62,18 @@ export function numberAt(layout: ChartLayout, row: number, col: number): number 
   return n >= layout.min && n <= layout.max ? n : null;
 }
 
+/** The squares of the chart that carry a number, row by row from the top left: the number, its row and its column. */
+export function chartSquares(layout: ChartLayout): Array<{ n: number; row: number; col: number }> {
+  const squares: Array<{ n: number; row: number; col: number }> = [];
+  for (let row = 0; row < layout.rows; row++) {
+    for (let col = 0; col < COLUMNS; col++) {
+      const n = numberAt(layout, row, col);
+      if (n !== null) squares.push({ n, row, col });
+    }
+  }
+  return squares;
+}
+
 /** World rectangle of the square of `n` inside the goal rectangle. */
 export function cellRect(layout: ChartLayout, goal: Rect, n: number): Rect {
   const { row, col } = cellOf(layout, n);

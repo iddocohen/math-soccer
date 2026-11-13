@@ -23,6 +23,7 @@ import { center, type BallKind } from '../core/chart/layout';
 import type { BallDesign } from '../core/rewards/items';
 import { KICK_SPOT } from '../core/match/world';
 import type { Rect } from '../core/types';
+import { clamp, lerp } from '../core/util';
 import { ballPicture, type BallPicture } from './ballArt';
 import { spinFrame } from './ballSpin';
 import { BALL_IN_NET_DEPTH } from './GoalView';
@@ -44,8 +45,9 @@ const ROLL_TOP_Y = 820;
 export function rollPoint(to: { x: number; y: number }, k: number): { x: number; y: number; scale: number } {
   const dy = KICK_SPOT.y - to.y;
   const share = dy > 0 ? Math.min(ROLL_SHARE, (KICK_SPOT.y - ROLL_TOP_Y) / dy) : ROLL_SHARE;
-  const f = share * Math.max(0, Math.min(1, k));
-  return { x: KICK_SPOT.x + (to.x - KICK_SPOT.x) * f, y: KICK_SPOT.y - dy * f, scale: 1 - 0.2 * Math.max(0, Math.min(1, k)) };
+  const along = clamp(k, 0, 1);
+  const f = share * along;
+  return { x: lerp(KICK_SPOT.x, to.x, f), y: KICK_SPOT.y - dy * f, scale: 1 - 0.2 * along };
 }
 
 export class BallView {
@@ -133,9 +135,9 @@ export class BallView {
         const k = tw.getValue() ?? 0;
         // Fast off the foot, slower near the goal.
         const e = 1 - (1 - k) * (1 - k);
-        const x = x0 + (x1 - x0) * e;
-        const ground = y0 + (y1 - y0) * e;
-        const scale = startScale + (endScale - startScale) * e;
+        const x = lerp(x0, x1, e);
+        const ground = lerp(y0, y1, e);
+        const scale = lerp(startScale, endScale, e);
         this.ball.setPosition(x, ground - Math.sin(Math.PI * k) * ARC);
         this.setSize(scale);
         // The sprite spins through its frames; a drawn ball turns.

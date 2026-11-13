@@ -18,6 +18,7 @@
  */
 import type { GoalEffect, Trail } from '../core/rewards/items';
 import { STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
+import { COLOR } from './palette';
 import type { ParticleImage, ParticleInit } from './particles';
 
 /** The dot, star and confetti textures are this many pixels wide. */
@@ -162,7 +163,7 @@ export function trailParticle(trail: ShownTrail, x: number, y: number, ballSize:
 }
 
 /** The colors of fireworks bursts and of confetti. */
-const SHOW_COLORS = [0xf2c230, 0xe74c3c, 0x3498db, 0x2ecc71, 0xf4f6ef, 0xe07fb0, 0x8a5cc2] as const;
+const SHOW_COLORS = [COLOR.gold, 0xe74c3c, 0x3498db, 0x2ecc71, COLOR.chalk, 0xe07fb0, 0x8a5cc2] as const;
 const BEAM_COLORS = [0xff4fd8, 0x4fd8ff, 0xffe14f, 0x6bff7a] as const;
 
 export interface EffectParticles {

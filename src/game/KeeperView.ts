@@ -414,23 +414,8 @@ export class KeeperView {
     // A dark number on light shirts, a light one on dark shirts.
     const light = ((jersey >> 16) & 0xff) * 0.299 + ((jersey >> 8) & 0xff) * 0.587 + (jersey & 0xff) * 0.114 > 150;
     this.number.setColor(light ? css(COLOR.ink) : css(COLOR.chalk));
-    const legs = this.legs.clear();
-    legs.fillStyle(COLOR.skin, 1);
-    legs.fillRect(-15, 12, 11, 14);
-    legs.fillRect(4, 12, 11, 14);
-    legs.fillStyle(jersey, 1);
-    legs.fillRect(-15, 22, 11, 8);
-    legs.fillRect(4, 22, 11, 8);
-    legs.fillStyle(COLOR.ink, 1);
-    legs.fillRect(-18, 0, 36, 13);
-    legs.fillRect(-17, 30, 14, 5);
-    legs.fillRect(3, 30, 14, 5);
-
-    const torso = this.torso.clear();
-    torso.fillStyle(jersey, 1);
-    torso.fillRoundedRect(-18, -42, 36, 44, 7);
-    torso.fillStyle(trim, 0.9);
-    torso.fillRect(-18, -12, 36, 4);
+    drawLegs(this.legs.clear(), jersey, COLOR.ink);
+    drawShirt(this.torso.clear(), jersey, trim);
 
     const head = this.head.clear();
     head.fillStyle(COLOR.skin, 1);
@@ -493,4 +478,30 @@ export class KeeperView {
     this.body.destroy();
     this.shadow.destroy();
   }
+}
+
+/**
+ * The legs of the keeper's figure, hips at 0: skin, socks in the `kit` color, dark boots, and shorts in `shorts`. The
+ * defenders of the wall (WallView.ts) wear the same.
+ */
+export function drawLegs(g: Phaser.GameObjects.Graphics, kit: number, shorts: number): void {
+  g.fillStyle(COLOR.skin, 1);
+  g.fillRect(-15, 12, 11, 14);
+  g.fillRect(4, 12, 11, 14);
+  g.fillStyle(kit, 1);
+  g.fillRect(-15, 22, 11, 8);
+  g.fillRect(4, 22, 11, 8);
+  g.fillStyle(COLOR.ink, 1);
+  g.fillRect(-17, 30, 14, 5);
+  g.fillRect(3, 30, 14, 5);
+  g.fillStyle(shorts, 1);
+  g.fillRect(-18, 0, 36, 13);
+}
+
+/** The shirt of the keeper's figure in the `kit` color with a stripe in `trim`; the defenders wear the same. */
+export function drawShirt(g: Phaser.GameObjects.Graphics, kit: number, trim: number): void {
+  g.fillStyle(kit, 1);
+  g.fillRoundedRect(-18, -42, 36, 44, 7);
+  g.fillStyle(trim, 0.9);
+  g.fillRect(-18, -12, 36, 4);
 }

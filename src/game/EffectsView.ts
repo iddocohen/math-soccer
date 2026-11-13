@@ -16,6 +16,7 @@
  */
 import Phaser from 'phaser';
 import type { GoalEffect, Trail } from '../core/rewards/items';
+import { lerp } from '../core/util';
 import { assetUrl, PARTICLE_FILES } from '../assets';
 import { BEAM_SIZE, EFFECT_CAPACITY, goalEffectParticles, imageScale, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_CAPACITY, trailCount, trailParticle } from './effects';
 import { CONFETTI_DEPTH, FIREWORKS_DEPTH } from './FinalShow';
@@ -159,7 +160,7 @@ export class TrailView {
     this.owed = owed;
     for (let i = 1; i <= count; i++) {
       const k = i / count;
-      const p = trailParticle(trail, from.x + (ball.x - from.x) * k, from.y + (ball.y - from.y) * k, ball.size, this.spawned++, Math.random);
+      const p = trailParticle(trail, lerp(from.x, ball.x, k), lerp(from.y, ball.y, k), ball.size, this.spawned++, Math.random);
       this.layer.pool.spawn(p, (1 - k) * ms);
     }
     this.last = ball;

@@ -12,10 +12,11 @@
  *   decoy, the target gets fewer decoys (a 2-row chart can still hold two).
  * - A round is TORWAND_SHOTS shots, one per target; each goal earns `STARS.goal` (src/core/rewards/lockerRoom.ts).
  */
-import { cellOf, numberAt, COLUMNS, type ChartLayout } from '../chart/layout';
+import { cellOf, chartSquares, type ChartLayout } from '../chart/layout';
 import type { Level } from '../settings/defaults';
 import type { Rng } from '../rng';
 import type { DeepReadonly, Target } from '../types';
+import { hintsFor } from '../targets/hints';
 
 /** The shots of a round (FR-157). */
 export const TORWAND_SHOTS = 10;
@@ -33,18 +34,6 @@ export function torwandHoleCount(level: Level): 2 | 3 {
   return level <= 2 ? 2 : 3;
 }
 
-/** The row and column neighbors of `n` on the chart. */
-function neighborsOf(layout: ChartLayout, n: number): number[] {
-  const { row, col } = cellOf(layout, n);
-  const around: Array<[number, number]> = [
-    [row, col - 1],
-    [row, col + 1],
-    [row - 1, col],
-    [row + 1, col],
-  ];
-  return around.map(([r, c]) => numberAt(layout, r, c)).filter((x): x is number => x !== null);
-}
-
 /**
  * The target of a shot at the board: the number, level, pattern and directions of `base` (a target of the child's level
  * from `nextTarget`), with the hints cut down by level (FR-156). Shapes and cutouts do not go on at the board, so the
@@ -52,7 +41,7 @@ function neighborsOf(layout: ChartLayout, n: number): number[] {
  */
 export function torwandTarget(layout: ChartLayout, base: DeepReadonly<Target>, rng: Rng): Target {
   const count = torwandHintCount(base.level);
-  const hints = count === 0 ? [] : rng.shuffled(neighborsOf(layout, base.number)).slice(0, count);
+  const hints = count === 0 ? [] : rng.shuffled(hintsFor(layout, base.number, 'direct')).slice(0, count);
   return { number: base.number, hints, directions: [...base.directions], level: base.level, pattern: base.pattern };
 }
 
@@ -70,13 +59,9 @@ export function holesApart(layout: ChartLayout, a: number, b: number): boolean {
 export function torwandHoles(layout: ChartLayout, target: DeepReadonly<Target>, rng: Rng): number[] {
   const holes = [target.number];
   const hints = new Set(target.hints);
-  const squares: number[] = [];
-  for (let row = 0; row < layout.rows; row++) {
-    for (let col = 0; col < COLUMNS; col++) {
-      const n = numberAt(layout, row, col);
-      if (n !== null && n !== target.number && !hints.has(n)) squares.push(n);
-    }
-  }
+  const squares = chartSquares(layout)
+    .map(({ n }) => n)
+    .filter((n) => n !== target.number && !hints.has(n));
   const wanted = torwandHoleCount(target.level);
   for (const n of rng.shuffled(squares)) {
     if (holes.length >= wanted) break;

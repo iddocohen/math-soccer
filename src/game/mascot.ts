@@ -12,6 +12,7 @@
  */
 import type { Mascot } from '../core/rewards/items';
 import type { Rect } from '../core/types';
+import { clamp, lerp } from '../core/util';
 
 export type ShownMascot = Exclude<Mascot, 'none'>;
 export type MascotMood = 'idle' | 'cheer' | 'eyes';
@@ -175,8 +176,6 @@ const CHEER = { left: -(Math.PI + 0.6), right: Math.PI + 0.35 } as const;
 /** The arms move in and out of a pose over this many milliseconds. */
 const BLEND_MS = 140;
 
-const mix = (a: number, b: number, w: number) => a + (b - a) * w;
-
 /** How long a mood lasts; idle lasts until the next goal or miss. */
 export function moodMs(mood: MascotMood): number {
   return mood === 'cheer' ? MASCOT_CHEER_MS : mood === 'eyes' ? MASCOT_EYES_MS : Infinity;
@@ -186,14 +185,14 @@ export function moodMs(mood: MascotMood): number {
 export function mascotPose(mood: MascotMood, ms: number): MascotPose {
   if (mood === 'idle') return { lift: 2 + 2 * Math.sin((ms / 1600) * Math.PI * 2), ...REST };
   const total = moodMs(mood);
-  const t = Math.min(Math.max(ms, 0), total);
+  const t = clamp(ms, 0, total);
   const w = Math.min(1, t / BLEND_MS, (total - t) / BLEND_MS);
-  if (mood === 'eyes') return { lift: 0, left: mix(REST.left, COVER.left, w), right: mix(REST.right, COVER.right, w) };
+  if (mood === 'eyes') return { lift: 0, left: lerp(REST.left, COVER.left, w), right: lerp(REST.right, COVER.right, w) };
   // Two hops, and the right paw waves.
   const wave = 0.3 * Math.sin(t / 80);
   return {
     lift: MASCOT_JUMP * Math.abs(Math.sin((t / total) * Math.PI * 2)),
-    left: mix(REST.left, CHEER.left, w),
-    right: mix(REST.right, CHEER.right + wave, w),
+    left: lerp(REST.left, CHEER.left, w),
+    right: lerp(REST.right, CHEER.right + wave, w),
   };
 }

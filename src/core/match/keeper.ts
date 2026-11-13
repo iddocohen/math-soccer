@@ -10,7 +10,8 @@
  *   neighbors as hints at levels 1 to 2, one row and one column neighbor at levels 3 to 4, no hints at levels 5 to 6.
  * - A round has KEEPER_SHOTS shots; each save earns `STARS.save` (src/core/rewards/lockerRoom.ts).
  */
-import { cellOf, numberAt, type ChartLayout } from '../chart/layout';
+import type { ChartLayout } from '../chart/layout';
+import { directionsOf, hintsFor } from '../targets/hints';
 import { TEAMS, type CupTeam } from '../cup/teams';
 import type { Rng } from '../rng';
 import type { Level } from '../settings/defaults';
@@ -84,19 +85,10 @@ interface Neighbor {
 }
 
 function neighborsOf(layout: ChartLayout, n: number): Neighbor[] {
-  const { row, col } = cellOf(layout, n);
-  const around: Array<[number, number, Direction, 'row' | 'column']> = [
-    [row, col - 1, 'right', 'row'],
-    [row, col + 1, 'left', 'row'],
-    [row - 1, col, 'down', 'column'],
-    [row + 1, col, 'up', 'column'],
-  ];
-  const found: Neighbor[] = [];
-  for (const [r, c, direction, axis] of around) {
-    const number = numberAt(layout, r, c);
-    if (number !== null) found.push({ number, direction, axis });
-  }
-  return found;
+  return hintsFor(layout, n, 'direct').map((number) => {
+    const direction = directionsOf(n, [number])[0]!;
+    return { number, direction, axis: direction === 'right' || direction === 'left' ? 'row' : 'column' };
+  });
 }
 
 /**

@@ -10,7 +10,7 @@
  *   ball that flies past it. Then they land.
  * - `blockedSquareRects(layout, wall)`: the chart squares behind the wall, one rectangle per square with a number.
  */
-import { COLUMNS, cellRectAt, numberAt, type ChartLayout } from '../core/chart/layout';
+import { COLUMNS, cellRectAt, chartSquares, type ChartLayout } from '../core/chart/layout';
 import { PLAYER_COLUMNS, type Wall } from '../core/match/wall';
 import { CHART_RECT, WORLD_WIDTH } from '../core/match/world';
 import type { DeepReadonly, Rect } from '../core/types';
@@ -77,11 +77,7 @@ export function hopOffset(t: number, hop: Hop): number {
 
 /** The squares of the chart behind `wall`: every square with a number in a covered column. */
 export function blockedSquareRects(layout: ChartLayout, wall: DeepReadonly<Wall>): Rect[] {
-  const rects: Rect[] = [];
-  for (let row = 0; row < layout.rows; row++) {
-    for (let col = wall.from; col <= wall.to; col++) {
-      if (numberAt(layout, row, col) !== null) rects.push(cellRectAt(layout, CHART_RECT, row, col));
-    }
-  }
-  return rects;
+  return chartSquares(layout)
+    .filter(({ col }) => col >= wall.from && col <= wall.to)
+    .map(({ row, col }) => cellRectAt(layout, CHART_RECT, row, col));
 }

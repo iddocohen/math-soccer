@@ -15,28 +15,29 @@
  * - `jump(blocked)`: on every shot all defenders jump together, timed with the ball (`wallHop`), then land.
  */
 import Phaser from 'phaser';
-import { COLUMNS, cellOf, type ChartLayout } from '../core/chart/layout';
+import { cellRect, center, type ChartLayout } from '../core/chart/layout';
+import { lerp } from '../core/util';
 import type { Wall } from '../core/match/wall';
 import { CHART_RECT } from '../core/match/world';
 import type { DeepReadonly, Rect } from '../core/types';
 import { FLIGHT_MS } from './BallView';
 import { BOARD_DEPTH } from './GoalView';
-import { WAITING_DEPTH } from './KeeperView';
+import { drawLegs, drawShirt, WAITING_DEPTH } from './KeeperView';
 import { FEET_BELOW_HIPS } from './keeperDive';
 import { COLOR } from './palette';
 import { KEEPER_DRAWN_HEIGHT } from './playerPose';
 import { blockedSquareRects, DEFENDER_GAP, DEFENDER_PITCH, defenderSpots, hopOffset, wallHop } from './wallLook';
 
 /** Under the grid and the defenders, over the waiting keeper and the ball in the net. */
-const SHADE_DEPTH = WAITING_DEPTH + (BOARD_DEPTH - WAITING_DEPTH) * 0.25;
+const SHADE_DEPTH = lerp(WAITING_DEPTH, BOARD_DEPTH, 0.25);
 /** Behind the grid, so no number is covered, and in front of the waiting keeper, who stands further back (FR-120). */
-export const WALL_DEPTH = WAITING_DEPTH + (BOARD_DEPTH - WAITING_DEPTH) * 0.6;
+export const WALL_DEPTH = lerp(WAITING_DEPTH, BOARD_DEPTH, 0.6);
 /** Where the defenders' feet stand: on the grass in front of the goal line (y 800), behind the kick spot (y 940). */
 export const WALL_FEET_Y = 880;
 /** A defender from the feet to the top of the head: between the keeper and the child's player (amendment 21). */
 export const DEFENDER_HEIGHT = Math.round(KEEPER_DRAWN_HEIGHT * 1.15);
 /** The defenders' shirt colors: red, or blue when the child wears a red-like shirt. */
-const KITS = [0xc94f4f, 0x3e6fb0] as const;
+const KITS = [0xc94f4f, COLOR.keeperJersey] as const;
 /** How dark the shade on a blocked square is, and how far it stays inside the square's edges. */
 const SHADE_ALPHA = 0.28;
 const SHADE_INSET = 3;
@@ -96,8 +97,7 @@ export class WallView {
   /** Where a shot at `n` meets the wall: a small square at the chest of the defender nearest to the column of `n`. */
   hitPoint(layout: ChartLayout, n: number): Rect {
     const wall = this.wall;
-    const col = CHART_RECT.width / COLUMNS;
-    const x = CHART_RECT.x + (cellOf(layout, n).col + 0.5) * col;
+    const x = center(cellRect(layout, CHART_RECT, n)).x;
     const xs = wall ? defenderSpots(wall) : [x];
     const nearest = xs.reduce((best, d) => (Math.abs(d - x) < Math.abs(best - x) ? d : best), xs[0]!);
     const y = WALL_FEET_Y - DEFENDER_HEIGHT * 0.6;
@@ -143,26 +143,11 @@ function drawDefender(scene: Phaser.Scene, x: number, feet: number, kit: number)
   shadow.fillEllipse(0, 0, (DEFENDER_PITCH - DEFENDER_GAP) * 0.95, 12);
 
   const body = scene.add.graphics({ x: 0, y: hips }).setScale(SCALE_X, SCALE_Y);
-  // Legs: skin, socks in the kit color, dark boots; the same shapes as the keeper's.
-  body.fillStyle(COLOR.skin, 1);
-  body.fillRect(-15, 12, 11, 14);
-  body.fillRect(4, 12, 11, 14);
-  body.fillStyle(kit, 1);
-  body.fillRect(-15, 22, 11, 8);
-  body.fillRect(4, 22, 11, 8);
-  body.fillStyle(COLOR.ink, 1);
-  body.fillRect(-17, 30, 14, 5);
-  body.fillRect(3, 30, 14, 5);
-  // Shorts.
-  body.fillStyle(COLOR.chalk, 1);
-  body.fillRect(-18, 0, 36, 13);
+  // Legs, white shorts and the shirt with a trim stripe, as the keeper's (KeeperView.ts).
+  drawLegs(body, kit, COLOR.chalk);
   body.fillStyle(COLOR.chalkShade, 1);
   body.fillRect(-1, 4, 2, 9);
-  // Shirt with a trim stripe.
-  body.fillStyle(kit, 1);
-  body.fillRoundedRect(-18, -42, 36, 44, 7);
-  body.fillStyle(COLOR.chalk, 0.9);
-  body.fillRect(-18, -12, 36, 4);
+  drawShirt(body, kit, COLOR.chalk);
   // Arms: short sleeves, upper arms down the sides, forearms crossed low in front with the hands over the shorts.
   body.lineStyle(9, kit, 1);
   body.lineBetween(-16, -36, -17, -26);

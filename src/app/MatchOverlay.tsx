@@ -57,6 +57,7 @@ import type { Settings } from '../core/settings/schema';
 import type { Digit } from '../core/match/entry';
 import type { KeeperPhase } from '../game/KeeperView';
 import { t } from '../i18n';
+import { clamp } from '../core/util';
 import { noFocus } from './noFocus';
 import { NumberPad } from './NumberPad';
 import { useElapsedMs, type ClockSource } from './useController';
@@ -355,7 +356,7 @@ function goalCounter(state: MatchView, goalsPerRound: number): string {
   }
   if (state.torwand !== null) {
     const shot = state.phase === 'roundOver' || state.torwand.waitMs > 0 || state.phase === 'celebrating' ? state.shots : state.shots + 1;
-    return text.torwandCount(state.goals, Math.min(limit, Math.max(1, shot)), limit);
+    return text.torwandCount(state.goals, clamp(shot, 1, limit), limit);
   }
   if (state.roundType === 'goalCount') return text.goalsOf(state.goals, goalsPerRound);
   return state.cupMatch !== null ? text.goalsOf(state.goals, state.cupMatch.goals) : text.goals(state.goals);

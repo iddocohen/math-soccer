@@ -7,7 +7,9 @@
  * runs on the scene's update with `update(deltaMs)`, so it stops while the round is paused.
  */
 import Phaser from 'phaser';
+import { center } from '../core/chart/layout';
 import type { Rect } from '../core/types';
+import { clamp } from '../core/util';
 import { POSTS_DEPTH } from './GoalView';
 import { COLOR } from './palette';
 
@@ -49,7 +51,7 @@ export class ShotView {
     if (changed) this.flashMs = 0;
     this.rect = rect;
     this.held = held;
-    const next = Math.max(0, Math.min(1, left));
+    const next = clamp(left, 0, 1);
     if (changed || Math.abs(next - this.left) > 0.001) {
       this.left = next;
       this.drawRing();
@@ -89,8 +91,7 @@ export class ShotView {
     const r = this.rect;
     const g = this.ring.clear();
     if (r === null) return;
-    const cx = r.x + r.width / 2;
-    const cy = r.y + r.height / 2;
+    const { x: cx, y: cy } = center(r);
     const radius = ringRadius(r);
     // A dark full circle under the yellow part that is left; its edge shows the ring on the yellow hint squares too.
     g.lineStyle(RING_WIDTH + RING_EDGE * 2, COLOR.ink, 0.55);

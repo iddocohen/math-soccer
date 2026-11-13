@@ -7,7 +7,7 @@
  * The panel is painted into one canvas texture, and only again when the holes or the range change.
  */
 import Phaser from 'phaser';
-import { cellRect, cellRectAt, center, COLUMNS, numberAt, type ChartLayout } from '../core/chart/layout';
+import { cellRect, cellRectAt, center, chartSquares, type ChartLayout } from '../core/chart/layout';
 import { CHART_RECT, GOAL_FRAME, POST_WIDTH } from '../core/match/world';
 import type { Rect } from '../core/types';
 import { BALL_IN_NET_DEPTH, BOARD_DEPTH } from './GoalView';
@@ -102,12 +102,9 @@ export class TorwandView {
     // The chart squares, printed faintly and without numbers.
     ctx.strokeStyle = css(COLOR.ink, 0.14);
     ctx.lineWidth = 1.5;
-    for (let row = 0; row < layout.rows; row++) {
-      for (let col = 0; col < COLUMNS; col++) {
-        if (numberAt(layout, row, col) === null) continue;
-        const r = cellRectAt(layout, CHART_RECT, row, col);
-        ctx.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2);
-      }
+    for (const { row, col } of chartSquares(layout)) {
+      const r = cellRectAt(layout, CHART_RECT, row, col);
+      ctx.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2);
     }
     // A painted frame around the chart, as on a real board.
     ctx.strokeStyle = css(COLOR.ink, 0.3);
