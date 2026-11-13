@@ -127,11 +127,20 @@ const WRAP_MARGIN = 40;
 
 const wrap = (v: number, min: number, size: number) => min + ((((v - min) % size) + size) % size);
 
-/** Where a drop is `ms` after time 0; it wraps around the world, so it is always somewhere inside or just outside it. */
-export function dropAt(overlay: Exclude<WeatherOverlay, 'none'>, d: WeatherDrop, ms: number): { x: number; y: number; rotation: number } {
+/**
+ * Where a drop is `ms` after time 0; it wraps around the world, so it is always somewhere inside or just outside it.
+ * With `out` the place is written into it and `out` is returned, so a frame makes no new objects.
+ */
+export function dropAt(
+  overlay: Exclude<WeatherOverlay, 'none'>,
+  d: WeatherDrop,
+  ms: number,
+  out: { x: number; y: number; rotation: number } = { x: 0, y: 0, rotation: 0 },
+): { x: number; y: number; rotation: number } {
   const s = ms / 1000;
   const sway = overlay === 'snow' ? Math.sin(s * 1.3 + d.phase) * 14 : 0;
-  const y = wrap(d.y + d.speed * s, -WRAP_MARGIN, WORLD_HEIGHT + 2 * WRAP_MARGIN);
-  const x = wrap(d.x + d.drift * s + sway, -WRAP_MARGIN, WORLD_WIDTH + 2 * WRAP_MARGIN);
-  return { x, y, rotation: overlay === 'rain' ? RAIN_ANGLE : 0 };
+  out.y = wrap(d.y + d.speed * s, -WRAP_MARGIN, WORLD_HEIGHT + 2 * WRAP_MARGIN);
+  out.x = wrap(d.x + d.drift * s + sway, -WRAP_MARGIN, WORLD_WIDTH + 2 * WRAP_MARGIN);
+  out.rotation = overlay === 'rain' ? RAIN_ANGLE : 0;
+  return out;
 }

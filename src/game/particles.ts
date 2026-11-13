@@ -59,21 +59,23 @@ export interface ParticleState {
   rotation: number;
 }
 
-/** The particle `ms` after it was spawned; null before its delay ends and after its life. */
-export function particleAt(p: ParticleInit, ms: number): ParticleState | null {
+/**
+ * The particle `ms` after it was spawned; null before its delay ends and after its life. With `out` the state is
+ * written into it and `out` is returned, so a frame makes no new objects.
+ */
+export function particleAt(p: ParticleInit, ms: number, out: ParticleState = { x: 0, y: 0, scale: 0, alpha: 0, rotation: 0 }): ParticleState | null {
   const age = ms - (p.delay ?? 0);
   if (age < 0 || age >= p.life) return null;
   const s = age / 1000;
   const k = age / p.life;
   const fadeFrom = p.fadeFrom ?? 0;
   const fade = k <= fadeFrom ? 1 : 1 - (k - fadeFrom) / (1 - fadeFrom);
-  return {
-    x: p.x + (p.vx ?? 0) * s,
-    y: p.y + (p.vy ?? 0) * s + 0.5 * (p.gravity ?? 0) * s * s,
-    scale: p.size + ((p.endSize ?? p.size) - p.size) * k,
-    alpha: (p.alpha ?? 1) * fade,
-    rotation: (p.rotation ?? 0) + (p.spin ?? 0) * s,
-  };
+  out.x = p.x + (p.vx ?? 0) * s;
+  out.y = p.y + (p.vy ?? 0) * s + 0.5 * (p.gravity ?? 0) * s * s;
+  out.scale = p.size + ((p.endSize ?? p.size) - p.size) * k;
+  out.alpha = (p.alpha ?? 1) * fade;
+  out.rotation = (p.rotation ?? 0) + (p.spin ?? 0) * s;
+  return out;
 }
 
 /** The last moment a particle shows, in milliseconds after it was spawned. */
@@ -97,6 +99,8 @@ export class ParticlePool<T> {
   private readonly show: (obj: T, p: ParticleInit | null, state: ParticleState | null) => void;
   private made = 0;
   private live = 0;
+  /** The state `show` gets on every call; `show` reads it at once and keeps nothing of it. */
+  private readonly state: ParticleState = { x: 0, y: 0, scale: 0, alpha: 0, rotation: 0 };
 
   constructor(capacity: number, make: () => T, show: (obj: T, p: ParticleInit | null, state: ParticleState | null) => void) {
     this.slots = Array.from({ length: capacity }, () => ({ obj: null, p: null, age: 0 }));
@@ -135,7 +139,7 @@ export class ParticlePool<T> {
     if (slot.p === null) this.live += 1;
     slot.p = p;
     slot.age = age;
-    this.show(slot.obj, p, particleAt(p, age));
+    this.show(slot.obj, p, particleAt(p, age, this.state));
   }
 
   /** Moves every particle on by `ms` and frees the slots of the particles that are over. */
@@ -148,7 +152,7 @@ export class ParticlePool<T> {
         this.live -= 1;
         this.show(slot.obj!, null, null);
       } else {
-        this.show(slot.obj!, slot.p, particleAt(slot.p, slot.age));
+        this.show(slot.obj!, slot.p, particleAt(slot.p, slot.age, this.state));
       }
     }
   }

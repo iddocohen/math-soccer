@@ -33,7 +33,10 @@ export function ringRadius(rect: Rect): number {
 }
 
 export class ShotView {
+  /** The square's light fill; its alpha flashes. */
   private readonly square: Phaser.GameObjects.Graphics;
+  /** The square's yellow frame, drawn once per square. */
+  private readonly frame: Phaser.GameObjects.Graphics;
   private readonly ring: Phaser.GameObjects.Graphics;
   private rect: Rect | null = null;
   private left = 1;
@@ -42,26 +45,31 @@ export class ShotView {
 
   constructor(scene: Phaser.Scene) {
     this.square = scene.add.graphics().setDepth(SHOT_DEPTH);
+    this.frame = scene.add.graphics().setDepth(SHOT_DEPTH);
     this.ring = scene.add.graphics().setDepth(SHOT_DEPTH);
   }
 
   /** Shows the flashing square of `rect` with `left` of the ring (1 full, 0 empty); `held` keeps the square lit. */
   show(rect: Rect, left: number, held: boolean): void {
     const changed = this.rect === null || this.rect.x !== rect.x || this.rect.y !== rect.y || this.rect.width !== rect.width || this.rect.height !== rect.height;
-    if (changed) this.flashMs = 0;
     this.rect = rect;
     this.held = held;
+    if (changed) {
+      this.flashMs = 0;
+      this.drawSquare();
+    }
     const next = clamp(left, 0, 1);
     if (changed || Math.abs(next - this.left) > 0.001) {
       this.left = next;
       this.drawRing();
     }
-    this.drawSquare();
+    this.flash();
   }
 
   hide(): void {
     this.rect = null;
     this.square.clear();
+    this.frame.clear();
     this.ring.clear();
   }
 
@@ -73,18 +81,24 @@ export class ShotView {
   update(deltaMs: number): void {
     if (this.rect === null) return;
     if (!this.held) this.flashMs += deltaMs;
-    this.drawSquare();
+    this.flash();
   }
 
+  /** The flash of the square's fill now: steady while help holds the shot. */
+  private flash(): void {
+    this.square.setAlpha(this.held ? 0.9 : flashAlpha(this.flashMs));
+  }
+
+  /** Draws the square of the current rect: the fill, whose alpha `flash` sets, and the frame. */
   private drawSquare(): void {
     const r = this.rect;
     const g = this.square.clear();
+    const frame = this.frame.clear();
     if (r === null) return;
-    const alpha = this.held ? 0.9 : flashAlpha(this.flashMs);
-    g.fillStyle(COLOR.chalk, alpha * 0.85);
+    g.fillStyle(COLOR.chalk, 0.85);
     g.fillRect(r.x, r.y, r.width, r.height);
-    g.lineStyle(5, COLOR.kit, 1);
-    g.strokeRect(r.x + 2.5, r.y + 2.5, r.width - 5, r.height - 5);
+    frame.lineStyle(5, COLOR.kit, 1);
+    frame.strokeRect(r.x + 2.5, r.y + 2.5, r.width - 5, r.height - 5);
   }
 
   private drawRing(): void {
@@ -110,6 +124,7 @@ export class ShotView {
 
   destroy(): void {
     this.square.destroy();
+    this.frame.destroy();
     this.ring.destroy();
   }
 }

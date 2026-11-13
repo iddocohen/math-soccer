@@ -74,10 +74,11 @@ export class StandsView {
   /** The usual four rows or the bigger stands with six (amendment 20, FR-135). */
   private stands: Stands = 'normal';
 
-  constructor(scene: Phaser.Scene, scarfColor: number, depth = 1) {
+  constructor(scene: Phaser.Scene, scarfColor: number, stands: Stands = 'normal', depth = 1) {
     this.scene = scene;
     this.depth = depth;
     this.scarfColor = scarfColor;
+    this.stands = stands;
     this.addFans(false);
     this.update(0);
   }
@@ -256,7 +257,9 @@ export class StandsView {
       const slump = 5 * this.slumping;
       const x = fan.x + sway;
       const bottom = fan.y - jump - stand + slump;
-      fan.body.setPosition(x, bottom).setScale(SCALE, bodyScaleY);
+      fan.body.setPosition(x, bottom);
+      // The scale changes only while the fans slump.
+      if (fan.body.scaleY !== bodyScaleY) fan.body.setScale(SCALE, bodyScaleY);
       const shoulders = bottom - bodyShown;
       fan.head.setPosition(x, shoulders + 1);
 

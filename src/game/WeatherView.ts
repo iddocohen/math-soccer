@@ -91,8 +91,9 @@ export class WeatherView {
     if (this.overlay === 'none') return;
     this.ms += deltaMs;
     const overlay = this.overlay;
+    const p = { x: 0, y: 0, rotation: 0 };
     for (let i = 0; i < this.drops.length; i++) {
-      const p = dropAt(overlay, this.drops[i]!, this.ms);
+      dropAt(overlay, this.drops[i]!, this.ms, p);
       this.images[i]!.setPosition(p.x, p.y).setRotation(p.rotation);
     }
   }

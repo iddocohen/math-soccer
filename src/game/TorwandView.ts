@@ -43,44 +43,50 @@ export function holeCircle(layout: ChartLayout, n: number): Hole {
 }
 
 export class TorwandView {
-  private readonly texture: Phaser.Textures.CanvasTexture;
-  private readonly image: Phaser.GameObjects.Image;
+  private readonly scene: Phaser.Scene;
+  /** The board's canvas texture and image, made at the first board of the scene. */
+  private board: { texture: Phaser.Textures.CanvasTexture; image: Phaser.GameObjects.Image } | null = null;
   private key = '';
 
   constructor(scene: Phaser.Scene) {
+    this.scene = scene;
+  }
+
+  private makeBoard(): { texture: Phaser.Textures.CanvasTexture; image: Phaser.GameObjects.Image } {
+    const scene = this.scene;
     if (scene.textures.exists(TEXTURE)) scene.textures.remove(TEXTURE);
     const texture = scene.textures.createCanvas(TEXTURE, TORWAND_RECT.width * RESOLUTION, TORWAND_RECT.height * RESOLUTION);
     if (!texture) throw new Error('TorwandView: the board texture could not be created');
-    this.texture = texture;
-    this.image = scene.add
+    const image = scene.add
       .image(TORWAND_RECT.x, TORWAND_RECT.y, TEXTURE)
       .setOrigin(0, 0)
       .setDisplaySize(TORWAND_RECT.width, TORWAND_RECT.height)
-      .setDepth(TORWAND_DEPTH)
-      .setVisible(false);
+      .setDepth(TORWAND_DEPTH);
+    return { texture, image };
   }
 
   /** True while the board shows. */
   get showing(): boolean {
-    return this.image.visible;
+    return this.board?.image.visible === true;
   }
 
   /** Shows the board with holes in the squares of `holes`; null hides it (every other mode). */
   setHoles(layout: ChartLayout, holes: readonly number[] | null): void {
     if (holes === null) {
-      this.image.setVisible(false);
+      this.board?.image.setVisible(false);
       this.key = '';
       return;
     }
-    this.image.setVisible(true);
+    this.board ??= this.makeBoard();
+    this.board.image.setVisible(true);
     const key = `${layout.min}-${layout.max}|${holes.join(',')}`;
     if (key === this.key) return;
     this.key = key;
-    this.paint(layout, holes);
+    this.paint(this.board.texture, layout, holes);
   }
 
-  private paint(layout: ChartLayout, holes: readonly number[]): void {
-    const ctx = this.texture.getContext();
+  private paint(texture: Phaser.Textures.CanvasTexture, layout: ChartLayout, holes: readonly number[]): void {
+    const ctx = texture.getContext();
     const { x: bx, y: by, width, height } = TORWAND_RECT;
     ctx.setTransform(RESOLUTION, 0, 0, RESOLUTION, -bx * RESOLUTION, -by * RESOLUTION);
     ctx.globalCompositeOperation = 'source-over';
@@ -126,10 +132,11 @@ export class TorwandView {
       ctx.lineWidth = Math.max(2, h.r * 0.14);
       ctx.stroke();
     }
-    this.texture.refresh();
+    texture.refresh();
   }
 
   destroy(): void {
-    this.image.destroy();
+    this.board?.image.destroy();
+    this.board = null;
   }
 }

@@ -70,7 +70,7 @@ import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
 import { cupMatchWon, onlyTimeChanged, turnOf, type MatchController, type MatchView } from '../core/match/MatchController';
 import { MODE_INFO, type MatchMode } from '../core/match/rounds';
-import { isCutoutFill } from '../core/types';
+import { isCutoutFill, type Rect } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
 import { WallView } from './WallView';
 import { TorwandView } from './TorwandView';
@@ -226,6 +226,8 @@ export class MatchScene extends Phaser.Scene {
   private shotDecided = false;
   /** The part of its way the rolling ball has gone, as drawn: it follows the shot's time left smoothly. */
   private shotK = 0;
+  /** The square of the shot in flight, kept while its target and range stay, so a frame does not lay it out again. */
+  private shotRect: { min: number; max: number; number: number; rect: Rect } | null = null;
   private backdrop!: Phaser.GameObjects.Image;
   private extras: SceneExtras = {
     trail: 'none',
@@ -279,8 +281,7 @@ export class MatchScene extends Phaser.Scene {
     this.weather = new WeatherView(this);
     this.weather.setWeather(look.weather);
     this.lookKey = '';
-    this.stands = new StandsView(this, look.scarfColor);
-    this.stands.setStands(look.stands);
+    this.stands = new StandsView(this, look.scarfColor, look.stands);
     this.goal = new GoalView(this);
     this.helper = new HelperView(this);
     this.keeper = new KeeperView(this, this.options.onKeeper);
@@ -496,10 +497,19 @@ export class MatchScene extends Phaser.Scene {
     const goal = 1 - shot.leftMs / shot.totalMs;
     // The controller's time moves in steps of a tick; the drawing eases toward it.
     this.shotK += (goal - this.shotK) * Math.min(1, delta / 250);
-    const rect = cellRect(this.layoutOf(s), CHART_RECT, s.target.number);
+    const rect = this.shotSquare(s.min, s.max, s.target.number);
     this.ball.roll(rect, this.shotK);
     this.shot.show(rect, 1 - this.shotK, shot.held || s.helpChartOpen);
     this.shot.update(delta);
+  }
+
+  /** The world rectangle of square `number` of the range `min` to `max`, from `shotRect` while it fits. */
+  private shotSquare(min: number, max: number, number: number): Rect {
+    const kept = this.shotRect;
+    if (kept !== null && kept.min === min && kept.max === max && kept.number === number) return kept.rect;
+    const rect = cellRect(this.layoutOf({ min, max }), CHART_RECT, number);
+    this.shotRect = { min, max, number, rect };
+    return rect;
   }
 
   /**
@@ -574,7 +584,7 @@ export class MatchScene extends Phaser.Scene {
   }
 
   /** The chart layout of the range of `s`. */
-  private layoutOf(s: MatchView): ChartLayout {
+  private layoutOf(s: Pick<MatchView, 'min' | 'max'>): ChartLayout {
     if (this.layout === null || this.layout.min !== s.min || this.layout.max !== s.max) this.layout = layoutChart(s.min, s.max);
     return this.layout;
   }

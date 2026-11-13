@@ -20,7 +20,7 @@ import { lerp } from '../core/util';
 import { assetUrl, PARTICLE_FILES } from '../assets';
 import { BEAM_SIZE, EFFECT_CAPACITY, goalEffectParticles, imageScale, PARTICLE_TEXTURE_SIZE, PIECE_SIZE, TRAIL_CAPACITY, trailCount, trailParticle } from './effects';
 import { CONFETTI_DEPTH, FIREWORKS_DEPTH } from './FinalShow';
-import { ParticlePool, type ParticleImage, type ParticleShape } from './particles';
+import { ParticlePool, type ParticleImage, type ParticleInit, type ParticleShape } from './particles';
 
 const KEY: Record<ParticleShape, string> = { dot: 'fx-dot', star: 'fx-star', piece: 'fx-piece', beam: 'fx-beam' };
 const IMAGE_KEY: Record<ParticleImage, string> = {
@@ -93,6 +93,8 @@ class ParticleLayer {
   readonly pool: ParticlePool<Phaser.GameObjects.Image>;
 
   constructor(scene: Phaser.Scene, capacity: number, depth: number) {
+    // The particle each image was last styled for.
+    const styled = new WeakMap<Phaser.GameObjects.Image, ParticleInit>();
     this.pool = new ParticlePool(
       capacity,
       () => scene.add.image(0, 0, KEY.dot).setDepth(depth).setVisible(false),
@@ -104,11 +106,16 @@ class ParticleLayer {
         // The particle image when it loaded, otherwise the drawn shape (FR-149).
         const withImage = p.image !== undefined && scene.textures.exists(IMAGE_KEY[p.image]);
         const key = withImage ? IMAGE_KEY[p.image!] : KEY[p.shape];
-        if (image.texture.key !== key) image.setTexture(key);
+        const newTexture = image.texture.key !== key;
+        if (newTexture) image.setTexture(key);
+        // Glowing particles add up their light; the others keep their colors. A beam turns around its foot. These are
+        // set once per particle, and again after a new texture.
+        if (newTexture || styled.get(image) !== p) {
+          styled.set(image, p);
+          image.setOrigin(0.5, p.shape === 'beam' ? 1 : 0.5).setBlendMode(p.glow ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL).setTint(p.tint);
+        }
         const scale = withImage ? imageScale(p.image!, s.scale) : s.scale;
-        // Glowing particles add up their light; the others keep their colors. A beam turns around its foot.
-        image.setOrigin(0.5, p.shape === 'beam' ? 1 : 0.5).setBlendMode(p.glow ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);
-        image.setPosition(s.x, s.y).setScale(scale).setAlpha(s.alpha).setRotation(s.rotation).setTint(p.tint).setVisible(true);
+        image.setPosition(s.x, s.y).setScale(scale).setAlpha(s.alpha).setRotation(s.rotation).setVisible(true);
       },
     );
   }
