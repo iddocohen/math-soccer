@@ -11,7 +11,7 @@
  * - For tests: `data-testid="extras-preview"` with `data-mascot` (the mascot shown) and `data-playing` (the item id
  *   while it plays, empty otherwise).
  */
-import { useEffect, useId, useMemo, useState, type ReactElement } from 'react';
+import { memo, useEffect, useId, useMemo, useState, type ReactElement } from 'react';
 import { assetUrl, PARTICLE_FILES } from '../assets';
 import { createRng } from '../core/rng';
 import { CHART_RECT, GOAL_FRAME, KICK_SPOT, STANDS_BOTTOM, WORLD_HEIGHT, WORLD_WIDTH } from '../core/match/world';
@@ -95,8 +95,8 @@ const STAR_POINTS = Array.from({ length: 10 }, (_, i) => {
 
 const deg = (rad: number) => (rad * 180) / Math.PI;
 
-/** One mask per particle image, centered on 0, 0; `ParticleSvg` fills its color through it. */
-function ImageMasks({ prefix }: { prefix: string }): ReactElement {
+/** One mask per particle image, centered on 0, 0; `ParticleSvg` fills its color through it. Drawn once per preview. */
+const ImageMasks = memo(function ImageMasks({ prefix }: { prefix: string }): ReactElement {
   const half = PARTICLE_IMAGE_SIZE / 2;
   return (
     <defs>
@@ -107,7 +107,7 @@ function ImageMasks({ prefix }: { prefix: string }): ReactElement {
       ))}
     </defs>
   );
-}
+});
 
 /** One particle at one moment, in world units. `masks` is the id prefix of the preview's ImageMasks. */
 function ParticleSvg({ p, ms, masks }: { p: ParticleInit; ms: number; masks: string }): ReactElement | null {
@@ -199,6 +199,23 @@ export function MascotFigure({ mascot, pose }: { mascot: ShownMascot; pose: Masc
 
 const IDLE = mascotPose('idle', 0);
 
+/** The parts of the preview that never change, made once: the sky, the stands and the grass, and the goal. */
+const BACKDROP = (
+  <>
+    <rect x={0} y={0} width={WORLD_WIDTH} height={STANDS_BOTTOM + 30} fill="#13263a" />
+    {[0, 1, 2, 3].map((row) => (
+      <rect key={row} x={0} y={74 + row * 48} width={WORLD_WIDTH} height={44} fill={row % 2 ? '#22384c' : '#1d3044'} />
+    ))}
+    <rect x={0} y={STANDS_BOTTOM + 30} width={WORLD_WIDTH} height={WORLD_HEIGHT - STANDS_BOTTOM - 30} fill="#2c6b37" />
+  </>
+);
+const GOAL = (
+  <>
+    <rect x={GOAL_FRAME.x} y={GOAL_FRAME.y} width={GOAL_FRAME.width} height={GOAL_FRAME.height} fill="#0e1a14" stroke="#f4f6ef" strokeWidth={22} />
+    <rect x={CHART_RECT.x} y={CHART_RECT.y} width={CHART_RECT.width} height={CHART_RECT.height} fill="#f4f6ef" opacity={0.85} rx={12} />
+  </>
+);
+
 interface PreviewProps {
   /** The chosen mascot and ball. */
   mascot: Mascot;
@@ -222,14 +239,9 @@ export function ExtrasPreview({ mascot, ball, play, label }: PreviewProps): Reac
     <figure className="locker-extras-preview" data-testid="extras-preview" data-mascot={shown} data-playing={playing ? `${playing.kind}.${playing.name}` : ''} aria-label={label}>
       <svg width="320" height="200" viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`} aria-hidden="true">
         <ImageMasks prefix={masks} />
-        <rect x={0} y={0} width={WORLD_WIDTH} height={STANDS_BOTTOM + 30} fill="#13263a" />
-        {[0, 1, 2, 3].map((row) => (
-          <rect key={row} x={0} y={74 + row * 48} width={WORLD_WIDTH} height={44} fill={row % 2 ? '#22384c' : '#1d3044'} />
-        ))}
-        <rect x={0} y={STANDS_BOTTOM + 30} width={WORLD_WIDTH} height={WORLD_HEIGHT - STANDS_BOTTOM - 30} fill="#2c6b37" />
+        {BACKDROP}
         {t !== null && timed.filter((x) => !x.front).map((x, i) => <ParticleSvg key={`b${i}`} p={x.p} ms={t - x.at} masks={masks} />)}
-        <rect x={GOAL_FRAME.x} y={GOAL_FRAME.y} width={GOAL_FRAME.width} height={GOAL_FRAME.height} fill="#0e1a14" stroke="#f4f6ef" strokeWidth={22} />
-        <rect x={CHART_RECT.x} y={CHART_RECT.y} width={CHART_RECT.width} height={CHART_RECT.height} fill="#f4f6ef" opacity={0.85} rx={12} />
+        {GOAL}
         {shown !== 'none' && (
           <g transform={`translate(${MASCOT_FEET.x} ${MASCOT_FEET.y}) scale(${MASCOT_SCALE})`}>
             <MascotFigure mascot={shown} pose={pose} />

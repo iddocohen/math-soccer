@@ -38,11 +38,10 @@ function useShowing(play: StadiumPlay | null): boolean {
   return showing;
 }
 
-/** Milliseconds since the snow or the rain started; it runs while the weather has one. */
-function useFallClock(falling: boolean): number {
+/** Milliseconds since the snow or the rain started; it runs while the drops show. */
+function useFallClock(): number {
   const [ms, setMs] = useState(0);
   useEffect(() => {
-    if (!falling) return;
     const started = performance.now();
     let frame = 0;
     const step = () => {
@@ -51,7 +50,7 @@ function useFallClock(falling: boolean): number {
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [falling]);
+  }, []);
   return ms;
 }
 
@@ -75,11 +74,6 @@ export function StadiumPreview({ stands, floodlight, weather, name, play, label 
   };
   const style = WEATHER_STYLE[shown.weather];
   const overlay = style.overlay;
-  const drops = useMemo(() => {
-    const rng = createRng(17);
-    return makeDrops(overlay, () => rng.next());
-  }, [overlay]);
-  const ms = useFallClock(overlay !== 'none');
   const cone = coneLight(shown.floodlight, shown.weather);
   const top = STANDS_BOTTOM + 30;
   const rows = standRows(shown.stands);
@@ -125,15 +119,7 @@ export function StadiumPreview({ stands, floodlight, weather, name, play, label 
             <rect x={WORLD_WIDTH - 90} y={top} width={90} height={WORLD_HEIGHT - top} />
           </g>
         )}
-        {overlay !== 'none' &&
-          drops.map((d, i) => {
-            const p = dropAt(overlay, d, ms);
-            return overlay === 'snow' ? (
-              <circle key={i} cx={p.x} cy={p.y} r={14 * d.scale} fill="#ffffff" opacity={d.alpha} />
-            ) : (
-              <line key={i} x1={p.x} y1={p.y} x2={p.x + Math.sin(p.rotation) * 46} y2={p.y - Math.cos(p.rotation) * 46} stroke="#d2e1f0" strokeWidth={5} opacity={d.alpha} />
-            );
-          })}
+        {overlay !== 'none' && <FallingDrops overlay={overlay} />}
         <rect x={GOAL_FRAME.x} y={GOAL_FRAME.y} width={GOAL_FRAME.width} height={GOAL_FRAME.height} fill="#0e1a14" stroke="#f4f6ef" strokeWidth={22} />
         <rect x={CHART_RECT.x} y={CHART_RECT.y} width={CHART_RECT.width} height={CHART_RECT.height} fill="#f4f6ef" opacity={0.85} rx={12} />
         <rect x={BOARD.x} y={BOARD.y} width={BOARD.width} height={BOARD.height} rx={14} fill="#0a121b" stroke="#3a4c5e" strokeWidth={6} />
@@ -142,6 +128,30 @@ export function StadiumPreview({ stands, floodlight, weather, name, play, label 
         </text>
       </svg>
     </figure>
+  );
+}
+
+/**
+ * The falling snowflakes or raindrops of the preview. They own the frame clock, so only they draw again on every frame,
+ * not the whole stadium.
+ */
+function FallingDrops({ overlay }: { overlay: 'snow' | 'rain' }): ReactElement {
+  const drops = useMemo(() => {
+    const rng = createRng(17);
+    return makeDrops(overlay, () => rng.next());
+  }, [overlay]);
+  const ms = useFallClock();
+  return (
+    <>
+      {drops.map((d, i) => {
+        const p = dropAt(overlay, d, ms);
+        return overlay === 'snow' ? (
+          <circle key={i} cx={p.x} cy={p.y} r={14 * d.scale} fill="#ffffff" opacity={d.alpha} />
+        ) : (
+          <line key={i} x1={p.x} y1={p.y} x2={p.x + Math.sin(p.rotation) * 46} y2={p.y - Math.cos(p.rotation) * 46} stroke="#d2e1f0" strokeWidth={5} opacity={d.alpha} />
+        );
+      })}
+    </>
   );
 }
 

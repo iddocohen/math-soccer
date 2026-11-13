@@ -96,8 +96,26 @@ export function placeAt(layout: ChartLayout, choice: LineChoice, n: number): Pla
   return hints === null ? null : { number: n, hints, directions: directionsOf(n, hints) };
 }
 
-/** Every placement of `choice` on the chart, by target number; with `direction`, only those that train it. */
-export function placements(layout: ChartLayout, choice: PatternChoice, direction?: Direction): Placement[] {
+/** Placement lists already worked out, by range, pattern choice and direction; nothing changes them after. */
+const placementCache = new Map<string, readonly Placement[]>();
+/** The cache starts over above this many lists; a child plays a few ranges and patterns at a time. */
+const PLACEMENT_CACHE_MAX = 64;
+
+/**
+ * Every placement of `choice` on the chart, by target number; with `direction`, only those that train it. The list
+ * is worked out once per range, choice and direction, and shared: callers must not change it.
+ */
+export function placements(layout: ChartLayout, choice: PatternChoice, direction?: Direction): readonly Placement[] {
+  const key = `${layout.min}-${layout.max}|${JSON.stringify(choice)}|${direction ?? ''}`;
+  const cached = placementCache.get(key);
+  if (cached !== undefined) return cached;
+  const found = findPlacements(layout, choice, direction);
+  if (placementCache.size >= PLACEMENT_CACHE_MAX) placementCache.clear();
+  placementCache.set(key, found);
+  return found;
+}
+
+function findPlacements(layout: ChartLayout, choice: PatternChoice, direction?: Direction): Placement[] {
   if (choice.pattern === 'cutout') {
     return cutoutPlacements(layout, choice.cutout, direction).map(({ number, hints, directions, queue, squares }) => {
       const p: Placement = { number, hints, directions, cutout: { squares, given: hints } };

@@ -172,17 +172,25 @@ export function createSfx(options: SfxOptions): Sfx {
   };
 
   /** Plays a decoded clip at MAX_GAIN after `delay` seconds; false when the clip is not decoded. */
+  /** The one gain node every clip plays through, at MAX_GAIN; made with the first clip of its context. */
+  let clipGain: { context: AudioContextLike; node: ReturnType<AudioContextLike['createGain']> } | null = null;
+  const clipOutput = (c: AudioContextLike) => {
+    if (clipGain === null || clipGain.context !== c) {
+      const node = c.createGain();
+      node.gain.setValueAtTime(MAX_GAIN, c.currentTime);
+      node.connect(c.destination);
+      clipGain = { context: c, node };
+    }
+    return clipGain.node;
+  };
+
   const playClip = (c: AudioContextLike, name: ClipName, delay = 0): boolean => {
     const buffer = decoded.get(name);
     if (!buffer) return false;
-    const t = c.currentTime + delay;
-    const g = c.createGain();
-    g.gain.setValueAtTime(MAX_GAIN, t);
-    g.connect(c.destination);
     const src = c.createBufferSource();
     src.buffer = buffer;
-    src.connect(g);
-    src.start(t);
+    src.connect(clipOutput(c));
+    src.start(c.currentTime + delay);
     return true;
   };
 
