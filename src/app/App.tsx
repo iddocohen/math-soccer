@@ -98,18 +98,17 @@ import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf, type CupMatch } from '../core/cup/cup';
 import type { CupTeam } from '../core/cup/teams';
-import { cupMatchWon, MatchController, START_HEARTS, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
+import { cupMatchWon, MatchController, START_HEARTS, turnOf, type MatchView, type Phase, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
 import { recordKey, submitResult, submitShootout } from '../core/records/records';
-import { canStart, isControllerKind, startKindOf } from '../core/match/rounds';
+import { canStart, MODE_INFO, START_KIND_INFO, startKindOf } from '../core/match/rounds';
 import { wallColumns } from '../core/match/wall';
-import { KEEPER_SHOTS, keeperOpponent } from '../core/match/keeper';
-import { nextSide, scoreText, shootoutScore, shootoutWinner } from '../core/match/shootout';
+import { keeperOpponent } from '../core/match/keeper';
+import { scoreText, shootoutScore, shootoutWinner } from '../core/match/shootout';
 import { modeButtons } from '../core/rewards/modes';
-import { defaultFamilySetup, shooterOf, type FamilySetup } from '../core/match/family';
-import { TORWAND_SHOTS } from '../core/match/torwand';
+import { defaultFamilySetup, type FamilySetup } from '../core/match/family';
 import type { Celebration } from '../core/rewards/items';
 import { lookOf, newStars, stadiumNameShown } from '../core/rewards/lockerRoom';
 import { localStorageKeyValue } from '../core/storage/keyValue';
@@ -129,7 +128,7 @@ import { ParentGate } from './ParentGate';
 import { PauseScreen } from './PauseScreen';
 import { createPersistence, type DataKind, type Persistence } from './persistence';
 import { ProgressPage } from './ProgressPage';
-import { RoundEnd, type CupRoundResult, type FamilyResult, type RoundRecord, type ShootoutResult } from './RoundEnd';
+import { RoundEnd, type CupRoundResult, type RoundOutcome, type RoundRecord, type ShootoutResult } from './RoundEnd';
 import { FamilyCard } from './FamilyCard';
 import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
@@ -342,33 +341,40 @@ function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): Cu
   return { won, line, bonus: update.stars, cupWon: update.cupWon };
 }
 
-/** The end of a finished shootout for the round end; null for the other modes or while it goes on. */
-function shootoutResult(s: MatchView): ShootoutResult | null {
-  if (s.shootout === null || s.mode !== 'shootout') return null;
+/**
+ * The name of side 1 of a shootout: the opponent team of "Elfmeterschießen" or the grown-up of "Papa gegen Kind"; ''
+ * in the other modes.
+ */
+function opponentNameOf(s: MatchView): string {
+  const kicks = MODE_INFO[s.mode].kicks;
+  if (kicks === 'grownup') return s.family?.name ?? '';
+  return kicks === 'opponent' ? keeperOpponent(s.seed).name : '';
+}
+
+/** The end of a finished shootout for the round end, the child's name first; null for the other modes or while it goes on. */
+function shootoutResult(s: MatchView, child: string): ShootoutResult | null {
+  const kicks = MODE_INFO[s.mode].kicks;
+  if (s.shootout === null || kicks === null) return null;
   const winner = shootoutWinner(s.shootout.kicks);
   if (winner === null) return null;
-  return { won: winner === 0, score: shootoutScore(s.shootout.kicks), opponent: keeperOpponent(s.seed).name };
+  return { kicks, childWon: winner === 0, names: [child, opponentNameOf(s)], score: shootoutScore(s.shootout.kicks) };
 }
 
-/** The end of "Papa gegen Kind" for the round end; null for the other modes or while it goes on. */
-function familyResult(s: MatchView, child: string): FamilyResult | null {
-  if (s.shootout === null || s.family === null) return null;
-  const winner = shootoutWinner(s.shootout.kicks);
-  if (winner === null) return null;
-  return { winner: shooterOf(winner), child, grownup: s.family.name, score: shootoutScore(s.shootout.kicks) };
+/** What the round end tells of the finished round `s` besides its goals (`RoundOutcome`). */
+function roundOutcome(s: MatchView, cup: CupRoundResult | null, child: string): RoundOutcome {
+  if (s.roundType === 'cup' && cup !== null) return { kind: 'cup', cup };
+  const info = MODE_INFO[s.mode];
+  if (info.outcome === 'saves' || info.outcome === 'hits') return { kind: info.outcome, shots: info.shotLimit ?? 0 };
+  const result = info.outcome === 'shootout' ? shootoutResult(s, child) : null;
+  return result === null ? { kind: 'goals' } : { kind: 'shootout', result };
 }
 
-/** Who shoots next in "Papa gegen Kind" for tests (`data-turn`): `child`, `grownup`, or '' outside it or after the end. */
-function familyTurn(s: MatchView): string {
-  const side = s.family === null || s.shootout === null ? null : nextSide(s.shootout.kicks);
-  return side === null ? '' : shooterOf(side);
-}
-
-/** Whose turn it is in the shootout for tests (`data-shootout-turn`): `child`, `opponent`, or '' outside it or after the end. */
-function shootoutTurn(s: MatchView): string {
-  const side = s.shootout === null || s.mode !== 'shootout' ? null : nextSide(s.shootout.kicks);
-  if (side === null) return '';
-  return side === 0 ? 'child' : 'opponent';
+/**
+ * Whose turn it is for tests, '' after the end: `data-turn` in "Papa gegen Kind" (`child` or `grownup`) and
+ * `data-shootout-turn` in "Elfmeterschießen" (`child` or `opponent`); both '' in the other modes.
+ */
+function turnAttribute(s: MatchView, kicks: 'opponent' | 'grownup'): string {
+  return MODE_INFO[s.mode].kicks === kicks ? (turnOf(s) ?? '') : '';
 }
 
 /** Which keys the game takes on `screen`. */
@@ -552,14 +558,20 @@ export function App() {
   // Amendment 16: with "Automatisch" the pad shows without a fine pointer or on a screen narrower than 1100 px.
   const showPad = useNumberPadShown(settings().numberPad);
 
+  /**
+   * Starts a round of `kind`. A mode with a start card ("Papa gegen Kind", FR-158, FR-159) shows the card first; the
+   * card's "Los geht's" and "Nochmal" pass its `setup` and start the round.
+   */
   const startMatch = useCallback(
-    (kind: StartKind) => {
-      // A locked mode, one the parent turned off or one whose game is not built yet never starts (FR-141).
+    (kind: StartKind, setup?: FamilySetup) => {
+      // A locked mode or one the parent turned off never starts (FR-141).
       if (!canStart(kind, persistence.lockerRoom(), settings())) return;
       // Tablet browsers play sound and speak only after a user tap: the start tap (or key) unlocks both (FR-032,
-      // amendment 17), as in math-tank.
-      void sfx.unlock();
-      if (speech) speaker.prime();
+      // amendment 17), as in math-tank. A start with the card's setup follows such a tap.
+      if (setup === undefined) {
+        void sfx.unlock();
+        if (speech) speaker.prime();
+      }
       if (kind === 'cup') {
         // The cup's next match, with the level of its stage and "Tore pro Spiel" (FR-108, FR-109). The scene reads the
         // opponent when the round starts, so it is set first.
@@ -568,33 +580,26 @@ export function App() {
         cupScene.current = cupSceneOf(match);
         setIntro({ stage: match.stage, team: match.team });
         controller.startCup({ level: match.level, goals: match.goals, cup: cup.cup, stage: match.stage });
-      } else if (kind === 'family') {
-        // "Papa gegen Kind" asks for the grown-up's name and level first (FR-158, FR-159).
-        setScreen('start');
-        setFamilyCard(true);
-        return;
-      } else if (isControllerKind(kind)) {
+      } else {
+        const needsSetup = MODE_INFO[START_KIND_INFO[kind].mode].needsSetup;
+        if (needsSetup && setup === undefined) {
+          setScreen('start');
+          setFamilyCard(true);
+          return;
+        }
+        if (needsSetup && setup !== undefined) {
+          lastFamily.current = setup;
+          setFamilyCard(false);
+        }
         cupScene.current = null;
         setIntro(null);
-        controller.start(kind);
+        controller.start(kind, needsSetup ? (setup ?? null) : null);
       }
       setScreen('match');
     },
     [controller, sfx, speech, speaker, persistence, settings],
   );
-  // The start card's "Los geht's", and "Nochmal" after a match of "Papa gegen Kind": the shootout with this grown-up.
-  const startFamily = useCallback(
-    (setup: FamilySetup) => {
-      if (!canStart('family', persistence.lockerRoom(), settings())) return;
-      lastFamily.current = setup;
-      setFamilyCard(false);
-      cupScene.current = null;
-      setIntro(null);
-      controller.start('family', setup);
-      setScreen('match');
-    },
-    [controller, persistence, settings],
-  );
+  const startFamily = useCallback((setup: FamilySetup) => startMatch('family', setup), [startMatch]);
   const closeFamilyCard = useCallback(() => setFamilyCard(false), []);
 
   const roundOver = screen === 'match' && state.phase === 'roundOver';
@@ -677,15 +682,12 @@ export function App() {
     }
     // A time challenge or a mode the parent no longer allows becomes "Spielen".
     const kind = canStart(last, persistence.lockerRoom(), settings()) ? last : 'play';
-    // A rematch of "Papa gegen Kind" keeps the grown-up's name and level, so no start card shows.
-    if (kind === 'family' && !swUpdate.waiting()) {
-      // The match that just ended names its grown-up, also after a refresh restored it.
-      startFamily(state.family === null ? lastFamily.current : { name: state.family.name, level: state.family.level });
-      return;
-    }
-    // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round.
+    // A rematch of "Papa gegen Kind" keeps the grown-up's name and level, so no start card shows. The match that just
+    // ended names its grown-up, also after a refresh restored it.
+    const setup = state.family === null ? undefined : { name: state.family.name, level: state.family.level };
+    // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round (with the card).
     if (swUpdate.applyNow(kind, () => startMatch(kind))) return;
-    startMatch(kind);
+    startMatch(kind, setup);
   };
   // FR-103: the round "Nochmal" asked for before the page reloaded with the new version.
   useEffect(() => {
@@ -778,8 +780,7 @@ export function App() {
   const startTurn = useCallback(() => controller.startTurn(), [controller]);
   // The names on the score circles of the shootout: the child's shirt name ("Du" without one) and the opponent team.
   const childName = locker.shirtName.trim() || t().match.you;
-  let opponentName = state.mode === 'shootout' ? keeperOpponent(state.seed).name : '';
-  if (state.family !== null) opponentName = state.family.name;
+  const opponentName = opponentNameOf(state);
   const shootoutNames = useMemo(() => ({ child: childName, opponent: opponentName }), [childName, opponentName]);
 
   if (screen === 'lockerRoom' && lockerOn) {
@@ -850,16 +851,16 @@ export function App() {
       data-stadium-name={stadiumNameShown(locker.stadiumName)}
       data-mode={state.mode}
       data-wall-cols={state.wall ? wallColumns(state.wall).join(',') : ''}
-      data-shots={state.mode === 'keeper' || state.mode === 'torwand' ? state.shots : ''}
+      data-shots={MODE_INFO[state.mode].shotLimit !== null ? state.shots : ''}
       data-holes={state.torwand?.holes.join(',') ?? ''}
-      data-turn={familyTurn(state)}
+      data-turn={turnAttribute(state, 'grownup')}
       data-turn-card={state.family?.card === true && state.phase === 'aiming'}
-      data-saves={state.mode === 'keeper' ? state.goals : ''}
+      data-saves={MODE_INFO[state.mode].outcome === 'saves' ? state.goals : ''}
       data-shot-target={state.keeperShot?.result === null ? (state.target?.number ?? '') : ''}
       data-shot-state={shotState(state)}
-      data-opponent={state.mode === 'keeper' || state.mode === 'shootout' ? keeperOpponent(state.seed).id : ''}
+      data-opponent={MODE_INFO[state.mode].opponentTeam ? keeperOpponent(state.seed).id : ''}
       data-shootout-score={state.shootout === null ? '' : scoreText(state.shootout.kicks)}
-      data-shootout-turn={shootoutTurn(state)}
+      data-shootout-turn={turnAttribute(state, 'opponent')}
       onPointerDown={skipCelebration}
     >
       <div className="game-parent" ref={gameParent} />
@@ -903,13 +904,9 @@ export function App() {
           roundType={state.roundType}
           challengeMinutes={state.challengeMinutes}
           record={result?.kind === 'record' ? result.record : null}
-          cup={state.roundType === 'cup' ? cupResult : null}
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}
-          keeperShots={state.mode === 'keeper' ? KEEPER_SHOTS : null}
-          shootout={shootoutResult(state)}
-          torwandShots={state.mode === 'torwand' ? TORWAND_SHOTS : null}
-          family={familyResult(state, childName)}
+          outcome={roundOutcome(state, cupResult, childName)}
           onAgain={playAgain}
           onBack={() => setScreen(state.roundType === 'cup' ? 'cup' : 'start')}
         />

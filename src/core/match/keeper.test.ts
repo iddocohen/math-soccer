@@ -17,7 +17,6 @@ import {
   flightMsOf,
   KEEPER_FLIGHT_MS,
   KEEPER_RESULT_MS,
-  KEEPER_SAVE_STARS,
   KEEPER_SHOTS,
   keeperHintCount,
   keeperOpponent,
@@ -25,6 +24,7 @@ import {
   shotResult,
 } from './keeper';
 import { START_KIND_INFO } from './rounds';
+import { STARS } from '../rewards/lockerRoom';
 
 const layout = layoutChart(1, 100);
 
@@ -142,7 +142,7 @@ describe('the child in goal (FR-143)', () => {
     const c = keeperRound();
     const first = c.getState().target!.number;
     shoot(c, first);
-    expect(c.getState()).toMatchObject({ shots: 1, goals: 1, starsThisRound: KEEPER_SAVE_STARS, shown: null, message: { kind: 'saved' } });
+    expect(c.getState()).toMatchObject({ shots: 1, goals: 1, starsThisRound: STARS.save, shown: null, message: { kind: 'saved' } });
     expect(c.getState().keeperShot).toMatchObject({ result: 'saved', typed: first });
     // No number is typed between two shots.
     type(c, 5);
@@ -198,7 +198,7 @@ describe('the child in goal (FR-143)', () => {
       expect(c.getState().shots).toBe(i + 1);
       nextShot(c);
     }
-    expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: 10, goals: 5, starsThisRound: 5 * KEEPER_SAVE_STARS, keeperShot: null, shown: null });
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: 10, goals: 5, starsThisRound: 5 * STARS.save, keeperShot: null, shown: null });
   });
 
   it('its shots record no attempts, so they never move the child\'s level', () => {

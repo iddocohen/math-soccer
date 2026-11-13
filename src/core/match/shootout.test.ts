@@ -16,13 +16,13 @@ import {
   scoreCircles,
   scoreText,
   SHOOTOUT_ROUNDS,
-  SHOOTOUT_WIN_STARS,
   shootoutOver,
   shootoutRound,
   shootoutScore,
   shootoutWinner,
   type Kick,
 } from './shootout';
+import { STARS } from '../rewards/lockerRoom';
 
 /** The kicks after `seq` in turn order, side 0 first. */
 function play(seq: Kick[]): [Kick[], Kick[]] {
@@ -239,7 +239,7 @@ describe('the shootout round (FR-147, FR-148)', () => {
     expect(s.phase).toBe('roundOver');
     expect(shootoutWinner(s.shootout!.kicks)).toBe(0);
     expect(shootoutScore(s.shootout!.kicks)).toEqual([5, 1]);
-    expect(s.starsThisRound).toBe(SHOOTOUT_WIN_STARS);
+    expect(s.starsThisRound).toBe(STARS.shootoutWin);
     expect(s.keeperShot).toBeNull();
   });
 
@@ -273,7 +273,7 @@ describe('the shootout round (FR-147, FR-148)', () => {
     const s = c.getState();
     expect(s.phase).toBe('roundOver');
     expect(shootoutScore(s.shootout!.kicks)).toEqual([6, 5]);
-    expect(s.starsThisRound).toBe(SHOOTOUT_WIN_STARS);
+    expect(s.starsThisRound).toBe(STARS.shootoutWin);
   });
 
   it('help works on the child\'s kick as in "Spielen" and holds the opponent\'s shot as in "Selbst ins Tor"', () => {

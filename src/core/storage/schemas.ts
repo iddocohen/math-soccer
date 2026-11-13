@@ -6,7 +6,7 @@ import { MATCH_MODES } from '../match/rounds';
 import { KEEPER_SHOTS } from '../match/keeper';
 import { TORWAND_SHOTS } from '../match/torwand';
 import { GROWNUP_NAME_MAX } from '../match/family';
-import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
+import { DIRECTIONS, PLAYED_MODE, ROUND_TYPES } from '../types';
 
 /**
  * Schemas of the stored kinds other than settings (data-model.md). Every kind is at version 1 since the stored data
@@ -14,7 +14,7 @@ import { DIRECTIONS, MODES, ROUND_TYPES } from '../types';
  */
 
 /** The mode of an attempt or best: always `keeper`, the goalkeeper game. */
-export const modeSchema = z.enum(MODES);
+export const modeSchema = z.enum([PLAYED_MODE]);
 
 /** How one finished target went for a direction: alone, with help or misses, or not solved (as math-tank). */
 export const outcomeSchema = z.enum(['independent', 'assisted', 'unsolved']);

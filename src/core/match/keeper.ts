@@ -8,7 +8,7 @@
  *   always flies at the slow speed (FR-144).
  * - The squares follow the child's level in reverse (FR-146): any square of the range, with its row and column
  *   neighbors as hints at levels 1 to 2, one row and one column neighbor at levels 3 to 4, no hints at levels 5 to 6.
- * - A round has KEEPER_SHOTS shots; each save earns KEEPER_SAVE_STARS.
+ * - A round has KEEPER_SHOTS shots; each save earns `STARS.save` (src/core/rewards/lockerRoom.ts).
  */
 import { cellOf, numberAt, type ChartLayout } from '../chart/layout';
 import { TEAMS, type CupTeam } from '../cup/teams';
@@ -18,9 +18,6 @@ import type { Direction, Target } from '../types';
 
 /** The shots of one round (FR-146). */
 export const KEEPER_SHOTS = 10;
-
-/** Stars for each save (FR-146). */
-export const KEEPER_SAVE_STARS = 1;
 
 /** The parent's "Schussgeschwindigkeit" (FR-144). */
 export const KEEPER_SPEEDS = ['slow', 'medium', 'fast'] as const;

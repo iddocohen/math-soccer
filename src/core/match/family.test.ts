@@ -7,8 +7,9 @@ import { defaultSettings, type Level } from '../settings/defaults';
 import { roundSchema, type AttemptRecord, type StoredRound } from '../storage/schemas';
 import { MatchController, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
-import { cleanGrownupLevel, cleanGrownupName, DEFAULT_GROWNUP_LEVEL, DEFAULT_GROWNUP_NAME, FAMILY_WIN_STARS, type FamilySetup } from './family';
+import { cleanGrownupLevel, cleanGrownupName, DEFAULT_GROWNUP_LEVEL, DEFAULT_GROWNUP_NAME, type FamilySetup } from './family';
 import { nextSide } from './shootout';
+import { STARS } from '../rewards/lockerRoom';
 
 function type(c: MatchController, n: number) {
   for (const ch of String(n)) c.typeKey({ digit: Number(ch) as Digit });
@@ -110,7 +111,7 @@ describe('the "Papa gegen Kind" shootout (FR-158 to FR-161)', () => {
     expect(s.phase).toBe('roundOver');
     expect(s.shootout!.kicks.map((k) => k.filter((x) => x === 'goal').length)).toEqual([5, 2]);
     expect(s.goals).toBe(5);
-    expect(s.starsThisRound).toBe(5 + FAMILY_WIN_STARS);
+    expect(s.starsThisRound).toBe(5 + STARS.familyWin);
     expect(s.family!.card).toBe(false);
   });
 
@@ -136,7 +137,7 @@ describe('the "Papa gegen Kind" shootout (FR-158 to FR-161)', () => {
     kick(c, true);
     kick(c, false);
     expect(c.getState().phase).toBe('roundOver');
-    expect(c.getState().starsThisRound).toBe(7 + FAMILY_WIN_STARS);
+    expect(c.getState().starsThisRound).toBe(7 + STARS.familyWin);
   });
 
   it("only the child's kicks are recorded; the grown-up's are not", () => {

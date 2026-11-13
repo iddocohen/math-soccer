@@ -3,7 +3,7 @@
  * Stars and the locker room (FR-042, FR-043, data-model.md "LockerRoom"). Pure functions; the app stores the result
  * under `mathsoccer.lockerroom.v1` (src/core/storage/storage.ts).
  *
- * - Stars: 1 per goal (`GOAL_STARS`, amendment 05, lowered by amendment 19, FR-132). The match controller counts them in `starsThisRound`; the app
+ * - Stars: 1 per goal (`STARS`, amendment 05, lowered by amendment 19, FR-132). The match controller counts them in `starsThisRound`; the app
  *   gives every new star to the locker room as soon as it is earned (`newStars`), so a refresh loses none and counts
  *   none twice.
  * - `award` adds stars to the balance and the total ever earned. Only `buy` takes stars away; nothing in the game does
@@ -43,8 +43,31 @@ import {
 } from './items';
 import { cleanModes } from './modes';
 
-/** Stars for a goal (FR-132). */
-export const GOAL_STARS = 1;
+/**
+ * The stars per event, in one table:
+ * - `goal`: a goal (FR-132), also the child's goal in "Torwandschießen" and "Papa gegen Kind";
+ * - `save`: a save in "Selbst ins Tor" (FR-146);
+ * - `cutoutFill` and `cutoutBonus`: a filled square of a cutout and the bonus on its last square (amendment 18,
+ *   lowered by amendment 19, FR-132);
+ * - `shootoutWin`: a won "Elfmeterschießen" (FR-148); `familyWin`: the child's win in "Papa gegen Kind" (FR-160);
+ * - `cupMatchWin` and `cupWin`: a won cup match, and a won cup on top (FR-112).
+ */
+export const STARS = {
+  goal: 1,
+  save: 1,
+  cutoutFill: 0,
+  cutoutBonus: 2,
+  shootoutWin: 5,
+  familyWin: 3,
+  cupMatchWin: 3,
+  cupWin: 10,
+} as const;
+export type StarEvent = keyof typeof STARS;
+
+/** The stars of the round `s` after `events`; a null event earns nothing. */
+export function starsAfter(s: { starsThisRound: number }, ...events: Array<StarEvent | null>): number {
+  return events.reduce((sum, e) => sum + (e === null ? 0 : STARS[e]), s.starsThisRound);
+}
 
 export const SHIRT_NUMBER_MIN = 1;
 export const SHIRT_NUMBER_MAX = 99;

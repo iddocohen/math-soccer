@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { cupSchema, emptyCup, type Cup } from '../storage/schemas';
-import { CUP_STAGES, CUP_WIN_STARS, matchLevel, MATCH_WIN_STARS, nextMatch, recordMatch, teamOf } from './cup';
+import { CUP_STAGES, matchLevel, nextMatch, recordMatch, teamOf } from './cup';
 import { QUIRKS, TEAMS } from './teams';
+import { STARS } from '../rewards/lockerRoom';
 
 function settings(start: Settings['levels']['start'], hardest: Settings['levels']['hardest'], over: Partial<Settings> = {}): Settings {
   return { ...defaultSettings(), levels: { start, hardest }, ...over };
@@ -102,16 +103,16 @@ describe('match results (FR-108, FR-111, FR-112)', () => {
 
   it('a win records the score, moves to the next match, clears the tries and gives 3 stars (amendment 19, FR-132)', () => {
     const r = recordMatch(cupAt({ stage: 0, tries: 2 }), { won: true, goals: 5, against: 1 }, NOW);
-    expect(r).toEqual({ cup: cupAt({ stage: 1, tries: 0, scores: [{ goals: 5, against: 1 }] }), stars: MATCH_WIN_STARS, cupWon: false });
-    expect(MATCH_WIN_STARS).toBe(3);
+    expect(r).toEqual({ cup: cupAt({ stage: 1, tries: 0, scores: [{ goals: 5, against: 1 }] }), stars: STARS.cupMatchWin, cupWon: false });
+    expect(STARS.cupMatchWin).toBe(3);
   });
 
   it('a won final puts the cup on the trophy shelf, starts the next cup and gives 3 + 10 stars (amendment 19, FR-132)', () => {
     const final = cupAt({ cup: 2, stage: 4, scores: Array(4).fill({ goals: 5, against: 0 }), trophies: [{ cup: 1, at: '2026-11-01T10:00:00.000Z' }] });
     const r = recordMatch(final, { won: true, goals: 5, against: 2 }, NOW);
     expect(r.cupWon).toBe(true);
-    expect(r.stars).toBe(MATCH_WIN_STARS + CUP_WIN_STARS);
-    expect(CUP_WIN_STARS).toBe(10);
+    expect(r.stars).toBe(STARS.cupMatchWin + STARS.cupWin);
+    expect(STARS.cupWin).toBe(10);
     expect(r.cup).toEqual({
       version: 1,
       cup: 3,
@@ -133,7 +134,7 @@ describe('match results (FR-108, FR-111, FR-112)', () => {
       cup = r.cup;
       stars += r.stars;
     }
-    expect(stars).toBe(5 * MATCH_WIN_STARS + CUP_WIN_STARS);
+    expect(stars).toBe(5 * STARS.cupMatchWin + STARS.cupWin);
     expect(stars).toBe(25);
     expect(cup).toMatchObject({ cup: 2, stage: 0, trophies: [{ cup: 1 }] });
   });

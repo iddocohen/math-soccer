@@ -11,7 +11,7 @@
  * every challenge of the same length has the same time, so the best is the most goals.
  */
 import { emptyRecords, recordsSchema, type Records } from '../storage/schemas';
-import type { MatchMode } from '../match/rounds';
+import { MODE_INFO, type MatchMode } from '../match/rounds';
 import { PLAYED_MODE, type RoundType } from '../types';
 
 export { emptyRecords, recordsSchema, type Records };
@@ -31,7 +31,7 @@ export interface BestResult {
  * "Torwandschießen" (`|torwand`) and "Papa gegen Kind" (`|family`, amendment 23).
  */
 export function recordKey(min: number, max: number, roundType: RoundType, challengeMinutes: number | null = null, mode: MatchMode = 'normal'): string {
-  if (mode === 'keeper' || mode === 'shootout' || mode === 'torwand' || mode === 'family') return `${min}-${max}|${PLAYED_MODE}|${mode}`;
+  if (MODE_INFO[mode].ownRecordKey) return `${min}-${max}|${PLAYED_MODE}|${mode}`;
   const base = `${min}-${max}|${PLAYED_MODE}|${roundType}`;
   const key = roundType === 'time' ? `${base}|${challengeMinutes ?? 0}` : base;
   return mode === 'normal' ? key : `${key}|${mode}`;

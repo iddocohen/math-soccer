@@ -41,10 +41,6 @@ export const MODE_OFFERS: Record<UnlockMode, ModeOffer> = {
   family: { mode: 'family', price: 250, requires: null, key: 'F', playable: true },
 };
 
-export function isUnlockMode(value: string): value is UnlockMode {
-  return (UNLOCK_MODES as readonly string[]).includes(value);
-}
-
 export function isModeUnlocked(locker: Pick<LockerRoom, 'modes'>, mode: UnlockMode): boolean {
   return locker.modes.includes(mode);
 }

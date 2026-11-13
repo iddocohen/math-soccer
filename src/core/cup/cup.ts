@@ -11,23 +11,19 @@
  *   level easier, never below the start level (design call of the amendment).
  * - Each new cup sits one level higher (FR-111): its group games start one level above the last cup's, until they reach
  *   the hardest level. The levels come from the cup number, so they follow the parent's range when it changes.
- * - Stars (FR-112): goals earn their usual stars in the match; a won match adds MATCH_WIN_STARS and a won cup
- *   CUP_WIN_STARS on top.
+ * - Stars (FR-112): goals earn their usual stars in the match; a won match adds `STARS.cupMatchWin` and a won cup
+ *   `STARS.cupWin` on top (src/core/rewards/lockerRoom.ts).
  */
 import { levelRange, type Level } from '../progress/levels';
 import type { Settings } from '../settings/schema';
 import { CUP_MATCHES, type Cup } from '../storage/schemas';
+import { STARS } from '../rewards/lockerRoom';
 import { TEAMS, type CupTeam } from './teams';
 
 export { CUP_MATCHES };
 
 /** The five matches of a cup in bracket order, from left to right (FR-106). */
 export const CUP_STAGES = ['group1', 'group2', 'quarterFinal', 'semiFinal', 'final'] as const;
-export type CupStage = (typeof CUP_STAGES)[number];
-
-/** Stars for a won match and, on top, for a won cup (FR-112, lowered by amendment 19, FR-132). */
-export const MATCH_WIN_STARS = 3;
-export const CUP_WIN_STARS = 10;
 
 /** After this many lost tries of the same match, it plays one level easier (FR-109). */
 export const EASIER_AFTER_TRIES = 2;
@@ -86,7 +82,7 @@ export interface MatchResult {
 /** What a finished match did to the cup. */
 export interface CupUpdate {
   cup: Cup;
-  /** Bonus stars on top of the goal stars: MATCH_WIN_STARS for a win, plus CUP_WIN_STARS when it won the cup. */
+  /** Bonus stars on top of the goal stars: `STARS.cupMatchWin` for a win, plus `STARS.cupWin` when it won the cup. */
   stars: number;
   /** The match won the final: the cup went on the trophy shelf and the next cup starts. */
   cupWon: boolean;
@@ -101,12 +97,12 @@ export function recordMatch(cup: Cup, result: MatchResult, now: Date = new Date(
   if (!result.won) return { cup: { ...cup, scores: [...cup.scores], trophies: [...cup.trophies], tries: cup.tries + 1 }, stars: 0, cupWon: false };
   const scores = [...cup.scores, { goals: result.goals, against: result.against }];
   if (cup.stage < CUP_MATCHES - 1) {
-    return { cup: { ...cup, stage: cup.stage + 1, tries: 0, scores, trophies: [...cup.trophies] }, stars: MATCH_WIN_STARS, cupWon: false };
+    return { cup: { ...cup, stage: cup.stage + 1, tries: 0, scores, trophies: [...cup.trophies] }, stars: STARS.cupMatchWin, cupWon: false };
   }
   const trophies = [...cup.trophies, { cup: cup.cup, at: now.toISOString() }];
   return {
     cup: { version: 1, cup: cup.cup + 1, stage: 0, tries: 0, scores: [], trophies },
-    stars: MATCH_WIN_STARS + CUP_WIN_STARS,
+    stars: STARS.cupMatchWin + STARS.cupWin,
     cupWon: true,
   };
 }

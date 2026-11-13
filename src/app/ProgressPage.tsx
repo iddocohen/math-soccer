@@ -11,6 +11,7 @@
  * room together or not at all; the settings stay.
  */
 import { useMemo, useState } from 'react';
+import type { MatchMode } from '../core/match/rounds';
 import { summarize, type BestRow } from '../core/progress/summarize';
 import { t } from '../i18n';
 import type { Persistence } from './persistence';
@@ -160,10 +161,15 @@ function bestLabel(b: BestRow): string {
 /** The best itself: goals and time, goals in a time challenge, saves out of 10, or shootouts won. */
 function bestValue(b: BestRow): string {
   const P = t().progressPage;
-  if (b.matchMode === 'keeper') return P.keeperBestLine(b.goals);
-  if (b.matchMode === 'shootout') return P.shootoutBestLine(b.goals);
-  if (b.matchMode === 'torwand') return P.torwandBestLine(b.goals);
-  if (b.matchMode === 'family') return P.familyBestLine(b.goals);
+  // The modes whose best is not goals in a round type: saves, shootouts won, hits, the child's wins.
+  const modeLine: Partial<Record<MatchMode, (goals: number) => string>> = {
+    keeper: P.keeperBestLine,
+    shootout: P.shootoutBestLine,
+    torwand: P.torwandBestLine,
+    family: P.familyBestLine,
+  };
+  const line = modeLine[b.matchMode];
+  if (line) return line(b.goals);
   return b.challengeMinutes === null ? P.bestLine(b.goals, b.timeMs) : P.challengeBestLine(b.goals, b.challengeMinutes);
 }
 

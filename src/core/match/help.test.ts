@@ -12,7 +12,7 @@ import type { Settings } from '../settings/schema';
 import type { Target } from '../types';
 import type { Digit } from './entry';
 import { ANSWER_STEP, CHART_STEP, COLUMN_STEP, columnLabel, helpHint, hintsVisible, ROW_STEP, rowColumnHelp, rowLabel, scalesShown, targetHintDisplay } from './help';
-import { GOAL_STARS } from '../rewards/lockerRoom';
+import { STARS } from '../rewards/lockerRoom';
 import { MatchController } from './MatchController';
 
 const layout = layoutChart(1, 100);
@@ -196,7 +196,7 @@ describe('help step 4: the answer (FR-025b, FR-094)', () => {
     expect(c.getState()).toMatchObject({
       phase: 'celebrating',
       goals: 1,
-      starsThisRound: GOAL_STARS,
+      starsThisRound: STARS.goal,
       message: { kind: 'goal' },
       lastAttempt: { number: 46, solved: false, helpStep: 4 },
     });

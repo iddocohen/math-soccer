@@ -113,7 +113,7 @@ describe('start buttons and startable modes (FR-141)', () => {
     expect(startKindOf({ roundType: 'cup', mode: 'normal' })).toBe('cup');
     expect(startKindOf({ roundType: 'untilHearts', mode: 'torwand' })).toBe('torwand');
     expect(startKindOf({ roundType: 'goalCount', mode: 'family' })).toBe('family');
-    expect(START_KIND_INFO.wall).toEqual({ mode: 'wall', unlock: 'wall', roundType: 'settings' });
+    expect(START_KIND_INFO.wall).toEqual({ mode: 'wall', roundType: 'settings' });
   });
 
   it('settings stored before amendment 21 load with every mode allowed', () => {

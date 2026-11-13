@@ -22,9 +22,6 @@ export type ShootoutKicks = readonly [readonly Kick[], readonly Kick[]];
 /** The rounds before sudden death (FR-147). */
 export const SHOOTOUT_ROUNDS = 5;
 
-/** Stars for a won shootout (FR-148). */
-export const SHOOTOUT_WIN_STARS = 5;
-
 /** One circle of the score: a goal, a miss, or a kick still to come. */
 export type ScoreCircle = Kick | 'open';
 

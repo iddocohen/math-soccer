@@ -1,3 +1,4 @@
+import { UNLOCK_MODES, type UnlockMode } from '../rewards/modes';
 import type { Difficulty, RangePreset, Settings } from './schema';
 
 /** Limits from data-model.md "Settings". */
@@ -52,7 +53,7 @@ export function defaultSettings(): Settings {
     lockerRoom: true,
     pointAfterFullHelp: true,
     rowColumnHelper: true,
-    modesAllowed: { wall: true, keeper: true, shootout: true, torwand: true, family: true },
+    modesAllowed: Object.fromEntries(UNLOCK_MODES.map((m) => [m, true])) as Record<UnlockMode, boolean>,
     keeperSpeed: 'medium',
   };
 }

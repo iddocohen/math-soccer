@@ -98,7 +98,6 @@ export function StartScreen({ timeChallenge, onPlay, gear, cup = null, lockerRoo
             data-start="cup"
             data-cup-number={cup.cup}
             data-cup-stage={cup.stage}
-            data-cup-tries={cup.tries}
             aria-keyshortcuts="P"
             onClick={() => onPlay('cup')}
           >

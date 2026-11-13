@@ -26,7 +26,7 @@ import {
   mascotOf,
   trailOf,
 } from './items';
-import {
+import { STARS,
   award,
   buy,
   canBuy,
@@ -43,7 +43,6 @@ import {
   setStadiumName,
   stadiumNameShown,
   STADIUM_NAME_MAX,
-  GOAL_STARS,
   starsNeeded,
 } from './lockerRoom';
 
@@ -108,7 +107,7 @@ describe('items', () => {
 
 describe('stars', () => {
   it('gives 1 star per goal (amendment 19, FR-132)', () => {
-    expect(GOAL_STARS).toBe(1);
+    expect(STARS.goal).toBe(1);
   });
 
   it('awards only stars not yet seen in the round, and nothing when a new round starts at 0', () => {

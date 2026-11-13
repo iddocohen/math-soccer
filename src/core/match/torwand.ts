@@ -10,7 +10,7 @@
  *   other hole, so the round cutouts never overlap. A decoy never sits on a hint square.
  * - Levels 1 and 2 have two holes, from level 3 three (`torwandHoleCount`). When the chart has no room for a spaced
  *   decoy, the target gets fewer decoys (a 2-row chart can still hold two).
- * - A round is TORWAND_SHOTS shots, one per target; each goal earns GOAL_STARS (src/core/rewards/lockerRoom.ts).
+ * - A round is TORWAND_SHOTS shots, one per target; each goal earns `STARS.goal` (src/core/rewards/lockerRoom.ts).
  */
 import { cellOf, numberAt, COLUMNS, type ChartLayout } from '../chart/layout';
 import type { Level } from '../settings/defaults';

@@ -14,14 +14,15 @@
  * (Enter or Space) goes back to the bracket; after a loss "Nochmal" replays the match and "Zurück" goes to the bracket
  * (App.tsx passes the bracket as `onBack`). A won final sits low on the screen (`cup-final-won`), so the confetti,
  * the fireworks and the cup lift stay in view.
- * "Selbst ins Tor" (amendment 21, FR-146): with `keeperShots` the result reads "7 von 10 gehalten" and the record
+ * The other modes pass `outcome` (`RoundOutcome`).
+ * "Selbst ins Tor" (amendment 21, FR-146): with `saves` the result reads "7 von 10 gehalten" and the record
  * "Dein Rekord: 8 gehalten"; `goals` are the saves.
- * "Elfmeterschießen" (amendment 21 part 3, FR-148): with `shootout` the heading is "Elfmeter-Sieger!" after a win
+ * "Elfmeterschießen" (amendment 21 part 3, FR-148): with `shootout` against the opponent team the heading is "Elfmeter-Sieger!" after a win
  * (placed low like a won cup final, so the confetti stays in view) or "Knapp! Noch mal?" after a loss, the
  * result reads "4:3 gegen FC Blitz", and the record line counts the shootouts won (`data-shootout-won`).
- * "Torwandschießen" (amendment 23, FR-157): with `torwandShots` the result reads "7 von 10 Treffern" and the record
+ * "Torwandschießen" (amendment 23, FR-157): with `hits` the result reads "7 von 10 Treffern" and the record
  * "Dein Rekord: 8 von 10 Treffern".
- * "Papa gegen Kind" (amendment 23, FR-160): with `family` the heading names the winner ("Leo gewinnt!" or "Papa
+ * "Papa gegen Kind" (amendment 23, FR-160): with `shootout` against the grown-up the heading names the winner ("Leo gewinnt!" or "Papa
  * gewinnt!"), placed low like a won final so the confetti stays in view; when the grown-up won, "Knapp! Revanche?"
  * follows (`data-testid="family-lost"`). The result reads "Leo 4:3 Papa" and the record line counts the child's wins
  * (`data-family-winner`: `child` or `grownup`).
@@ -43,20 +44,32 @@ export interface CupRoundResult {
   replaced?: boolean;
 }
 
-/** The end of a shootout: won or not, the score (the child's goals first) and the opponent team's name. */
+/**
+ * The end of a shootout: who took the kicks of side 1 (the opponent team in "Elfmeterschießen", the grown-up in "Papa
+ * gegen Kind"), whether the child won, the names of both sides (the child's first) and the score (the child's goals
+ * first).
+ */
 export interface ShootoutResult {
-  won: boolean;
+  kicks: 'opponent' | 'grownup';
+  childWon: boolean;
+  names: readonly [string, string];
   score: readonly [number, number];
-  opponent: string;
 }
 
-/** The end of "Papa gegen Kind": who won, the names and the score (the child's goals first). */
-export interface FamilyResult {
-  winner: 'child' | 'grownup';
-  child: string;
-  grownup: string;
-  score: readonly [number, number];
-}
+/**
+ * What the round end tells besides the goals:
+ * - `goals`: the usual result;
+ * - `cup`: the outcome of a cup match;
+ * - `saves`: "Selbst ins Tor", the shots of the round (`goals` are the saves);
+ * - `hits`: "Torwandschießen", the shots of the round (`goals` are the hits);
+ * - `shootout`: how a shootout ended.
+ */
+export type RoundOutcome =
+  | { kind: 'goals' }
+  | { kind: 'cup'; cup: CupRoundResult }
+  | { kind: 'saves'; shots: number }
+  | { kind: 'hits'; shots: number }
+  | { kind: 'shootout'; result: ShootoutResult };
 
 export interface RoundRecord {
   newRecord: boolean;
@@ -73,53 +86,52 @@ interface Props {
   record: RoundRecord | null;
   /** Stars earned in the round, or null when the locker room is off (FR-044). */
   stars?: number | null;
-  /** The outcome of a cup match; null for the other round types. */
-  cup?: CupRoundResult | null;
   /** A new version waits and applies on "Zurück" or "Nochmal" (FR-103). */
   updateWaiting?: boolean;
-  /** "Selbst ins Tor": the shots of the round, and `goals` are the saves; null for the other modes. */
-  keeperShots?: number | null;
-  /** "Elfmeterschießen": how it ended; null for the other modes. */
-  shootout?: ShootoutResult | null;
-  /** "Torwandschießen": the shots of the round, and `goals` are the hits; null for the other modes. */
-  torwandShots?: number | null;
-  /** "Papa gegen Kind": how it ended; null for the other modes. */
-  family?: FamilyResult | null;
+  /** What the round end tells besides the goals; the usual result without it. */
+  outcome?: RoundOutcome;
   onAgain: () => void;
   onBack: () => void;
 }
 
-export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, cup = null, updateWaiting = false, keeperShots = null, shootout = null, torwandShots = null, family = null, onAgain, onBack }: Props) {
+const GOALS: RoundOutcome = { kind: 'goals' };
+
+export function RoundEnd({ goals, elapsedMs, roundType, challengeMinutes = null, record, stars = null, updateWaiting = false, outcome = GOALS, onAgain, onBack }: Props) {
   const text = t().roundEnd;
+  const cup = outcome.kind === 'cup' ? outcome.cup : null;
+  const shootout = outcome.kind === 'shootout' ? outcome.result : null;
+  const family = shootout?.kicks === 'grownup';
   let result = challengeMinutes !== null ? text.challengeSummary(goals, challengeMinutes) : text.summary(goals, elapsedMs);
-  if (keeperShots !== null) result = text.keeperSummary(goals, keeperShots);
-  if (shootout !== null) result = text.shootoutSummary(shootout.score[0], shootout.score[1], shootout.opponent);
-  if (torwandShots !== null) result = text.torwandSummary(goals, torwandShots);
-  if (family !== null) result = text.familySummary(family.child, family.score[0], family.grownup, family.score[1]);
+  if (outcome.kind === 'saves') result = text.keeperSummary(goals, outcome.shots);
+  if (outcome.kind === 'hits') result = text.torwandSummary(goals, outcome.shots);
+  if (shootout !== null) {
+    const [child, other] = shootout.names;
+    const [a, b] = shootout.score;
+    result = family ? text.familySummary(child, a, other, b) : text.shootoutSummary(a, b, other);
+  }
   let heading = text.cheer;
-  if (shootout !== null) heading = shootout.won ? text.shootoutWon : text.shootoutLost;
-  if (family !== null) heading = text.familyWinner(family.winner === 'child' ? family.child : family.grownup);
+  if (shootout !== null && family) heading = text.familyWinner(shootout.names[shootout.childWon ? 0 : 1]);
+  else if (shootout !== null) heading = shootout.childWon ? text.shootoutWon : text.shootoutLost;
   const best = record?.best ?? null;
   let bestLine = '';
   if (best !== null) {
-    if (keeperShots !== null) bestLine = text.keeperRecord(best.goals);
-    else if (shootout !== null) bestLine = text.shootoutRecord(best.goals);
-    else if (torwandShots !== null) bestLine = text.torwandRecord(best.goals);
-    else if (family !== null) bestLine = text.familyRecord(best.goals);
+    if (outcome.kind === 'saves') bestLine = text.keeperRecord(best.goals);
+    else if (outcome.kind === 'hits') bestLine = text.torwandRecord(best.goals);
+    else if (shootout !== null) bestLine = family ? text.familyRecord(best.goals) : text.shootoutRecord(best.goals);
     else bestLine = roundType === 'goalCount' ? text.recordTime(best.goals, best.timeMs) : text.record(best.goals);
   }
   return (
     <div
-      className={cup?.cupWon || shootout?.won || family !== null ? 'round-end cup-final-won' : 'round-end'}
+      className={cup?.cupWon || shootout?.childWon || family ? 'round-end cup-final-won' : 'round-end'}
       data-testid="round-end"
-      data-shootout-won={shootout === null ? undefined : shootout.won}
-      data-family-winner={family?.winner}
+      data-shootout-won={shootout === null || family ? undefined : shootout.childWon}
+      data-family-winner={family ? (shootout.childWon ? 'child' : 'grownup') : undefined}
       role="dialog"
       aria-modal="true"
       aria-label={heading}
     >
       <h2>{heading}</h2>
-      {family?.winner === 'grownup' && (
+      {family && !shootout.childWon && (
         <p className="family-lost" data-testid="family-lost">
           {text.familyLost}
         </p>

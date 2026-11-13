@@ -26,7 +26,7 @@ describe('RoundEnd update line (FR-103)', () => {
 describe('RoundEnd after a cup match (amendment 13, FR-108, T102)', () => {
   function showCup(cup: { won: boolean; line: string; cupWon?: boolean }, calls: string[]) {
     render(
-      <RoundEnd goals={3} elapsedMs={65_000} roundType="cup" record={null} cup={cup} onAgain={() => calls.push('again')} onBack={() => calls.push('back')} />,
+      <RoundEnd goals={3} elapsedMs={65_000} roundType="cup" record={null} outcome={{ kind: 'cup', cup }} onAgain={() => calls.push('again')} onBack={() => calls.push('back')} />,
     );
   }
 
@@ -65,7 +65,7 @@ describe('RoundEnd after a shootout (amendment 21 part 3, FR-148)', () => {
         roundType="untilHearts"
         record={{ newRecord: false, best }}
         stars={5}
-        shootout={{ won: true, score: [4, 3], opponent: 'FC Blitz' }}
+        outcome={{ kind: 'shootout', result: { kicks: 'opponent', childWon: true, names: ['Du', 'FC Blitz'], score: [4, 3] } }}
         onAgain={() => {}}
         onBack={() => {}}
       />,
@@ -80,7 +80,7 @@ describe('RoundEnd after a shootout (amendment 21 part 3, FR-148)', () => {
 
   it('a loss reads "Knapp! Noch mal?" and offers "Nochmal"', () => {
     render(
-      <RoundEnd goals={2} elapsedMs={65_000} roundType="untilHearts" record={null} stars={0} shootout={{ won: false, score: [2, 3], opponent: 'Adler 09' }} onAgain={() => {}} onBack={() => {}} />,
+      <RoundEnd goals={2} elapsedMs={65_000} roundType="untilHearts" record={null} stars={0} outcome={{ kind: 'shootout', result: { kicks: 'opponent', childWon: false, names: ['Du', 'Adler 09'], score: [2, 3] } }} onAgain={() => {}} onBack={() => {}} />,
     );
     expect(screen.getByRole('heading').textContent).toBe('Knapp! Noch mal?');
     expect(screen.getByTestId('round-result').textContent).toBe('2:3 gegen Adler 09');
@@ -97,7 +97,7 @@ describe('RoundEnd after "Torwandschießen" and "Papa gegen Kind" (amendment 23,
         elapsedMs={65_000}
         roundType="untilHearts"
         record={{ newRecord: false, best: { goals: 8, timeMs: 0, at: '' } }}
-        torwandShots={10}
+        outcome={{ kind: 'hits', shots: 10 }}
         onAgain={() => {}}
         onBack={() => {}}
       />,
@@ -108,7 +108,7 @@ describe('RoundEnd after "Torwandschießen" and "Papa gegen Kind" (amendment 23,
 
   it('the child\'s win names him; a win of the grown-up names him and offers "Knapp! Revanche?"', () => {
     const { unmount } = render(
-      <RoundEnd goals={4} elapsedMs={0} roundType="untilHearts" record={null} stars={7} family={{ winner: 'child', child: 'Leo', grownup: 'Papa', score: [4, 3] }} onAgain={() => {}} onBack={() => {}} />,
+      <RoundEnd goals={4} elapsedMs={0} roundType="untilHearts" record={null} stars={7} outcome={{ kind: 'shootout', result: { kicks: 'grownup', childWon: true, names: ['Leo', 'Papa'], score: [4, 3] } }} onAgain={() => {}} onBack={() => {}} />,
     );
     expect(screen.getByRole('heading').textContent).toBe('Leo gewinnt!');
     expect(screen.getByTestId('round-result').textContent).toBe('Leo 4:3 Papa');
@@ -116,7 +116,7 @@ describe('RoundEnd after "Torwandschießen" and "Papa gegen Kind" (amendment 23,
     expect(screen.queryByTestId('family-lost')).toBeNull();
     unmount();
     render(
-      <RoundEnd goals={2} elapsedMs={0} roundType="untilHearts" record={null} stars={2} family={{ winner: 'grownup', child: 'Leo', grownup: 'Papa', score: [2, 3] }} onAgain={() => {}} onBack={() => {}} />,
+      <RoundEnd goals={2} elapsedMs={0} roundType="untilHearts" record={null} stars={2} outcome={{ kind: 'shootout', result: { kicks: 'grownup', childWon: false, names: ['Leo', 'Papa'], score: [2, 3] } }} onAgain={() => {}} onBack={() => {}} />,
     );
     expect(screen.getByRole('heading').textContent).toBe('Papa gewinnt!');
     expect(screen.getByTestId('family-lost').textContent).toBe('Knapp! Revanche?');

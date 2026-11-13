@@ -68,12 +68,12 @@ import Phaser from 'phaser';
 import { ballKind, cellRect, center, layoutChart, type ChartLayout } from '../core/chart/layout';
 import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
-import { cupMatchWon, onlyTimeChanged, type MatchController, type MatchView } from '../core/match/MatchController';
+import { cupMatchWon, onlyTimeChanged, turnOf, type MatchController, type MatchView } from '../core/match/MatchController';
+import { MODE_INFO, type MatchMode } from '../core/match/rounds';
 import { isCutoutFill } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
 import { WallView } from './WallView';
 import { TorwandView } from './TorwandView';
-import { nextSide } from '../core/match/shootout';
 import { ShotView } from './ShotView';
 import { keeperOpponent } from '../core/match/keeper';
 import { shootoutWinner } from '../core/match/shootout';
@@ -191,6 +191,12 @@ const OPPONENT_NUMBER = 9;
 /** The grown-up's shirt in "Papa gegen Kind": a blue apart from the kit colors, with number 1. */
 const GROWNUP_SHIRT = 0x3b6fd6;
 const GROWNUP_NUMBER = 1;
+
+/** True for the modes where an opponent shoots at the child in goal: "Selbst ins Tor" and "Elfmeterschießen". */
+function opponentShootsIn(mode: MatchMode): boolean {
+  const info = MODE_INFO[mode];
+  return info.childKeeps || info.kicks === 'opponent';
+}
 /** The grass tile is drawn at this part of its 512 px, so the blades look small from the stands' view. */
 const GRASS_TILE_SCALE = 0.5;
 
@@ -395,7 +401,7 @@ export class MatchScene extends Phaser.Scene {
       if (winner === 0 || (winner === 1 && s.family !== null)) this.shootoutWon();
     }
 
-    if (s.mode === 'keeper' || s.mode === 'shootout') this.drawShot(s, layout);
+    if (opponentShootsIn(s.mode)) this.drawShot(s, layout);
     else this.shot.hide();
     if (s.phase === 'ballInFlight' && s.ball && !this.flying) this.kick(s.ball.number);
     // After the celebration the next target shows and the ball waits at the kick spot again.
@@ -486,7 +492,7 @@ export class MatchScene extends Phaser.Scene {
   private followShot(delta: number): void {
     const s = this.controller.getState();
     const shot = s.keeperShot;
-    if ((s.mode !== 'keeper' && s.mode !== 'shootout') || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
+    if (!opponentShootsIn(s.mode) || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
     const goal = 1 - shot.leftMs / shot.totalMs;
     // The controller's time moves in steps of a tick; the drawing eases toward it.
     this.shotK += (goal - this.shotK) * Math.min(1, delta / 250);
@@ -579,12 +585,14 @@ export class MatchScene extends Phaser.Scene {
    * (amendment 21). On the child's turn of the shootout the keeper wears the opponent team's colors.
    */
   private applyLook(look: Look, s: MatchView): void {
-    const shootout = s.started && s.mode === 'shootout';
-    const opponentShoots = s.started && (s.mode === 'keeper' || (shootout && s.keeperShot !== null));
+    const info = MODE_INFO[s.mode];
+    const shootout = s.started && info.kicks === 'opponent';
+    // On the opponent's turn of the shootout his shot exists; it stays while its result shows.
+    const opponentShoots = s.started && (info.childKeeps || (shootout && s.keeperShot !== null));
     const team = opponentShoots || shootout ? keeperOpponent(s.seed) : null;
     const opponent = opponentShoots ? team : null;
     // "Papa gegen Kind": the grown-up kicks in his own shirt with his name.
-    const grownup = s.started && s.family !== null && s.shootout !== null && nextSide(s.shootout.kicks) === 1 ? s.family.name : null;
+    const grownup = s.started && s.family !== null && turnOf(s) === 'grownup' ? s.family.name : null;
     const key = `${lookKey(look)}|${team?.id ?? ''}|${opponentShoots}|${grownup ?? ''}`;
     if (key === this.lookKey) return;
     this.lookKey = key;

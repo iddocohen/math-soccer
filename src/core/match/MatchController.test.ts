@@ -3,11 +3,9 @@ import { defaultSettings, MISSES_PER_HEART } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import type { AttemptRecord, StoredRound } from '../storage/schemas';
 import { isCutoutFill, type Target } from '../types';
-import { GOAL_STARS } from '../rewards/lockerRoom';
+import { STARS } from '../rewards/lockerRoom';
 import {
   cupMatchWon,
-  CUTOUT_BONUS_STARS,
-  FILL_STARS,
   MatchController,
   matchInvariantErrors,
   remainingMs,
@@ -198,7 +196,7 @@ describe('goals and misses (US1)', () => {
   it('a correct number gives a goal, 1 star, and a new target after the celebration', () => {
     const c = fixed();
     shootAndLand(c, 46);
-    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, target: { number: 46 } });
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: STARS.goal, target: { number: 46 } });
     c.celebrationDone();
     expect(c.getState()).toMatchObject({ phase: 'aiming', goals: 1, helpStep: 0, missesInRow: 0, target: { number: 47 } });
   });
@@ -315,14 +313,14 @@ describe('point after full help (FR-025b)', () => {
     const c = fixed();
     for (let i = 0; i < 4; i++) c.askHelp();
     shootAndLand(c, 46);
-    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS });
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: STARS.goal });
   });
 
   it('with the setting off it celebrates and earns stars but does not count for the goals', () => {
     const c = fixed({ pointAfterFullHelp: false });
     for (let i = 0; i < 4; i++) c.askHelp();
     shootAndLand(c, 46);
-    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 0, starsThisRound: GOAL_STARS });
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 0, starsThisRound: STARS.goal });
   });
 
   it('a shot after help step 3 still counts with the setting off', () => {
@@ -535,7 +533,7 @@ describe('MatchController goalkeeper targets (T053, FR-019, FR-020, FR-065)', ()
     const c = keeperController();
     const first = c.getState().target!.number;
     shootAndLand(c, first);
-    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: GOAL_STARS, ball: { outcome: 'goal' } });
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, starsThisRound: STARS.goal, ball: { outcome: 'goal' } });
     c.celebrationDone();
     expect(c.getState().target!.pattern).toBeDefined();
     expect(c.getState().target!.number).not.toBe(first);
@@ -994,7 +992,7 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
       expect(c.getState().phase).toBe('celebrating');
       c.celebrationDone();
     }
-    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 3, starsThisRound: 3 * GOAL_STARS });
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', goals: 3, starsThisRound: 3 * STARS.goal });
     expect(cupMatchWon(c.getState())).toBe(true);
   });
 
@@ -1086,7 +1084,7 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     expect(c.getState()).toMatchObject({
       phase: 'aiming',
       goals: 0,
-      starsThisRound: FILL_STARS,
+      starsThisRound: STARS.cutoutFill,
       ball: { number: 46, outcome: 'filled' },
       message: { kind: 'filled', number: 46 },
       target: { number: 47, hints: [45, 46], cutout: { squares: [45, 46, 47, 48], given: [45] } },
@@ -1099,14 +1097,14 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     c.start();
     shootAndLand(c, 46);
     shootAndLand(c, 47);
-    expect(c.getState()).toMatchObject({ goals: 0, starsThisRound: 2 * FILL_STARS, target: { number: 48 } });
+    expect(c.getState()).toMatchObject({ goals: 0, starsThisRound: 2 * STARS.cutoutFill, target: { number: 48 } });
     // The last square: the keeper steps in (no more squares after it).
     expect(isCutoutFill(c.getState().target as Target)).toBe(false);
     shootAndLand(c, 48);
-    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, ball: { outcome: 'goal' }, starsThisRound: 2 * FILL_STARS + GOAL_STARS + CUTOUT_BONUS_STARS });
+    expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, ball: { outcome: 'goal' }, starsThisRound: 2 * STARS.cutoutFill + STARS.goal + STARS.cutoutBonus });
     // Amendment 19 (FR-132): squares earn nothing, the whole cutout 1 + 2 stars.
     expect(c.getState().starsThisRound).toBe(3);
-    expect({ FILL_STARS, CUTOUT_BONUS_STARS }).toEqual({ FILL_STARS: 0, CUTOUT_BONUS_STARS: 2 });
+    expect({ fill: STARS.cutoutFill, bonus: STARS.cutoutBonus }).toEqual({ fill: 0, bonus: 2 });
     c.celebrationDone();
     expect(c.getState()).toMatchObject({ phase: 'aiming', goals: 1, target: { number: 12 } });
   });
@@ -1161,7 +1159,7 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     expect(store.round?.target).toMatchObject({ number: 47, hints: [45, 46], cutout: { squares: [45, 46, 47, 48], given: [45] } });
     const again = new MatchController({ settings: () => ({ ...defaultSettings(), roundType: 'goalCount' }), store });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ starsThisRound: FILL_STARS, target: { number: 47, hints: [45, 46], queue: [{ number: 48 }] } });
+    expect(again.getState()).toMatchObject({ starsThisRound: STARS.cutoutFill, target: { number: 47, hints: [45, 46], queue: [{ number: 48 }] } });
     shootAndLand(again, 47);
     shootAndLand(again, 48);
     expect(again.getState()).toMatchObject({ phase: 'celebrating', goals: 1 });
@@ -1174,6 +1172,6 @@ describe('cutouts of level 6 (amendment 18, FR-125 to FR-128)', () => {
     c.shoot();
     c.tick(60_000);
     c.ballLanded();
-    expect(c.getState()).toMatchObject({ phase: 'roundOver', starsThisRound: FILL_STARS, goals: 0 });
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', starsThisRound: STARS.cutoutFill, goals: 0 });
   });
 });

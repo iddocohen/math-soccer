@@ -10,11 +10,8 @@ export type Direction = (typeof DIRECTIONS)[number];
  * The mode name in stored attempts and personal bests. Since amendment 05 the goalkeeper game (`keeper`) is the only
  * game; the stored data baseline (T106) dropped the hole and line modes of earlier data.
  */
-export const MODES = ['keeper'] as const;
-export type Mode = (typeof MODES)[number];
-
-/** The mode of every attempt and personal best. */
-export const PLAYED_MODE = 'keeper' satisfies Mode;
+export const PLAYED_MODE = 'keeper';
+export type Mode = typeof PLAYED_MODE;
 
 /**
  * The round types (FR-026, FR-077, FR-108): until the hearts are gone, a fixed number of goals, the time challenge,

@@ -23,6 +23,7 @@ import { qrMatrix, qrPath, type QrMatrix } from '../core/transfer/qr';
 import { encodeTransfer, type EncodedTransfer } from '../core/transfer/transfer';
 import { HINT_DISTANCES } from '../core/types';
 import { KEEPER_SPEEDS } from '../core/match/keeper';
+import { UNLOCK_MODES } from '../core/rewards/modes';
 import { t } from '../i18n';
 import { BUILD_DATE, BUILD_VERSION } from './buildInfo';
 import { LevelExamples } from './LevelExamples';
@@ -314,11 +315,9 @@ export function SettingsPage({ persistence, onSaved, onClose, now = () => new Da
         {/* "Spielarten erlauben" (amendment 21, FR-141): a mode turned off here has no start screen button. */}
         <Group title={S.groups.modes}>
           <p className="hint">{L.modesHint}</p>
-          <Check label={O.modes.wall} {...flag('modesAllowed', 'wall')} />
-          <Check label={O.modes.keeper} {...flag('modesAllowed', 'keeper')} />
-          <Check label={O.modes.shootout} {...flag('modesAllowed', 'shootout')} />
-          <Check label={O.modes.torwand} {...flag('modesAllowed', 'torwand')} />
-          <Check label={O.modes.family} {...flag('modesAllowed', 'family')} />
+          {UNLOCK_MODES.map((mode) => (
+            <Check key={mode} label={O.modes[mode]} {...flag('modesAllowed', mode)} />
+          ))}
           {/* "Schussgeschwindigkeit" of "Selbst ins Tor" (FR-144). */}
           <Select
             label={L.keeperSpeed}
@@ -434,7 +433,6 @@ function QrSvg({ qr, label }: { qr: QrMatrix; label: string }) {
     <svg
       className="transfer-qr"
       data-testid="transfer-qr"
-      data-qr-size={qr.size}
       viewBox={`0 0 ${qr.size} ${qr.size}`}
       shapeRendering="crispEdges"
       role="img"

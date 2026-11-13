@@ -49,9 +49,8 @@
 import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
 import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
-import { KEEPER_SHOTS } from '../core/match/keeper';
 import { nextSide, scoreCircles, shootoutRound, shootoutScore, SHOOTOUT_ROUNDS, type ShootoutKicks } from '../core/match/shootout';
-import { TORWAND_SHOTS } from '../core/match/torwand';
+import { MODE_INFO } from '../core/match/rounds';
 import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
 import { STARTER } from '../core/rewards/items';
 import type { Settings } from '../core/settings/schema';
@@ -203,26 +202,7 @@ export const MatchOverlay = memo(function MatchOverlay({
   const canFullscreen = document.fullscreenEnabled === true;
   const layout = layoutChart(state.min, state.max);
   const lit = litLabels(state);
-  let goals =
-    state.roundType === 'goalCount'
-      ? text.match.goalsOf(state.goals, settings.goalsPerRound)
-      : state.cupMatch !== null
-        ? text.match.goalsOf(state.goals, state.cupMatch.goals)
-        : text.match.goals(state.goals);
-  // "Selbst ins Tor" (amendment 21): the saves and the shot that flies now, out of KEEPER_SHOTS.
-  if (state.mode === 'keeper') {
-    const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
-    goals = text.match.keeperCount(state.goals, Math.max(1, shot), KEEPER_SHOTS);
-  }
-  if (state.shootout !== null) {
-    const round = shootoutRound(state.shootout.kicks);
-    goals = state.family !== null ? text.match.familyRound(round, SHOOTOUT_ROUNDS) : text.match.shootoutRound(round, SHOOTOUT_ROUNDS);
-  }
-  // "Torwandschießen" (amendment 23): the hits and the shot now, out of TORWAND_SHOTS.
-  if (state.torwand !== null) {
-    const shot = state.phase === 'roundOver' || state.torwand.waitMs > 0 || state.phase === 'celebrating' ? state.shots : state.shots + 1;
-    goals = text.match.torwandCount(state.goals, Math.min(TORWAND_SHOTS, Math.max(1, shot)), TORWAND_SHOTS);
-  }
+  const goals = goalCounter(state, settings.goalsPerRound);
   const names = shootoutNames ?? { child: text.match.you, opponent: '' };
   const turnCard = state.family?.card === true && state.phase === 'aiming' && !state.paused;
   return (
@@ -270,7 +250,7 @@ export const MatchOverlay = memo(function MatchOverlay({
           {state.shootout !== null && (
             <ShootoutScore kicks={state.shootout.kicks} names={names} family={state.family !== null} />
           )}
-          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && state.mode !== 'keeper' && state.shootout === null && state.torwand === null && (
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && MODE_INFO[state.mode].hearts && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
@@ -355,6 +335,31 @@ export const MatchOverlay = memo(function MatchOverlay({
 });
 
 const noSubscribe = () => () => {};
+
+/**
+ * The goal counter: the goals, out of the round's or the cup match's goals. "Selbst ins Tor" (amendment 21) counts the
+ * saves and the shot that flies now, a shootout its round, "Torwandschießen" (amendment 23) the hits and the shot now,
+ * each out of the mode's shots (`MODE_INFO`).
+ */
+function goalCounter(state: MatchView, goalsPerRound: number): string {
+  const text = t().match;
+  const info = MODE_INFO[state.mode];
+  const limit = info.shotLimit ?? 0;
+  if (info.outcome === 'saves') {
+    const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
+    return text.keeperCount(state.goals, Math.max(1, shot), limit);
+  }
+  if (state.shootout !== null) {
+    const round = shootoutRound(state.shootout.kicks);
+    return info.kicks === 'grownup' ? text.familyRound(round, SHOOTOUT_ROUNDS) : text.shootoutRound(round, SHOOTOUT_ROUNDS);
+  }
+  if (state.torwand !== null) {
+    const shot = state.phase === 'roundOver' || state.torwand.waitMs > 0 || state.phase === 'celebrating' ? state.shots : state.shots + 1;
+    return text.torwandCount(state.goals, Math.min(limit, Math.max(1, shot)), limit);
+  }
+  if (state.roundType === 'goalCount') return text.goalsOf(state.goals, goalsPerRound);
+  return state.cupMatch !== null ? text.goalsOf(state.goals, state.cupMatch.goals) : text.goals(state.goals);
+}
 
 /**
  * The turn card of "Papa gegen Kind" (amendment 23, FR-158): "Leo ist dran!" with the shooter's level; Enter or a tap

@@ -33,7 +33,7 @@
  * (`data-testid="trophy-shelf"` with `data-trophies`, each cup `data-testid="trophy"`).
  *
  * The app's game keys are off while the locker room shows; this screen has its own key listener for Escape.
- * For tests: `data-testid="locker-room"` with `data-stars`, every item `data-testid="item-<id>"` with `data-owned`,
+ * For tests: `data-testid="locker-room"` with `data-stars`, every item `data-testid="item-<id>"` with
  * `data-locked` and `data-chosen`.
  */
 import { useEffect, useId, useRef, useState, type ReactElement } from 'react';
@@ -101,52 +101,62 @@ interface Question {
  * A small moving picture of a mode (FR-140): the ball bounces off the wall, the keeper dives to the ball, the ball
  * goes in and the score circles fill, the board with its round holes (amendment 23), or two players side by side. It plays once when it shows and again when `play` changes.
  */
-export function ModePreview({ mode, play }: { mode: UnlockMode; play: number }): ReactElement {
-  const chalk = css(COLOR.chalk);
-  const kit = css(COLOR.kit);
+function ModePreview({ mode, play }: { mode: UnlockMode; play: number }): ReactElement {
+  const colors = { chalk: css(COLOR.chalk), kit: css(COLOR.kit), skin: css(COLOR.skin) };
   return (
     <svg key={play} className={`mode-preview mode-preview-${mode}`} width={64} height={44} viewBox="0 0 64 44" aria-hidden="true">
-      <path d="M8 30 V6 H56 V30" fill="none" stroke={chalk} strokeWidth={2.5} />
-      {mode === 'wall' &&
-        [22, 32, 42].map((x) => (
-          <g key={x}>
-            <rect x={x - 4} y={26} width={8} height={12} rx={2} fill="#c94f4f" />
-            <circle cx={x} cy={23} r={3} fill={css(COLOR.skin)} />
-          </g>
-        ))}
-      {mode === 'keeper' && (
-        <g className="mode-preview-keeper">
-          <rect x={28} y={16} width={8} height={12} rx={2} fill={kit} />
-          <circle cx={32} cy={13} r={3} fill={css(COLOR.skin)} />
-        </g>
-      )}
-      {mode === 'shootout' &&
-        [0, 1, 2, 3, 4].map((i) => (
-          <g key={i}>
-            <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={36} r={2.5} fill={kit} />
-            <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={42} r={2} fill={chalk} opacity={0.6} />
-          </g>
-        ))}
-      {mode === 'torwand' && (
-        <g>
-          <rect x={10} y={8} width={44} height={21} rx={1.5} fill={chalk} opacity={0.9} />
-          {[18, 32, 46].map((x, i) => (
-            <circle key={x} cx={x} cy={i === 1 ? 15 : 22} r={3.5} fill={css(COLOR.night)} />
-          ))}
-        </g>
-      )}
-      {mode === 'family' && (
-        <g className="mode-preview-keeper">
-          <rect x={18} y={20} width={8} height={14} rx={2} fill="#3b6fd6" />
-          <circle cx={22} cy={16} r={3.5} fill={css(COLOR.skin)} />
-          <rect x={38} y={24} width={8} height={10} rx={2} fill={kit} />
-          <circle cx={42} cy={20} r={3} fill={css(COLOR.skin)} />
-        </g>
-      )}
+      <path d="M8 30 V6 H56 V30" fill="none" stroke={colors.chalk} strokeWidth={2.5} />
+      {PREVIEW[mode](colors)}
       <circle className="mode-preview-ball" cx={32} cy={40} r={3} fill="#ffffff" stroke={css(COLOR.ink)} strokeWidth={0.8} />
     </svg>
   );
 }
+
+/** The picture of each mode between the goal and the ball (`ModePreview`). */
+const PREVIEW: Record<UnlockMode, (c: { chalk: string; kit: string; skin: string }) => ReactElement> = {
+  wall: ({ skin }) => (
+    <>
+      {[22, 32, 42].map((x) => (
+        <g key={x}>
+          <rect x={x - 4} y={26} width={8} height={12} rx={2} fill="#c94f4f" />
+          <circle cx={x} cy={23} r={3} fill={skin} />
+        </g>
+      ))}
+    </>
+  ),
+  keeper: ({ kit, skin }) => (
+    <g className="mode-preview-keeper">
+      <rect x={28} y={16} width={8} height={12} rx={2} fill={kit} />
+      <circle cx={32} cy={13} r={3} fill={skin} />
+    </g>
+  ),
+  shootout: ({ kit, chalk }) => (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <g key={i}>
+          <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={36} r={2.5} fill={kit} />
+          <circle className={`mode-preview-dot mode-preview-dot-${i}`} cx={14 + i * 9} cy={42} r={2} fill={chalk} opacity={0.6} />
+        </g>
+      ))}
+    </>
+  ),
+  torwand: ({ chalk }) => (
+    <g>
+      <rect x={10} y={8} width={44} height={21} rx={1.5} fill={chalk} opacity={0.9} />
+      {[18, 32, 46].map((x, i) => (
+        <circle key={x} cx={x} cy={i === 1 ? 15 : 22} r={3.5} fill={css(COLOR.night)} />
+      ))}
+    </g>
+  ),
+  family: ({ kit, skin }) => (
+    <g className="mode-preview-keeper">
+      <rect x={18} y={20} width={8} height={14} rx={2} fill="#3b6fd6" />
+      <circle cx={22} cy={16} r={3.5} fill={skin} />
+      <rect x={38} y={24} width={8} height={10} rx={2} fill={kit} />
+      <circle cx={42} cy={20} r={3} fill={skin} />
+    </g>
+  ),
+};
 
 /** For each celebration's small picture: the moment of its pose that shows it best. */
 const ICON_MOMENT: Record<Celebration, number> = { armsUp: 0.3, slide: 0.65, airplane: 0.4, backflip: 0.45, dance: 0.17, heart: 0.45 };
@@ -351,7 +361,7 @@ function ItemPicture({ item, shirt }: { item: LockerItem; shirt: string }): Reac
 export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = null, sounds }: Props): ReactElement {
   const L = t().lockerRoom;
   const [question, setQuestion] = useState<Question | null>(null);
-  const [modePlay, setModePlay] = useState<Record<UnlockMode, number>>({ wall: 0, keeper: 0, shootout: 0, torwand: 0, family: 0 });
+  const [modePlay, setModePlay] = useState(() => Object.fromEntries(UNLOCK_MODES.map((m) => [m, 0])) as Record<UnlockMode, number>);
   const modesGroup = useRef<HTMLElement>(null);
   const [numberText, setNumberText] = useState(String(locker.shirtNumber));
   const [play, setPlay] = useState<{ celebration: Celebration; n: number } | null>(null);
@@ -427,7 +437,6 @@ export function LockerRoom({ locker, onChange, onBack, trophies = [], focus = nu
             type="button"
             className="locker-item"
             data-testid={`item-${item.id}`}
-            data-owned={String(owned)}
             data-locked={String(!open)}
             data-chosen={String(isChosen)}
             aria-disabled={open ? undefined : 'true'}
