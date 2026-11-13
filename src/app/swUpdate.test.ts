@@ -2,9 +2,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AUTO_RELOAD_KEY,
-  canApplyUpdate,
   createSwUpdate,
+  mayApplyNow,
   mayAutoReload,
+  parseResumeIntent,
   START_AFTER_UPDATE_KEY,
   UPDATE_CHECK_MS,
   type RegisterSW,
@@ -13,6 +14,10 @@ import {
 
 /** The child's first key ends the load window in which a waiting version applies on any screen (FR-104). */
 const firstKey = () => document.dispatchEvent(new KeyboardEvent('keydown'));
+
+/** What the app reports on the start screen and during a round. */
+const START = { screen: 'start', parentOpen: false, transferOpen: false };
+const MATCH = { screen: 'match', parentOpen: false, transferOpen: false };
 
 // The loop guard keeps its marker in sessionStorage; every test starts without one.
 afterEach(() => sessionStorage.clear());
@@ -45,7 +50,7 @@ describe('service worker update (FR-051, FR-051a, research R12)', () => {
     const f = fakeRegister();
     const sw = createSwUpdate();
     sw.install(f.register);
-    sw.setStartScreen(true);
+    sw.report(START);
     f.newVersion();
     expect(f.calls.update).toBe(1);
     expect(f.calls.reload).toEqual([true]);
@@ -56,37 +61,61 @@ describe('service worker update (FR-051, FR-051a, research R12)', () => {
     const sw = createSwUpdate();
     sw.install(f.register);
     firstKey();
-    sw.setStartScreen(false);
+    sw.report(MATCH);
     f.newVersion();
     expect(f.calls.update).toBe(0);
-    sw.setStartScreen(false);
+    sw.report(MATCH);
     expect(f.calls.update).toBe(0);
-    sw.setStartScreen(true);
+    sw.report(START);
     expect(f.calls.update).toBe(1);
     // Applied once only.
-    sw.setStartScreen(false);
-    sw.setStartScreen(true);
+    sw.report(MATCH);
+    sw.report(START);
     expect(f.calls.update).toBe(1);
   });
 
   it('does nothing before install, for example in unit tests of the app', () => {
     const sw = createSwUpdate();
-    expect(() => sw.setStartScreen(true)).not.toThrow();
+    expect(() => sw.report(START)).not.toThrow();
   });
 });
 
-describe('canApplyUpdate (review R2)', () => {
-  it('allows the reload only on the start screen or the cup bracket with no parent screen and no transfer dialog open', () => {
-    expect(canApplyUpdate({ screen: 'start', parentOpen: false, transferOpen: false })).toBe(true);
+describe('mayApplyNow (review R2, FR-104, refactor R3)', () => {
+  const after = (view: { screen: string; parentOpen?: boolean; transferOpen?: boolean }) =>
+    mayApplyNow({ parentOpen: false, transferOpen: false, ...view, inputReceived: true });
+
+  it('after the first input allows the reload only on the start screen or the cup bracket with nothing open over it', () => {
+    expect(after({ screen: 'start' })).toBe(true);
     // A cup match's round end leads to the bracket, so a waiting version applies there (FR-103).
-    expect(canApplyUpdate({ screen: 'cup', parentOpen: false, transferOpen: false })).toBe(true);
-    expect(canApplyUpdate({ screen: 'cup', parentOpen: false, transferOpen: true })).toBe(false);
-    expect(canApplyUpdate({ screen: 'battle', parentOpen: false, transferOpen: false })).toBe(false);
-    expect(canApplyUpdate({ screen: 'garage', parentOpen: false, transferOpen: false })).toBe(false);
-    expect(canApplyUpdate({ screen: 'start', parentOpen: true, transferOpen: false })).toBe(false);
-    expect(canApplyUpdate({ screen: 'start', parentOpen: false, transferOpen: true })).toBe(false);
+    expect(after({ screen: 'cup' })).toBe(true);
+    expect(after({ screen: 'cup', transferOpen: true })).toBe(false);
+    expect(after({ screen: 'match' })).toBe(false);
+    expect(after({ screen: 'lockerRoom' })).toBe(false);
+    // The parent menu, the settings or progress page, or the start card of "Papa gegen Kind".
+    expect(after({ screen: 'start', parentOpen: true })).toBe(false);
+    expect(after({ screen: 'start', transferOpen: true })).toBe(false);
   });
 
+  it('before the first input allows it on every screen, also with something open (FR-104)', () => {
+    for (const screen of ['start', 'cup', 'match', 'lockerRoom']) {
+      for (const open of [false, true]) {
+        expect(mayApplyNow({ screen, parentOpen: open, transferOpen: open, inputReceived: false })).toBe(true);
+      }
+    }
+  });
+});
+
+describe('resume intent (FR-103, refactor R3)', () => {
+  it('reads a stored round kind as the round to start, and anything else as no intent', () => {
+    expect(parseResumeIntent('family')).toEqual({ start: 'family' });
+    expect(parseResumeIntent('play')).toEqual({ start: 'play' });
+    expect(parseResumeIntent('battle')).toBeNull();
+    expect(parseResumeIntent('')).toBeNull();
+    expect(parseResumeIntent(null)).toBeNull();
+  });
+});
+
+describe('service worker update, retries', () => {
   it('a failed update is tried again the next time the start screen shows, without an unhandled rejection (review L4)', async () => {
     let fail = true;
     let needRefresh: (() => void) | undefined;
@@ -102,13 +131,13 @@ describe('canApplyUpdate (review R2)', () => {
     const sw = createSwUpdate();
     sw.install(register);
     firstKey();
-    sw.setStartScreen(true);
+    sw.report(START);
     needRefresh?.();
     await Promise.resolve();
     await Promise.resolve();
     fail = false;
-    sw.setStartScreen(false);
-    sw.setStartScreen(true);
+    sw.report(MATCH);
+    sw.report(START);
     expect(calls).toBe(2);
   });
 });
@@ -195,7 +224,7 @@ describe('applying a waiting version (Phase 24, FR-051a)', () => {
     const f = fakeEnv('v1');
     const s = setupWith(f);
     s.newVersion();
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(s.calls).toEqual([true]);
     expect(f.stored[AUTO_RELOAD_KEY]).toBe('v1');
   });
@@ -204,17 +233,17 @@ describe('applying a waiting version (Phase 24, FR-051a)', () => {
     const f = fakeEnv('v1');
     const s = setupWith(f);
     f.touch();
-    s.sw.setStartScreen(false);
+    s.sw.report(MATCH);
     s.newVersion();
     expect(s.calls).toEqual([]);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(s.calls).toEqual([true]);
   });
 
   it('does not reload again when the page already reloaded once from this version (no reload loop)', () => {
     const f = fakeEnv('v1', { [AUTO_RELOAD_KEY]: 'v1' });
     const s = setupWith(f);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     s.newVersion();
     expect(s.calls).toEqual([]);
   });
@@ -222,7 +251,7 @@ describe('applying a waiting version (Phase 24, FR-051a)', () => {
   it('after an update to v2, a later version v3 is applied again', () => {
     const f = fakeEnv('v2', { [AUTO_RELOAD_KEY]: 'v1' });
     const s = setupWith(f);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     s.newVersion();
     expect(s.calls).toEqual([true]);
     expect(f.stored[AUTO_RELOAD_KEY]).toBe('v2');
@@ -251,19 +280,19 @@ describe('amendment 12: new versions reach open pages', () => {
     const f = fakeEnv();
     const s = setup(f);
     expect(s.reg.update).toHaveBeenCalledTimes(1);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(s.reg.update).toHaveBeenCalledTimes(2);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(s.reg.update).toHaveBeenCalledTimes(2);
-    s.sw.setStartScreen(false);
-    s.sw.setStartScreen(true);
+    s.sw.report(MATCH);
+    s.sw.report(START);
     expect(s.reg.update).toHaveBeenCalledTimes(3);
   });
 
   it('a reload that restores a round applies a waiting version before the first key or touch (FR-104)', () => {
     const f = fakeEnv('v1');
     const s = setup(f);
-    s.sw.setStartScreen(false);
+    s.sw.report(MATCH);
     s.newVersion();
     expect(s.calls).toEqual([true]);
   });
@@ -271,7 +300,7 @@ describe('amendment 12: new versions reach open pages', () => {
   it('after the first key a version found during the round waits, and the round end reports it (FR-103)', () => {
     const f = fakeEnv('v1');
     const s = setup(f);
-    s.sw.setStartScreen(false);
+    s.sw.report(MATCH);
     f.key();
     const seen: boolean[] = [];
     s.sw.subscribe(() => seen.push(s.sw.waiting()));
@@ -281,10 +310,25 @@ describe('amendment 12: new versions reach open pages', () => {
     expect(s.sw.waiting()).toBe(true);
     expect(seen).toEqual([true]);
     // "Zurück": the start screen applies it.
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(s.calls).toEqual([true]);
     expect(s.sw.waiting()).toBe(false);
     expect(seen).toEqual([true, false]);
+  });
+
+  it('after the first key the start card of "Papa gegen Kind" holds a waiting version until it closes (refactor R3)', () => {
+    const f = fakeEnv('v1');
+    const s = setup(f);
+    s.sw.report({ ...START, parentOpen: true });
+    f.key();
+    s.newVersion();
+    expect(s.calls).toEqual([]);
+    // The locker room or the transfer dialog holds it as well.
+    s.sw.report({ ...START, screen: 'lockerRoom' });
+    s.sw.report({ ...START, transferOpen: true });
+    expect(s.calls).toEqual([]);
+    s.sw.report(START);
+    expect(s.calls).toEqual([true]);
   });
 
   it('"Nochmal" applies it and leaves the round kind for the new page, which reads it once (FR-103)', () => {
@@ -293,12 +337,12 @@ describe('amendment 12: new versions reach open pages', () => {
     f.touch();
     s.newVersion();
     const onFail = vi.fn();
-    expect(s.sw.applyNow('time', onFail)).toBe(true);
+    expect(s.sw.applyNow({ start: 'time' }, onFail)).toBe(true);
     expect(s.calls).toEqual([true]);
     expect(f.stored[START_AFTER_UPDATE_KEY]).toBe('time');
     const next = createSwUpdate(fakeEnv('v2', f.stored).env);
-    expect(next.takeStartAfterUpdate()).toBe('time');
-    expect(next.takeStartAfterUpdate()).toBeNull();
+    expect(next.takeResumeIntent()).toEqual({ start: 'time' });
+    expect(next.takeResumeIntent()).toBeNull();
     expect(onFail).not.toHaveBeenCalled();
   });
 
@@ -306,7 +350,7 @@ describe('amendment 12: new versions reach open pages', () => {
     const f = fakeEnv('v1');
     const s = setup(f);
     f.touch();
-    expect(s.sw.applyNow('play', () => {})).toBe(false);
+    expect(s.sw.applyNow({ start: 'play' }, () => {})).toBe(false);
     expect(f.stored[START_AFTER_UPDATE_KEY]).toBeUndefined();
   });
 
@@ -316,7 +360,7 @@ describe('amendment 12: new versions reach open pages', () => {
     f.touch();
     s.newVersion();
     const onFail = vi.fn();
-    expect(s.sw.applyNow('play', onFail)).toBe(true);
+    expect(s.sw.applyNow({ start: 'play' }, onFail)).toBe(true);
     await Promise.resolve();
     await Promise.resolve();
     expect(onFail).toHaveBeenCalledTimes(1);
@@ -329,7 +373,7 @@ describe('amendment 12: new versions reach open pages', () => {
     const reloads = vi.fn();
     f.env.reloadOnControllerChange = reloads;
     const s = setup(f);
-    s.sw.setStartScreen(true);
+    s.sw.report(START);
     expect(reloads).not.toHaveBeenCalled();
     s.newVersion();
     expect(reloads).toHaveBeenCalledTimes(1);
@@ -341,6 +385,6 @@ describe('amendment 12: new versions reach open pages', () => {
     f.touch();
     s.newVersion();
     expect(s.sw.waiting()).toBe(false);
-    expect(s.sw.applyNow('play', () => {})).toBe(false);
+    expect(s.sw.applyNow({ start: 'play' }, () => {})).toBe(false);
   });
 });

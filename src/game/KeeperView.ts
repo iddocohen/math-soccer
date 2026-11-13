@@ -48,7 +48,13 @@ import { COLOR, css, hexColor } from './palette';
 import { GAME_FONT, GAME_FONT_WEIGHT } from '../assets';
 
 export const KEEPER_PHASES = ['idle', 'diving', 'caught', 'beaten'] as const;
+/** The phase the app shows as `data-keeper`. */
 export type KeeperPhase = (typeof KEEPER_PHASES)[number];
+/**
+ * What the keeper does now: a shown phase, or `returning` while he walks back to his waiting spot after a shot. The walk
+ * back shows the phase before it (`caught` or `beaten`) until he is back, as before refactor R3.
+ */
+export type KeeperMotion = KeeperPhase | 'returning';
 
 /** In front of the grid (board depth 4) and behind the posts (5), the player (6) and the flying ball (7). */
 export const KEEPER_DEPTH = 4.5;
@@ -137,15 +143,15 @@ export class KeeperView {
   private profile: QuirkProfile = PLAIN;
   private pose: KeeperPose = HOME_POSE;
   private tween: Phaser.Tweens.Tween | null = null;
+  /** The phase last told to `onPhase`. */
   private current: KeeperPhase = 'idle';
+  private motion: KeeperMotion = 'idle';
   /** Where he waits for the next shot, and whether he covers none of the target and hint squares there. */
   private home: KeeperPose = HOME_POSE;
   private clear = true;
   /** The squares last given to `keepClear`, as text, so the same squares do not move him again. */
   private squaresKey = '';
   private faded = false;
-  /** True while he walks back to his waiting spot after a shot. */
-  private returning = false;
 
   constructor(scene: Phaser.Scene, onPhase: (phase: KeeperPhase) => void = () => {}) {
     this.scene = scene;
@@ -178,6 +184,11 @@ export class KeeperView {
 
   get phase(): KeeperPhase {
     return this.current;
+  }
+
+  /** What he does now, with `returning` for the walk back to his waiting spot. */
+  get doing(): KeeperMotion {
+    return this.motion;
   }
 
   /** The depth he is drawn at now: behind the grid while he waits, in front of it otherwise (FR-120). */
@@ -242,9 +253,7 @@ export class KeeperView {
     this.clear = true;
     this.squaresKey = '';
     this.apply(HOME_POSE);
-    this.setFaded(false);
     this.setPhase('idle');
-    this.setWaitingLayer(true);
   }
 
   /**
@@ -262,12 +271,13 @@ export class KeeperView {
     this.clear = spot.clear;
     // Already on his way back after a shot: the walk was headed for the last target's spot, so he turns toward the new
     // one now. Without this he ended on the old spot and covered the new hints (FR-121, keeper-blocks-bug.png).
-    if (this.returning) {
+    if (this.motion === 'returning') {
       this.goHome();
       return;
     }
-    if (this.current !== 'idle') return;
-    this.setFaded(!spot.clear);
+    if (this.motion !== 'idle') return;
+    // The same phase again, for the opacity of the new spot.
+    this.setPhase('idle');
     if (first && this.tween === null) this.apply(spot.pose);
     else if (this.pose.x !== spot.pose.x || this.pose.y !== spot.pose.y) {
       this.moveTo(spot.pose, this.profile.shuffleMs, () => {}, easeInOutSine);
@@ -281,9 +291,6 @@ export class KeeperView {
   dive(square: Rect, outcome: 'catch' | 'beaten'): void {
     this.stop();
     this.setPhase('diving');
-    this.setWaitingLayer(false);
-    // He is drawn fully again once the child shoots (FR-064).
-    this.setFaded(false);
     const from = this.pose;
     const to = diveEnd(square, outcome, from);
     this.lookLeftFirst();
@@ -340,13 +347,8 @@ export class KeeperView {
   }
 
   private goHome(): void {
-    this.moveTo(this.home, RETURN_MS, () => {
-      this.returning = false;
-      this.setFaded(!this.clear);
-      this.setPhase('idle');
-      this.setWaitingLayer(true);
-    }, easeInOutSine);
-    this.returning = true;
+    this.moveTo(this.home, RETURN_MS, () => this.setPhase('idle'), easeInOutSine);
+    this.setPhase('returning');
   }
 
   private moveTo(to: KeeperPose, ms: number, onDone: () => void, easing: (k: number) => number = (k) => k): void {
@@ -368,7 +370,6 @@ export class KeeperView {
   private stop(): void {
     this.tween?.stop();
     this.tween = null;
-    this.returning = false;
   }
 
   /** Behind the grid while he waits, in front of it from the leap until he is back on his spot (FR-120). */
@@ -378,10 +379,19 @@ export class KeeperView {
     this.shadow.setDepth(depth - 0.01);
   }
 
-  private setPhase(phase: KeeperPhase): void {
-    if (phase === this.current) return;
-    this.current = phase;
-    this.onPhase(phase);
+  /**
+   * Sets what he does, with the layer and the opacity that go with it: only the waiting keeper is drawn behind the grid
+   * (FR-120), and only he is half transparent, when his spot covers a target or hint square (FR-064). Once the child
+   * shoots he is drawn fully again. `onPhase` hears every change of the shown phase; the walk back shows none.
+   */
+  private setPhase(motion: KeeperMotion): void {
+    this.motion = motion;
+    const waiting = motion === 'idle';
+    this.setWaitingLayer(waiting);
+    this.setFaded(waiting && !this.clear);
+    if (motion === 'returning' || motion === this.current) return;
+    this.current = motion;
+    this.onPhase(motion);
   }
 
   private apply(pose: KeeperPose): void {

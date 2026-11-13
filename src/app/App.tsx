@@ -132,7 +132,7 @@ import { RoundEnd, type CupRoundResult, type RoundOutcome, type RoundRecord, typ
 import { FamilyCard } from './FamilyCard';
 import { SettingsPage } from './SettingsPage';
 import { StartScreen } from './StartScreen';
-import { canApplyUpdate, swUpdate } from './swUpdate';
+import { swUpdate } from './swUpdate';
 import { TransferDialog, type TransferDialogState } from './TransferDialog';
 import { usePauseReason } from './usePauseReason';
 import { useMatchState, type ClockSource } from './useController';
@@ -162,6 +162,13 @@ type Transfer = { kind: 'reading' } | (TransferDialogState & { data?: SaveData }
 async function loadGame(): Promise<typeof import('../game/createGame')> {
   const [game] = await Promise.all([import('../game/createGame'), fontReady()]);
   return game;
+}
+
+/** The element that holds the game's canvas for the whole session; it fills the match screen's `.game-parent`. */
+function newGameHost(): HTMLDivElement {
+  const host = document.createElement('div');
+  host.className = 'game-host';
+  return host;
 }
 
 /**
@@ -435,15 +442,35 @@ export function App() {
   // "Sound blocked by the browser", amendment 17).
   useEffect(() => sfx.installUnlock(document), [sfx]);
 
+  // One game for the session (refactor R3): created the first time the match screen shows, its canvas lives in
+  // `gameHost`, which the match screen holds while it shows and which is out of the page otherwise. Leaving the match
+  // screen puts the game to sleep; the next match starts a new scene in the same game.
+  const [gameHost] = useState(newGameHost);
+  useEffect(
+    () => () => {
+      gameHandle.current?.destroy();
+      gameHandle.current = null;
+    },
+    [],
+  );
   useEffect(() => {
     const parent = gameParent.current;
     if (screen !== 'match' || !parent) return;
-    let handle: GameHandle | null = null;
+    parent.appendChild(gameHost);
     let left = false;
+    const leave = () => {
+      left = true;
+      gameHandle.current?.leave();
+      gameHost.remove();
+    };
+    if (gameHandle.current) {
+      gameHandle.current.enter();
+      return leave;
+    }
     loadGame().then(
       ({ createGame }) => {
-        if (left) return;
-        handle = createGame(parent, controller, {
+        if (left || gameHandle.current) return;
+        gameHandle.current = createGame(gameHost, controller, {
           sounds: sfx,
           settings,
           onKeeper: setKeeper,
@@ -453,19 +480,14 @@ export function App() {
           onCelebration: setCelebration,
           onExtras: setExtras,
         });
-        gameHandle.current = handle;
       },
       // Without the game chunk no ball can fly, so the round could not go on: back to the start screen.
       () => {
         if (!left) setScreen('start');
       },
     );
-    return () => {
-      left = true;
-      handle?.destroy();
-      gameHandle.current = null;
-    };
-  }, [screen, controller, sfx, settings, persistence]);
+    return leave;
+  }, [screen, controller, sfx, settings, persistence, gameHost]);
 
   // A round that just ended goes to the personal bests, once (FR-028).
   useEffect(() => {
@@ -505,10 +527,11 @@ export function App() {
   // round (FR-051a, FR-103), and never while a parent screen or the transfer dialog is open (review R2). The start card
   // of "Papa gegen Kind" holds it too, so a reload never drops the name being typed.
   const updateWaiting = useSyncExternalStore(swUpdate.subscribe, swUpdate.waiting);
-  const updateAllowed = canApplyUpdate({ screen, parentOpen: parent !== 'closed' || familyCard, transferOpen: transfer !== null });
+  const parentOpen = parent !== 'closed' || familyCard;
+  const transferOpen = transfer !== null;
   useEffect(() => {
-    swUpdate.setStartScreen(updateAllowed);
-  }, [updateAllowed]);
+    swUpdate.report({ screen, parentOpen, transferOpen });
+  }, [screen, parentOpen, transferOpen]);
 
   // A save link: decode the code once on load (FR-041).
   useEffect(() => {
@@ -704,14 +727,13 @@ export function App() {
     const setup = grownup === null ? undefined : { name: grownup.name, level: grownup.level };
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round (with the card).
     // When the update fails, the rematch starts here with the same grown-up.
-    if (swUpdate.applyNow(kind, () => startMatch(kind, setup))) return;
+    if (swUpdate.applyNow({ start: kind }, () => startMatch(kind, setup))) return;
     startMatch(kind, setup);
   };
   // FR-103: the round "Nochmal" asked for before the page reloaded with the new version.
   useEffect(() => {
-    const asked = swUpdate.takeStartAfterUpdate();
-    const kind = START_KINDS.find((k) => k === asked);
-    if (kind) startMatch(kind);
+    const intent = swUpdate.takeResumeIntent();
+    if (intent) startMatch(intent.start);
   }, [startMatch]);
   const onAction = (action: KeyAction) => {
     if (action.type === 'start') startMatch(action.kind);

@@ -3,8 +3,9 @@
  * Offline play and updates (FR-051, FR-051a, research R12). main.tsx installs the service worker with `registerSW`
  * from `virtual:pwa-register` (vite-plugin-pwa, `registerType: 'prompt'`); the worker precaches the whole build, so
  * the game works offline after the first load. When a new version is waiting, it is applied (the page reloads with
- * it) only while the start screen shows, never during a round: the app reports the start screen with
- * `setStartScreen`. Without `install` (unit tests, the dev server) nothing happens.
+ * it) only while the start screen shows, never during a round. The app reports what shows with `report`, and one rule,
+ * `mayApplyNow`, decides over that and the child's first input. Without `install` (unit tests, the dev server)
+ * nothing happens.
  *
  * Fast updates (Phase 24, amendment 12): the app asks the server for a new service worker on load, each time the start
  * screen shows (FR-102), every UPDATE_CHECK_MS while it is open, and when the page comes back to the front.
@@ -14,13 +15,14 @@
  *   the round on the match screen, not on the start screen, so before this rule a reload never applied a waiting
  *   version while a round was stored. The round is stored, so the new version restores it.
  * - from the round end: `waiting()` and `subscribe` tell the app to show "Neue Version, startet gleich"; "Zurück" goes
- *   to the start screen (after a cup match to the bracket), which applies it; "Nochmal" calls `applyNow` with the round
- *   kind, which the new page reads once with `takeStartAfterUpdate` and starts.
+ *   to the start screen (after a cup match to the bracket), which applies it; "Nochmal" calls `applyNow` with a resume
+ *   intent (the round kind to start), which the new page reads once with `takeResumeIntent` and starts.
  *
  * Loop guard: before an automatic reload the app stores the version it reloads from in
  * sessionStorage (AUTO_RELOAD_KEY); a page that still runs that version after the reload does not reload again in this
  * browser tab, so a new worker that fails to take control cannot cause a reload loop.
  */
+import { START_KINDS, type StartKind } from '../core/match/rounds';
 import { BUILD_VERSION } from './buildInfo';
 
 /** How often an open game asks for a new version. */
@@ -71,14 +73,49 @@ function browserEnv(): SwUpdateEnv {
   };
 }
 
+/** What the app reports to the update rule: the screen and what is open over it. */
+export interface AppView {
+  screen: string;
+  /** The parent menu, the settings or progress page, or the start card of "Papa gegen Kind" is open. */
+  parentOpen: boolean;
+  /** The transfer dialog is open. */
+  transferOpen: boolean;
+}
+
+/** The update rule's whole context: what shows, and whether the child pressed a key or touched the screen yet. */
+export interface UpdateContext extends AppView {
+  inputReceived: boolean;
+}
+
 /**
- * Whether a waiting version may reload the page now (FR-051a, review R2): only between rounds, on the start screen or
- * the cup's bracket screen (`cup`, where "Weiter" and "Zurück" of a cup match's round end lead, FR-103), and never while
- * the parent menu, the settings or progress page or the transfer dialog is open, so no unsaved setting or pending
- * take-over is lost.
+ * Whether a waiting version may reload the page now (FR-051a, FR-104, review R2):
+ * - before the child's first key or touch since the page loaded, on any screen: a stored round comes back after the
+ *   reload, so nothing is lost (FR-104);
+ * - after it only between rounds, on the start screen or the cup's bracket screen (`cup`, where "Weiter" and "Zurück"
+ *   of a cup match's round end lead, FR-103), and never while a parent screen, the start card of "Papa gegen Kind" or
+ *   the transfer dialog is open, so no unsaved setting, typed name or pending take-over is lost.
  */
-export function canApplyUpdate(view: { screen: string; parentOpen: boolean; transferOpen: boolean }): boolean {
+export function mayApplyNow(context: UpdateContext): boolean {
+  return !context.inputReceived || betweenRounds(context);
+}
+
+/** The rule after the first input: the start screen or the bracket, with nothing open over it. */
+function betweenRounds(view: AppView): boolean {
   return (view.screen === 'start' || view.screen === 'cup') && !view.parentOpen && !view.transferOpen;
+}
+
+/** The view before the app's first report: no screen. */
+const NOTHING_SHOWN: AppView = { screen: '', parentOpen: false, transferOpen: false };
+
+/** What the page that loads the new version does first: start the round "Nochmal" asked for (FR-103). */
+export interface ResumeIntent {
+  start: StartKind;
+}
+
+/** The resume intent stored as its round kind, or null for anything that is not one. */
+export function parseResumeIntent(stored: string | null): ResumeIntent | null {
+  const start = START_KINDS.find((k) => k === stored);
+  return start ? { start } : null;
 }
 
 export interface RegisterOptions {
@@ -94,26 +131,28 @@ export type RegisterSW = (options: RegisterOptions) => (reloadPage?: boolean) =>
 
 export interface SwUpdate {
   install(register: RegisterSW): void;
-  setStartScreen(shown: boolean): void;
+  /** Reports what the app shows; a waiting version is applied when `mayApplyNow` allows it. */
+  report(view: AppView): void;
   /** Whether a new version waits to be applied. */
   waiting(): boolean;
   /** Calls `fn` whenever `waiting()` changes; returns the function that stops it. */
   subscribe(fn: () => void): () => void;
   /**
-   * Applies the waiting version now and asks the new page to start a round of `startKind` (FR-103, "Nochmal"). Returns
-   * false when nothing waits or the loop guard holds; when the update fails (offline), `onFail` runs instead.
+   * Applies the waiting version now and leaves `intent` for the new page (FR-103, "Nochmal"). Returns false when
+   * nothing waits or the loop guard holds; when the update fails (offline), `onFail` runs instead.
    */
-  applyNow(startKind: string, onFail: () => void): boolean;
-  /** The round kind a "Nochmal" before the reload asked for, read once; null otherwise. */
-  takeStartAfterUpdate(): string | null;
+  applyNow(intent: ResumeIntent, onFail: () => void): boolean;
+  /** The resume intent a "Nochmal" before the reload left, read once; null otherwise. */
+  takeResumeIntent(): ResumeIntent | null;
 }
 
 export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
   let update: ((reloadPage?: boolean) => Promise<void>) | null = null;
   let waiting = false;
-  let onStart = false;
-  // True from page load until the child's first key or touch (FR-104).
-  let fresh = true;
+  // What the app reported last; null before its first report.
+  let view: AppView | null = null;
+  // False from page load until the child's first key or touch (FR-104).
+  let inputReceived = false;
   let registered: ServiceWorkerRegistration | null = null;
   /** The version the page last reloaded from automatically; read from the session once, then kept here. */
   let reloadedFrom: string | null | undefined;
@@ -168,11 +207,11 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
   };
 
   const applyIfAllowed = () => {
-    if (onStart || fresh) apply();
+    if (mayApplyNow({ ...(view ?? NOTHING_SHOWN), inputReceived })) apply();
   };
 
   const endFresh = () => {
-    fresh = false;
+    inputReceived = true;
   };
 
   return {
@@ -204,10 +243,15 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
       env.document?.addEventListener('keydown', endFresh, { capture: true });
       env.document?.addEventListener('pointerdown', endFresh, { capture: true });
     },
-    setStartScreen(shown) {
-      // FR-102: every time the start screen shows, ask for a new version.
-      if (shown && !onStart && registered) checkForUpdate(registered);
-      onStart = shown;
+    report(next) {
+      const was = view === null ? null : betweenRounds(view);
+      const now = betweenRounds(next);
+      view = { ...next };
+      // The rule's answer for this view changes only with `betweenRounds` (or the first input, which applies nothing
+      // by itself): a report that keeps it does nothing.
+      if (was === now) return;
+      // FR-102: every time the start screen (or the bracket) shows with nothing over it, ask for a new version.
+      if (now && registered) checkForUpdate(registered);
       applyIfAllowed();
     },
     // A version the loop guard holds back does not count: the round end would promise a reload that never comes.
@@ -216,9 +260,9 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
-    applyNow(startKind, onFail) {
+    applyNow(intent, onFail) {
       try {
-        env.session?.setItem(START_AFTER_UPDATE_KEY, startKind);
+        env.session?.setItem(START_AFTER_UPDATE_KEY, intent.start);
       } catch {
         // Without storage the new page shows the start screen instead of the round.
       }
@@ -236,11 +280,11 @@ export function createSwUpdate(env: SwUpdateEnv = browserEnv()): SwUpdate {
       if (!tried) clear();
       return tried;
     },
-    takeStartAfterUpdate() {
+    takeResumeIntent() {
       try {
-        const kind = env.session?.getItem(START_AFTER_UPDATE_KEY) ?? null;
-        if (kind !== null) env.session?.removeItem(START_AFTER_UPDATE_KEY);
-        return kind;
+        const stored = env.session?.getItem(START_AFTER_UPDATE_KEY) ?? null;
+        if (stored !== null) env.session?.removeItem(START_AFTER_UPDATE_KEY);
+        return parseResumeIntent(stored);
       } catch {
         return null;
       }

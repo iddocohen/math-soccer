@@ -278,7 +278,7 @@ See [refactor-plan.md](./refactor-plan.md).
 
 - [X] T118 R1: controller events (roundStarted, shot, landed, targetChanged, starsEarned, levelUp, roundEnded, keeperShotDecided) replacing state diffing in App and MatchScene; pause(reason)/resume(reason) with a reason set replacing useAutoPause bookkeeping and the cup intro tick check; unit tests
 - [X] T119 R2: tagged `play` field for per-mode state with derived `mode`; one shared `wait`; MatchView as a union per phase; stored round schema version bump (old rounds discarded); unit tests
-- [ ] T120 R3: one Phaser game kept alive across matches (scene restart, textures kept); keeper `returning` phase with fade and layer in setPhase; swUpdate `mayApplyNow(context)` with a typed resume intent; unit tests and a timing check of the second round start
+- [X] T120 R3: one Phaser game kept alive across matches (scene restart, textures kept); keeper `returning` phase with fade and layer in setPhase; swUpdate `mayApplyNow(context)` with a typed resume intent; unit tests and a timing check of the second round start
 
 ---
 

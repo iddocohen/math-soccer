@@ -206,6 +206,68 @@ describe('the waiting keeper is drawn behind the numbers (FR-120)', () => {
   });
 });
 
+describe('the walk back is its own phase, `returning` (refactor R3)', () => {
+  /** Plays a shot until he walks back; `outcome` picks a catch or a goal. */
+  function untilReturning(outcome: 'catch' | 'beaten', target: readonly Rect[] = SCREENSHOT) {
+    const s = keeper();
+    s.k.reset();
+    s.k.keepClear(target);
+    s.k.dive(squares(30)[0]!, outcome);
+    expect(s.k.doing).toBe('diving');
+    s.advance(FLIGHT_MS);
+    if (outcome === 'catch') s.k.catchBall();
+    else s.k.beaten();
+    expect(s.k.doing).toBe(outcome === 'catch' ? 'caught' : 'beaten');
+    // The catch holds HOLD_MS; the goal falls (300 ms) and lies HOLD_MS. Both then walk back.
+    s.advance(outcome === 'catch' ? HOLD_MS + 50 : HOLD_MS + 350);
+    return s;
+  }
+
+  for (const outcome of ['catch', 'beaten'] as const) {
+    it(`after a ${outcome === 'catch' ? 'catch' : 'goal'} he walks back in front of the grid, fully drawn, and shows the phase before it`, () => {
+      const { k, advance, phases } = untilReturning(outcome);
+      expect(k.doing).toBe('returning');
+      expect(k.phase).toBe(outcome === 'catch' ? 'caught' : 'beaten');
+      expect(k.depth).toBe(KEEPER_DEPTH);
+      expect(k.alpha).toBe(1);
+      advance(1000);
+      expect(k.doing).toBe('idle');
+      expect(k.depth).toBe(WAITING_DEPTH);
+      // `onPhase` never hears `returning`: the shown phases are the same as before the walk back had its own phase.
+      expect(phases).toEqual(['idle', 'diving', outcome === 'catch' ? 'caught' : 'beaten', 'idle']);
+    });
+  }
+
+  it('back on a spot with no free place he is half transparent again; a new target while he walks back keeps him walking', () => {
+    const row = squares(91, 92, 93, 94, 95, 96, 97, 98, 99, 100);
+    const { k, advance } = untilReturning('catch', row);
+    expect(k.alpha).toBe(1);
+    k.keepClear(SCREENSHOT);
+    expect(k.doing).toBe('returning');
+    advance(1000);
+    expect(k.doing).toBe('idle');
+    expect(k.alpha).toBe(1);
+    k.keepClear(row);
+    expect(k.alpha).toBe(FADED_ALPHA);
+  });
+
+  it('a new shot during the walk back ends it: he leaps at once', () => {
+    const { k } = untilReturning('beaten');
+    k.dive(squares(87)[0]!, 'catch');
+    expect(k.doing).toBe('diving');
+    expect(k.depth).toBe(KEEPER_DEPTH);
+  });
+
+  it('reset during the walk back makes him wait in the middle behind the grid', () => {
+    const { k } = untilReturning('catch');
+    k.reset();
+    expect(k.doing).toBe('idle');
+    expect(k.phase).toBe('idle');
+    expect(k.depth).toBe(WAITING_DEPTH);
+    expect(k.currentPose).toEqual(HOME_POSE);
+  });
+});
+
 describe('cup keeper quirks are looks only (amendment 13, FR-107)', () => {
   /** Where the keeper is after each step of a shot sequence, with the given quirk (or the blue keeper). */
   function trace(quirk: Quirk | null): Array<{ x: number; y: number; phase: string; depth: number; alpha: number }> {

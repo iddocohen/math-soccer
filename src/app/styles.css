@@ -136,7 +136,8 @@ button:focus-visible {
   container-type: size;
 }
 
-.game-parent {
+.game-parent,
+.game-host {
   position: absolute;
   inset: 0;
 }

@@ -14,13 +14,19 @@ import { MatchController as Controller } from '../core/match/MatchController';
 import { t } from '../i18n';
 import { App, seedFromUrl, speedFromUrl, startFromUrl } from './App';
 
-const game = vi.hoisted(() => ({ created: 0, destroyed: 0, looks: 0, controller: null as MatchController | null }));
+const game = vi.hoisted(() => ({ created: 0, destroyed: 0, looks: 0, entered: 0, left: 0, controller: null as MatchController | null }));
 
 vi.mock('../game/createGame', () => ({
   createGame: (_parent: HTMLElement, controller: MatchController) => {
     game.created++;
     game.controller = controller;
-    return { game: {}, showLook: () => void game.looks++, destroy: () => void game.destroyed++ };
+    return {
+      game: {},
+      enter: () => void game.entered++,
+      leave: () => void game.left++,
+      showLook: () => void game.looks++,
+      destroy: () => void game.destroyed++,
+    };
   },
 }));
 
@@ -31,6 +37,8 @@ beforeEach(() => {
   game.created = 0;
   game.destroyed = 0;
   game.looks = 0;
+  game.entered = 0;
+  game.left = 0;
   game.controller = null;
 });
 
@@ -242,6 +250,31 @@ describe('App', () => {
     expect(localStorage.getItem(ROUND_KEY)).toBeNull();
     const records = localStorage.getItem(RECORDS_KEY);
     expect(records === null || Object.keys(JSON.parse(records).bests ?? {}).length === 0).toBe(true);
+  });
+
+  it('keeps one game for the session: leaving the match puts it to sleep, the next match enters it again (R3)', async () => {
+    const { unmount } = render(<App />);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    await waitFor(() => expect(game.created).toBe(1));
+    const canvasHost = document.querySelector('.game-parent > .game-host');
+    expect(canvasHost).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId('home-button'));
+    fireEvent.click(screen.getByTestId('pause-home'));
+    expect(screen.getByTestId('start')).toBeTruthy();
+    expect(game.left).toBe(1);
+    expect(canvasHost!.isConnected).toBe(false);
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(screen.getByTestId('match')).toBeTruthy();
+    expect(game.entered).toBe(1);
+    // The same element, with the same canvas, is back in the match screen.
+    expect(document.querySelector('.game-parent > .game-host')).toBe(canvasHost);
+    expect(game.created).toBe(1);
+    expect(game.destroyed).toBe(0);
+
+    unmount();
+    expect(game.destroyed).toBe(1);
   });
 });
 

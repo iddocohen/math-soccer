@@ -74,11 +74,11 @@ Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of am
 | Field | Meaning |
 |-------|---------|
 | `seed` | round seed for `Rng` |
-| `version` | 1 |
+| `version` | 2 (refactor R2); a stored round of version 1 is discarded on load, without a migration step |
 | `roundType` | `untilHearts` or `goalCount` from the settings for "Spielen", `time` for "Zeit-Challenge", `cup` for a cup match |
-| `challengeMinutes` | the challenge time of a `time` round (1, 2, 3 or 5), null otherwise; the settings change it only from the next round |
+| `play` | what only this kind of round has, tagged by `kind` (refactor R2); the match mode is derived from it (`modeOf`). See the list below the table |
+| `wait` | what the round waits for before play goes on, or null: `{ reason: 'afterMiss', ms }` after a missed kick or a shot at the board, or `{ reason: 'turnCard' }` for the turn card of "Papa gegen Kind" |
 | `goalsPerRound` | goals per round at the round start; a refresh keeps it and the round-start `roundType` (FR-052) |
-| `cupMatch` | `{ level, goals }` of a `cup` round (its fixed level and the goals that win it), null otherwise |
 | `min`, `max` | the round's range; `min` is below `max` |
 | `goals` | goals scored |
 | `hearts` | 3 down to 0 (`untilHearts` only) |
@@ -87,10 +87,34 @@ Levels (src/core/progress/levels.ts, amendment 09; they replace the ladder of am
 | `target` | the current target, with its `queue` of empty shape squares |
 | `targetCount`, `targetStartMs`, `targetMisses`, `missTimes` | target count for the seed, and the current target's start, misses and miss times for the attempt record |
 | `starsThisRound` | stars earned |
-| `elapsedMs` | time played, paused when hidden or paused; in a time challenge the countdown is `challengeMinutes` minus this, so a refresh continues it |
+| `elapsedMs` | time played, paused when hidden or paused; in a time challenge the countdown is the play's `minutes` minus this, so a refresh continues it |
+| `shots` | the shots decided so far in "Selbst ins Tor" and "Torwandschießen"; 0 in the other modes |
 | `phase` | `aiming`, `ballInFlight`, `celebrating`, `roundOver` |
 
-A stored round is saved between shots, so its phase is `aiming` or `celebrating`. It is discarded on load when a rule between fields fails: `min` is not below `max`, an aiming round has no target, the target or a queued shape square lies outside `min..max`, `challengeMinutes` is set for a round that is not a time challenge (or missing for one), or `cupMatch` is set for a round that is not a cup match (or missing for one).
+The kinds of `play`:
+
+- `{ kind: 'normal' }`: "Spielen".
+- `{ kind: 'time', minutes }`: "Zeit-Challenge", with its challenge time (1, 2, 3 or 5 minutes); the settings change it only from the next round.
+- `{ kind: 'cup', match }`: a cup match, with its fixed level, the goals that win it, and its cup and stage.
+- `{ kind: 'wall', wall }`: "Freistoß mit Mauer", with the wall in front of the current target (its first and last column and its defenders), or null.
+- `{ kind: 'keeper', shot }`: "Selbst ins Tor", with the opponent's shot, or null.
+- `{ kind: 'shootout', kicks, shot }`: the shootout, with the kicks of both sides and the opponent's shot, or null.
+- `{ kind: 'torwand', holes }`: "Torwandschießen", with the board's one to three holes.
+- `{ kind: 'family', kicks, name, level }`: "Papa gegen Kind", with the kicks and the grown-up's name and level.
+
+In memory the match state and its read-only view (`MatchView`) are a union per phase: a ball exists only in `ballInFlight`, and only there it has no outcome yet (refactor R2).
+
+A stored round is saved between shots, so its phase is `aiming` or `celebrating`. It is discarded on load when a rule between fields fails:
+
+- `min` is not below `max`;
+- an aiming round has no target;
+- the target, a queued shape square or a square of its cutout lies outside `min..max`;
+- a time challenge has no `time` play, or another round has one;
+- a cup match has no `cup` play, or another round has one;
+- a wall goes from right to left;
+- a hole of the board lies outside `min..max`;
+- the turn card waits in a round that is not "Papa gegen Kind";
+- the wait after a miss is in a round that is not a shootout, "Papa gegen Kind" or "Torwandschießen".
 
 State transitions: `aiming --shoot(n in range)--> ballInFlight`; when the ball lands, a goal goes to `celebrating --> aiming (the next empty square of the same shape, else a new target) or roundOver`, and a miss goes to `aiming` (help step +1, misses +1; with `untilHearts`, at the difficulty limit hearts −1 and help jumps to the answer); `roundOver` when hearts reach 0, goals reach `goalsPerRound`, or the countdown of a time challenge reaches 0. At 0 a round that aims ends at once; a ball in flight still lands, a goal is still celebrated, and then the round ends (FR-077). There is no separate landed phase: the landing result is the ball's `outcome`.
 
