@@ -8,7 +8,7 @@ import { createRng } from '../rng';
 import { defaultSettings, LEVELS, type Level } from '../settings/defaults';
 import { roundSchema, type AttemptRecord, type StoredRound } from '../storage/schemas';
 import { nextTarget } from '../targets/nextTarget';
-import { MatchController, SHOWN_MS, type RoundStore } from './MatchController';
+import { keeperShotOf, MatchController, modeOf, playOf, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
 import { holesApart, torwandHintCount, torwandHit, torwandHoleCount, torwandHoles, torwandTarget, TORWAND_SHOTS } from './torwand';
 
@@ -112,7 +112,7 @@ function torwand(options: { level?: Level; attempts?: AttemptRecord[]; store?: R
 /** A number on the board that is neither the target nor a hole. */
 function boardNumber(c: MatchController): number {
   const s = c.getState();
-  for (let n = 1; n <= 100; n++) if (!s.torwand!.holes.includes(n)) return n;
+  for (let n = 1; n <= 100; n++) if (!playOf(s, 'torwand')!.holes.includes(n)) return n;
   throw new Error('no free square');
 }
 
@@ -127,29 +127,29 @@ describe('the "Torwandschießen" round (FR-155 to FR-157)', () => {
   it('"Torwand" starts the mode torwand with holes, the target first, no hearts and no keeper shot', () => {
     const c = torwand();
     const s = c.getState();
-    expect(s.mode).toBe('torwand');
-    expect(s.torwand!.holes[0]).toBe(s.target!.number);
-    expect(s.torwand!.holes).toHaveLength(3);
-    expect(s.keeperShot).toBeNull();
+    expect(modeOf(s)).toBe('torwand');
+    expect(playOf(s, 'torwand')!.holes[0]).toBe(s.target!.number);
+    expect(playOf(s, 'torwand')!.holes).toHaveLength(3);
+    expect(keeperShotOf(s)).toBeNull();
     expect(s.shots).toBe(0);
     expect(s.target!.hints).toEqual([]);
   });
 
   it('the target hole scores a goal with 1 star, and the holes move after the celebration', () => {
     const c = torwand();
-    const before = c.getState().torwand!.holes;
+    const before = playOf(c.getState(), 'torwand')!.holes;
     shootAt(c, c.getState().target!.number);
     expect(c.getState()).toMatchObject({ phase: 'celebrating', goals: 1, shots: 1, starsThisRound: 1 });
     expect(c.getState().ball!.outcome).toBe('goal');
     c.celebrationDone();
     expect(c.getState().phase).toBe('aiming');
-    expect(c.getState().torwand!.holes).not.toEqual(before);
+    expect(playOf(c.getState(), 'torwand')!.holes).not.toEqual(before);
   });
 
   it('a decoy hole is a miss: no goal, its square shows, then the next target comes', () => {
     const c = torwand();
     const s = c.getState();
-    const decoy = s.torwand!.holes[1]!;
+    const decoy = playOf(s, 'torwand')!.holes[1]!;
     shootAt(c, decoy);
     const after = c.getState();
     expect(after.ball!.outcome).toBe('decoy');
@@ -183,7 +183,7 @@ describe('the "Torwandschießen" round (FR-155 to FR-157)', () => {
         shootAt(c, c.getState().target!.number);
         c.celebrationDone();
       } else {
-        shootAt(c, c.getState().torwand!.holes[1]!);
+        shootAt(c, playOf(c.getState(), 'torwand')!.holes[1]!);
         c.tick(SHOWN_MS);
       }
     }
@@ -199,20 +199,20 @@ describe('the "Torwandschießen" round (FR-155 to FR-157)', () => {
     expect(torwand({ level: 5 }).getState().target!.hints).toHaveLength(0);
   });
 
-  it('a refresh continues the round with its holes; holes outside the mode are invalid', () => {
+  it('a refresh continues the round with its holes; no holes or a hole outside the range is invalid', () => {
     const store = memoryStore();
     const c = torwand({ store });
     shootAt(c, c.getState().target!.number);
     c.celebrationDone();
-    const holes = c.getState().torwand!.holes;
-    expect(store.round?.torwand?.holes).toEqual(holes);
+    const holes = playOf(c.getState(), 'torwand')!.holes;
+    expect(store.round?.play).toEqual({ kind: 'torwand', holes });
     const again = new MatchController({ settings: defaultSettings, store, progress: () => ({ mastered: [], level: 3, xTwoEmpties: false }) });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ mode: 'torwand', shots: 1, goals: 1 });
-    expect(again.getState().torwand!.holes).toEqual(holes);
+    expect(again.getState()).toMatchObject({ play: { kind: 'torwand' }, shots: 1, goals: 1 });
+    expect(playOf(again.getState(), 'torwand')!.holes).toEqual(holes);
     const stored = store.round!;
-    expect(roundSchema.safeParse({ ...stored, mode: 'normal' }).success).toBe(false);
-    expect(roundSchema.safeParse({ ...stored, torwand: null }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...stored, play: { kind: 'torwand', holes: [] } }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...stored, play: { kind: 'torwand', holes: [stored.max + 1] } }).success).toBe(false);
     expect(roundSchema.safeParse(stored).success).toBe(true);
   });
 });

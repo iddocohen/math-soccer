@@ -98,7 +98,7 @@ import { assetUrl, CLIP_FILES, fontReady } from '../assets';
 import { createSpeaker } from '../audio/speaker';
 import { CUP_MATCHES, CUP_STAGES, nextMatch, recordMatch, teamOf, type CupMatch } from '../core/cup/cup';
 import type { CupTeam } from '../core/cup/teams';
-import { cupMatchWon, MatchController, START_HEARTS, turnOf, type MatchView, type RoundStore } from '../core/match/MatchController';
+import { cupMatchWon, keeperShotOf, kicksOf, MatchController, modeOf, playOf, START_HEARTS, turnOf, type MatchView, type RoundStore } from '../core/match/MatchController';
 import { targetProgress } from '../core/progress/adaptive';
 import type { Level } from '../core/progress/levels';
 import type { TargetProgress } from '../core/targets/nextTarget';
@@ -293,7 +293,7 @@ function createApp() {
  * decided (`saved`, `wrong`, `late`); empty in the other modes and after the round.
  */
 function shotState(s: MatchView): string {
-  const shot = s.keeperShot;
+  const shot = keeperShotOf(s);
   if (shot === null) return '';
   if (shot.result !== null) return shot.result;
   return shot.held ? 'held' : 'flying';
@@ -301,14 +301,15 @@ function shotState(s: MatchView): string {
 
 /** Stores the result of a finished round with the personal bests; null when the parent hides records (FR-028). */
 function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, showRecords: boolean): RoundRecord | null {
-  const key = recordKey(s.min, s.max, s.roundType, s.challengeMinutes, s.mode);
+  const key = recordKey(s.min, s.max, s.roundType, playOf(s, 'time')?.minutes ?? null, modeOf(s));
   const at = new Date().toISOString();
   // "Elfmeterschießen" counts the shootouts won (amendment 21), "Papa gegen Kind" the child's wins (amendment 23); the
   // other modes keep their most goals, saves or hits.
   const before = persistence.records();
+  const kicks = kicksOf(s);
   const outcome =
-    s.shootout !== null
-      ? submitShootout(before, key, shootoutWinner(s.shootout.kicks) === 0, at)
+    kicks !== null
+      ? submitShootout(before, key, shootoutWinner(kicks) === 0, at)
       : submitResult(before, key, { goals: s.goals, timeMs: s.elapsedMs, at });
   if (outcome.records !== before) saves.report(persistence.saveRecords(outcome.records));
   return showRecords ? { newRecord: outcome.newRecord, best: outcome.best } : null;
@@ -322,7 +323,8 @@ function recordRound(persistence: Persistence, saves: SaveWatch, s: MatchView, s
  */
 function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): CupRoundResult & { bonus: number } {
   const before = persistence.cup();
-  if (s.cupMatch === null || s.cupMatch.cup !== before.cup || s.cupMatch.stage !== before.stage) {
+  const match = playOf(s, 'cup')?.match ?? null;
+  if (match === null || match.cup !== before.cup || match.stage !== before.stage) {
     return { won: false, replaced: true, line: t().cup.replaced, bonus: 0 };
   }
   const won = cupMatchWon(s);
@@ -342,24 +344,25 @@ function settleCup(persistence: Persistence, saves: SaveWatch, s: MatchView): Cu
  * in the other modes.
  */
 function opponentNameOf(s: MatchView): string {
-  const kicks = MODE_INFO[s.mode].kicks;
-  if (kicks === 'grownup') return s.family?.name ?? '';
+  const kicks = MODE_INFO[modeOf(s)].kicks;
+  if (kicks === 'grownup') return playOf(s, 'family')?.name ?? '';
   return kicks === 'opponent' ? keeperOpponent(s.seed).name : '';
 }
 
 /** The end of a finished shootout for the round end, the child's name first; null for the other modes or while it goes on. */
 function shootoutResult(s: MatchView, child: string): ShootoutResult | null {
-  const kicks = MODE_INFO[s.mode].kicks;
-  if (s.shootout === null || kicks === null) return null;
-  const winner = shootoutWinner(s.shootout.kicks);
+  const kicks = MODE_INFO[modeOf(s)].kicks;
+  const played = kicksOf(s);
+  if (played === null || kicks === null) return null;
+  const winner = shootoutWinner(played);
   if (winner === null) return null;
-  return { kicks, childWon: winner === 0, names: [child, opponentNameOf(s)], score: shootoutScore(s.shootout.kicks) };
+  return { kicks, childWon: winner === 0, names: [child, opponentNameOf(s)], score: shootoutScore(played) };
 }
 
 /** What the round end tells of the finished round `s` besides its goals (`RoundOutcome`). */
 function roundOutcome(s: MatchView, cup: CupRoundResult | null, child: string): RoundOutcome {
   if (s.roundType === 'cup' && cup !== null) return { kind: 'cup', cup };
-  const info = MODE_INFO[s.mode];
+  const info = MODE_INFO[modeOf(s)];
   if (info.outcome === 'saves' || info.outcome === 'hits') return { kind: info.outcome, shots: info.shotLimit ?? 0 };
   const result = info.outcome === 'shootout' ? shootoutResult(s, child) : null;
   return result === null ? { kind: 'goals' } : { kind: 'shootout', result };
@@ -370,7 +373,7 @@ function roundOutcome(s: MatchView, cup: CupRoundResult | null, child: string): 
  * `data-shootout-turn` in "Elfmeterschießen" (`child` or `opponent`); both '' in the other modes.
  */
 function turnAttribute(s: MatchView, kicks: 'opponent' | 'grownup'): string {
-  return MODE_INFO[s.mode].kicks === kicks ? (turnOf(s) ?? '') : '';
+  return MODE_INFO[modeOf(s)].kicks === kicks ? (turnOf(s) ?? '') : '';
 }
 
 /** Which keys the game takes on `screen`. */
@@ -688,7 +691,7 @@ export function App() {
   const playAgain = () => {
     // A won cup match goes on to the bracket (FR-108), where the next match waits.
     // The round that just ended tells what it started as; a restored time challenge counts as one.
-    const last = startKindOf(state);
+    const last = startKindOf({ roundType: state.roundType, mode: modeOf(state) });
     if (last === 'cup' && (cupResult?.won || cupResult?.replaced)) {
       setScreen('cup');
       return;
@@ -697,7 +700,8 @@ export function App() {
     const kind = canStart(last, persistence.lockerRoom(), settings()) ? last : 'play';
     // A rematch of "Papa gegen Kind" keeps the grown-up's name and level, so no start card shows. The match that just
     // ended names its grown-up, also after a refresh restored it.
-    const setup = state.family === null ? undefined : { name: state.family.name, level: state.family.level };
+    const grownup = playOf(state, 'family');
+    const setup = grownup === null ? undefined : { name: grownup.name, level: grownup.level };
     // FR-103: with a new version waiting, "Nochmal" applies it first; the new page starts the round (with the card).
     // When the update fails, the rematch starts here with the same grown-up.
     if (swUpdate.applyNow(kind, () => startMatch(kind, setup))) return;
@@ -847,6 +851,9 @@ export function App() {
     controller.skipCelebration();
   };
 
+  const mode = modeOf(state);
+  const wall = playOf(state, 'wall')?.wall ?? null;
+  const kicks = kicksOf(state);
   return (
     <main
       className="match"
@@ -863,17 +870,17 @@ export function App() {
       data-floodlight={extras?.floodlight ?? ''}
       data-stands={extras?.stands ?? ''}
       data-stadium-name={stadiumNameShown(locker.stadiumName)}
-      data-mode={state.mode}
-      data-wall-cols={state.wall ? wallColumns(state.wall).join(',') : ''}
-      data-shots={MODE_INFO[state.mode].shotLimit !== null ? state.shots : ''}
-      data-holes={state.torwand?.holes.join(',') ?? ''}
+      data-mode={mode}
+      data-wall-cols={wall ? wallColumns(wall).join(',') : ''}
+      data-shots={MODE_INFO[mode].shotLimit !== null ? state.shots : ''}
+      data-holes={playOf(state, 'torwand')?.holes.join(',') ?? ''}
       data-turn={turnAttribute(state, 'grownup')}
-      data-turn-card={state.family?.card === true && state.phase === 'aiming'}
-      data-saves={MODE_INFO[state.mode].outcome === 'saves' ? state.goals : ''}
-      data-shot-target={state.keeperShot?.result === null ? (state.target?.number ?? '') : ''}
+      data-turn-card={state.wait?.reason === 'turnCard' && state.phase === 'aiming'}
+      data-saves={MODE_INFO[mode].outcome === 'saves' ? state.goals : ''}
+      data-shot-target={keeperShotOf(state)?.result === null ? (state.target?.number ?? '') : ''}
       data-shot-state={shotState(state)}
-      data-opponent={MODE_INFO[state.mode].opponentTeam ? keeperOpponent(state.seed).id : ''}
-      data-shootout-score={state.shootout === null ? '' : scoreText(state.shootout.kicks)}
+      data-opponent={MODE_INFO[mode].opponentTeam ? keeperOpponent(state.seed).id : ''}
+      data-shootout-score={kicks === null ? '' : scoreText(kicks)}
       data-shootout-turn={turnAttribute(state, 'opponent')}
       onPointerDown={skipCelebration}
     >
@@ -916,7 +923,7 @@ export function App() {
           goals={state.goals}
           elapsedMs={state.elapsedMs}
           roundType={state.roundType}
-          challengeMinutes={state.challengeMinutes}
+          challengeMinutes={playOf(state, 'time')?.minutes ?? null}
           record={result?.kind === 'record' ? result.record : null}
           stars={lockerOn ? state.starsThisRound + (state.roundType === 'cup' ? (cupResult?.bonus ?? 0) : 0) : null}
           updateWaiting={updateWaiting}

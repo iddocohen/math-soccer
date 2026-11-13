@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSettings, type Level } from '../settings/defaults';
 import { roundSchema, type AttemptRecord, type StoredRound } from '../storage/schemas';
-import { MatchController, SHOWN_MS, type RoundStore } from './MatchController';
+import { keeperShotOf, kicksOf, MatchController, modeOf, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
 import { flightMsOf, KEEPER_RESULT_MS, keeperOpponent } from './keeper';
 import {
@@ -138,7 +138,7 @@ function shootout(options: { store?: RoundStore; attempts?: AttemptRecord[]; set
 /** The child's kick: the target number scores, another number misses. Ends with the opponent's turn or the end. */
 function childKick(c: MatchController, goal: boolean) {
   const s = c.getState();
-  expect(s.keeperShot).toBeNull();
+  expect(keeperShotOf(s)).toBeNull();
   const n = s.target!.number;
   type(c, goal ? n : n === 1 ? 2 : n - 1);
   c.typeKey('enter');
@@ -151,7 +151,7 @@ function childKick(c: MatchController, goal: boolean) {
 /** The opponent's kick: the child saves with the square's number, or concedes with a wrong one. */
 function opponentKick(c: MatchController, save: boolean) {
   const s = c.getState();
-  expect(s.keeperShot).not.toBeNull();
+  expect(keeperShotOf(s)).not.toBeNull();
   const n = s.target!.number;
   type(c, save ? n : n === 1 ? 2 : n - 1);
   c.typeKey('enter');
@@ -162,9 +162,10 @@ describe('the shootout round (FR-147, FR-148)', () => {
   it('"Elfmeter" starts the mode shootout; the child shoots first, against a cup team', () => {
     const c = shootout();
     const s = c.getState();
-    expect(s.mode).toBe('shootout');
-    expect(s.shootout).toEqual({ kicks: [[], []], waitMs: 0 });
-    expect(s.keeperShot).toBeNull();
+    expect(modeOf(s)).toBe('shootout');
+    expect(kicksOf(s)).toEqual([[], []]);
+    expect(s.wait).toBeNull();
+    expect(keeperShotOf(s)).toBeNull();
     expect(s.target).not.toBeNull();
     expect(s.target!.level).toBe(1);
     expect(keeperOpponent(s.seed).name).toBeTruthy();
@@ -174,15 +175,15 @@ describe('the shootout round (FR-147, FR-148)', () => {
     const c = shootout({ settings: () => ({ ...defaultSettings(), keeperSpeed: 'fast' }) });
     childKick(c, true);
     const s = c.getState();
-    expect(s.shootout!.kicks).toEqual([['goal'], []]);
+    expect(kicksOf(s)!).toEqual([['goal'], []]);
     expect(s.goals).toBe(1);
-    expect(s.keeperShot).not.toBeNull();
-    expect(s.keeperShot!.totalMs).toBe(flightMsOf('fast', 0));
+    expect(keeperShotOf(s)).not.toBeNull();
+    expect(keeperShotOf(s)!.totalMs).toBe(flightMsOf('fast', 0));
     expect(s.ball).toBeNull();
     // The second shot of the opponent flies at the parent's speed.
     opponentKick(c, true);
     childKick(c, true);
-    expect(c.getState().keeperShot!.totalMs).toBe(flightMsOf('fast', 1));
+    expect(keeperShotOf(c.getState())!.totalMs).toBe(flightMsOf('fast', 1));
   });
 
   it('a missed kick shows its square and ends the turn: no second try, no typing until the opponent shoots', () => {
@@ -195,7 +196,8 @@ describe('the shootout round (FR-147, FR-148)', () => {
     let s = c.getState();
     expect(s.message).toEqual({ kind: 'kickMissed', number: wrong });
     expect(s.shown).toEqual({ number: wrong, remainingMs: SHOWN_MS });
-    expect(s.shootout).toEqual({ kicks: [['miss'], []], waitMs: SHOWN_MS });
+    expect(kicksOf(s)).toEqual([['miss'], []]);
+    expect(s.wait).toEqual({ reason: 'afterMiss', ms: SHOWN_MS });
     expect(s.hearts).toBe(3);
     // Typing, shooting and help do nothing while the square shows.
     type(c, n);
@@ -206,26 +208,26 @@ describe('the shootout round (FR-147, FR-148)', () => {
     expect(s.phase).toBe('aiming');
     expect(s.helpStep).toBe(0);
     c.tick(SHOWN_MS - 1);
-    expect(c.getState().keeperShot).toBeNull();
+    expect(keeperShotOf(c.getState())).toBeNull();
     c.tick(1);
-    expect(c.getState().keeperShot).not.toBeNull();
-    expect(c.getState().shootout!.waitMs).toBe(0);
+    expect(keeperShotOf(c.getState())).not.toBeNull();
+    expect(c.getState().wait).toBeNull();
   });
 
   it('the opponent scores when the child does not save, also when the ball arrives first; a save is his miss', () => {
     const c = shootout();
     childKick(c, false);
     opponentKick(c, false);
-    expect(c.getState().shootout!.kicks).toEqual([['miss'], ['goal']]);
+    expect(kicksOf(c.getState())!).toEqual([['miss'], ['goal']]);
     childKick(c, false);
     opponentKick(c, true);
-    expect(c.getState().shootout!.kicks).toEqual([['miss', 'miss'], ['goal', 'miss']]);
+    expect(kicksOf(c.getState())!).toEqual([['miss', 'miss'], ['goal', 'miss']]);
     childKick(c, false);
     // No number before the ball arrives.
-    c.tick(c.getState().keeperShot!.leftMs);
-    expect(c.getState().keeperShot!.result).toBe('late');
+    c.tick(keeperShotOf(c.getState())!.leftMs);
+    expect(keeperShotOf(c.getState())!.result).toBe('late');
     c.tick(KEEPER_RESULT_MS);
-    expect(c.getState().shootout!.kicks[1]).toEqual(['goal', 'miss', 'goal']);
+    expect(kicksOf(c.getState())![1]).toEqual(['goal', 'miss', 'goal']);
   });
 
   it('a won shootout ends after 5 rounds with 5 stars; goals and saves earn none', () => {
@@ -237,10 +239,10 @@ describe('the shootout round (FR-147, FR-148)', () => {
     }
     const s = c.getState();
     expect(s.phase).toBe('roundOver');
-    expect(shootoutWinner(s.shootout!.kicks)).toBe(0);
-    expect(shootoutScore(s.shootout!.kicks)).toEqual([5, 1]);
+    expect(shootoutWinner(kicksOf(s)!)).toBe(0);
+    expect(shootoutScore(kicksOf(s)!)).toEqual([5, 1]);
     expect(s.starsThisRound).toBe(STARS.shootoutWin);
-    expect(s.keeperShot).toBeNull();
+    expect(keeperShotOf(s)).toBeNull();
   });
 
   it('a lost shootout ends without stars and takes nothing away', () => {
@@ -251,7 +253,7 @@ describe('the shootout round (FR-147, FR-148)', () => {
     }
     const s = c.getState();
     expect(s.phase).toBe('roundOver');
-    expect(shootoutWinner(s.shootout!.kicks)).toBe(1);
+    expect(shootoutWinner(kicksOf(s)!)).toBe(1);
     expect(s.starsThisRound).toBe(0);
   });
 
@@ -262,7 +264,7 @@ describe('the shootout round (FR-147, FR-148)', () => {
       opponentKick(c, false);
     }
     expect(c.getState().phase).toBe('aiming');
-    expect(shootoutRound(c.getState().shootout!.kicks)).toBe(6);
+    expect(shootoutRound(kicksOf(c.getState())!)).toBe(6);
     // Round 6 level again, round 7 the child scores and saves.
     childKick(c, false);
     opponentKick(c, true);
@@ -272,7 +274,7 @@ describe('the shootout round (FR-147, FR-148)', () => {
     opponentKick(c, true);
     const s = c.getState();
     expect(s.phase).toBe('roundOver');
-    expect(shootoutScore(s.shootout!.kicks)).toEqual([6, 5]);
+    expect(shootoutScore(kicksOf(s)!)).toEqual([6, 5]);
     expect(s.starsThisRound).toBe(STARS.shootoutWin);
   });
 
@@ -283,10 +285,10 @@ describe('the shootout round (FR-147, FR-148)', () => {
     childKick(c, true);
     expect(c.getState().helpStep).toBe(0);
     c.askHelp();
-    expect(c.getState().keeperShot!.held).toBe(true);
-    const left = c.getState().keeperShot!.leftMs;
+    expect(keeperShotOf(c.getState())!.held).toBe(true);
+    const left = keeperShotOf(c.getState())!.leftMs;
     c.tick(5_000);
-    expect(c.getState().keeperShot!.leftMs).toBe(left);
+    expect(keeperShotOf(c.getState())!.leftMs).toBe(left);
   });
 
   it("only the child's kicks record attempts: his goals and misses, not the opponent's shots", () => {
@@ -314,20 +316,19 @@ describe('the shootout round (FR-147, FR-148)', () => {
     expect(c.getState().targetCount).toBe(3);
   });
 
-  it('a refresh continues the shootout with its kicks; kicks outside the shootout are invalid', () => {
+  it('a refresh continues the shootout with its kicks; a shootout play without its shot, or with a turn card, is invalid', () => {
     const store = memoryStore();
     const c = shootout({ store });
     childKick(c, true);
     opponentKick(c, false);
-    expect(store.round?.mode).toBe('shootout');
-    expect(store.round?.shootout?.kicks).toEqual([['goal'], ['goal']]);
+    expect(store.round?.play).toMatchObject({ kind: 'shootout', kicks: [['goal'], ['goal']] });
     const again = new MatchController({ settings: defaultSettings, store, progress: () => ({ mastered: [], level: 1, xTwoEmpties: false }) });
     expect(again.restore()).toBe(true);
-    expect(again.getState().shootout!.kicks).toEqual([['goal'], ['goal']]);
-    expect(again.getState().mode).toBe('shootout');
+    expect(kicksOf(again.getState())!).toEqual([['goal'], ['goal']]);
+    expect(modeOf(again.getState())).toBe('shootout');
     const stored = store.round!;
-    expect(roundSchema.safeParse({ ...stored, mode: 'normal' }).success).toBe(false);
-    expect(roundSchema.safeParse({ ...stored, shootout: null }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...stored, play: { kind: 'shootout', shot: null } }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...stored, wait: { reason: 'turnCard' } }).success).toBe(false);
     expect(roundSchema.safeParse(stored).success).toBe(true);
   });
 });

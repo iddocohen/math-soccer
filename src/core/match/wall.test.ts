@@ -7,7 +7,7 @@ import type { Settings } from '../settings/schema';
 import { roundSchema, type StoredRound } from '../storage/schemas';
 import { LEVELS } from '../settings/defaults';
 import type { Target } from '../types';
-import { MatchController, SHOWN_MS, type RoundStore } from './MatchController';
+import { MatchController, modeOf, playOf, SHOWN_MS, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
 import { keptClearSquares, placeWall, PLAYER_COLUMNS, wallBlocks, wallClear, wallColumns, WALL_DEFENDERS_MAX, WALL_DEFENDERS_MIN, type Wall } from './wall';
 
@@ -122,26 +122,27 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
   it('starts in the mode "wall" with the parent\'s round type and a wall clear of the target', () => {
     const c = wallController(() => ({ ...defaultSettings(), roundType: 'goalCount' }));
     const s = c.getState();
-    expect(s.mode).toBe('wall');
+    expect(modeOf(s)).toBe('wall');
     expect(s.roundType).toBe('goalCount');
-    expect(s.challengeMinutes).toBeNull();
-    expect(s.wall).not.toBeNull();
-    expect(wallClear(layout, s.wall!, s.target!)).toBe(true);
+    expect(playOf(s, 'time')).toBeNull();
+    expect(playOf(s, 'wall')!.wall).not.toBeNull();
+    expect(wallClear(layout, playOf(s, 'wall')!.wall!, s.target!)).toBe(true);
   });
 
   it('a normal round, a time challenge and a cup match have no wall', () => {
     const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target(46) });
     c.start();
-    expect(c.getState()).toMatchObject({ mode: 'normal', wall: null });
+    expect(c.getState()).toMatchObject({ play: { kind: 'normal' } });
     c.start('time');
-    expect(c.getState()).toMatchObject({ mode: 'normal', wall: null, roundType: 'time' });
+    expect(c.getState()).toMatchObject({ play: { kind: 'time' }, roundType: 'time' });
     c.startCup({ level: 1, goals: 3, cup: 1, stage: 0 });
-    expect(c.getState()).toMatchObject({ mode: 'normal', wall: null, roundType: 'cup' });
+    expect(c.getState()).toMatchObject({ play: { kind: 'cup' }, roundType: 'cup' });
+    expect(modeOf(c.getState())).toBe('normal');
   });
 
   it('a shot at a number behind the wall hits the wall: a miss, the message "blocked", the square shows its number', () => {
     const c = wallController();
-    const wall = c.getState().wall!;
+    const wall = playOf(c.getState(), 'wall')!.wall!;
     const behind = inColumn(wall.from);
     shoot(c, behind);
     const s = c.getState();
@@ -150,12 +151,12 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
     expect(s.shown).toEqual({ number: behind, remainingMs: SHOWN_MS });
     expect(s).toMatchObject({ phase: 'aiming', goals: 0, missesInRow: 1, helpStep: 1, targetMisses: 1, starsThisRound: 0 });
     // The wall stays for the same target.
-    expect(s.wall).toEqual(wall);
+    expect(playOf(s, 'wall')!.wall).toEqual(wall);
   });
 
   it('a wrong number in the free part is a usual miss', () => {
     const c = wallController();
-    const wall = c.getState().wall!;
+    const wall = playOf(c.getState(), 'wall')!.wall!;
     const free = [0, 1, 2, 3, 7, 8, 9].find((col) => col < wall.from || col > wall.to)!;
     shoot(c, inColumn(free));
     expect(c.getState().ball?.outcome).toBe('miss');
@@ -164,7 +165,7 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
 
   it('shots behind the wall cost hearts like any miss', () => {
     const c = wallController();
-    const behind = inColumn(c.getState().wall!.from);
+    const behind = inColumn(playOf(c.getState(), 'wall')!.wall!.from);
     for (let i = 0; i < 5; i++) shoot(c, behind);
     expect(c.getState()).toMatchObject({ hearts: 2, message: { kind: 'heartLost', number: behind } });
   });
@@ -172,10 +173,10 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
   it('the wall moves to new columns after each goal', () => {
     const c = wallController();
     for (let i = 0; i < 6; i++) {
-      const before = c.getState().wall!;
+      const before = playOf(c.getState(), 'wall')!.wall!;
       shoot(c, 46);
       c.celebrationDone();
-      const after = c.getState().wall!;
+      const after = playOf(c.getState(), 'wall')!.wall!;
       expect([after.from, after.to]).not.toEqual([before.from, before.to]);
       expect(wallClear(layout, after, c.getState().target!)).toBe(true);
     }
@@ -193,26 +194,26 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
     };
     const c = new MatchController({ settings: defaultSettings, newSeed: () => 3, nextTarget: () => cutout });
     c.start('wall');
-    const first = c.getState().wall!;
+    const first = playOf(c.getState(), 'wall')!.wall!;
     expect(first.from).toBeGreaterThan(2);
     shoot(c, 12);
     expect(c.getState().ball?.outcome).toBe('filled');
     expect(c.getState().target?.number).toBe(13);
-    expect(c.getState().wall).toEqual(first);
+    expect(playOf(c.getState(), 'wall')!.wall).toEqual(first);
     shoot(c, 13);
     c.celebrationDone();
-    expect([c.getState().wall!.from, c.getState().wall!.to]).not.toEqual([first.from, first.to]);
+    expect([playOf(c.getState(), 'wall')!.wall!.from, playOf(c.getState(), 'wall')!.wall!.to]).not.toEqual([first.from, first.to]);
   });
 
   it('a refresh continues the round with its mode and the same wall', () => {
     const store = memoryStore();
     const c = wallController(defaultSettings, store);
-    const wall = c.getState().wall;
-    expect(store.round).toMatchObject({ mode: 'wall', wall });
+    const wall = playOf(c.getState(), 'wall')!.wall;
+    expect(store.round).toMatchObject({ play: { kind: 'wall', wall } });
     expect(roundSchema.safeParse(store.round).success).toBe(true);
     const again = new MatchController({ settings: defaultSettings, store, nextTarget: () => target(46) });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ mode: 'wall', wall });
+    expect(again.getState()).toMatchObject({ play: { kind: 'wall', wall } });
   });
 
   it('a refresh drops a wall round the parent turned off in "Spielarten erlauben"', () => {
@@ -224,20 +225,11 @@ describe('MatchController in "Freistoß mit Mauer" (FR-142)', () => {
     expect(store.round).toBeNull();
   });
 
-  it('a stored round from before amendment 21 loads as a normal round without a wall', () => {
-    const store = memoryStore();
-    const c = new MatchController({ settings: defaultSettings, newSeed: () => 7, nextTarget: () => target(46), store });
-    c.start();
-    const old: Partial<StoredRound> = { ...store.round! };
-    delete old.mode;
-    delete old.wall;
-    const parsed = roundSchema.parse(old);
-    expect(parsed).toMatchObject({ mode: 'normal', wall: null });
-  });
-
-  it('a stored wall outside the wall mode is invalid', () => {
+  it('a stored wall must go left to right', () => {
     const store = memoryStore();
     wallController(defaultSettings, store);
-    expect(roundSchema.safeParse({ ...store.round, mode: 'normal' }).success).toBe(false);
+    const stored = store.round!;
+    expect(roundSchema.safeParse({ ...stored, play: { kind: 'wall', wall: { from: 5, to: 4, defenders: 3 } } }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...stored, play: { kind: 'wall', wall: null } }).success).toBe(true);
   });
 });

@@ -31,7 +31,7 @@ describe('MatchOverlay locker room icon (FR-049)', () => {
   it('shows no icon without onLockerRoom (locker room off) and none on the round end', () => {
     const { rerender } = render(<MatchOverlay state={running()} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
     expect(screen.queryByRole('button', { name: 'Kabine' })).toBeNull();
-    rerender(<MatchOverlay state={{ ...running(), phase: 'roundOver' }} settings={defaultSettings()} onLockerRoom={noop} onHelp={noop} onPause={noop} onResume={noop} />);
+    rerender(<MatchOverlay state={{ ...running(), phase: 'roundOver', ball: null, shown: null }} settings={defaultSettings()} onLockerRoom={noop} onHelp={noop} onPause={noop} onResume={noop} />);
     expect(screen.queryByRole('button', { name: 'Kabine' })).toBeNull();
   });
 
@@ -111,7 +111,8 @@ describe('lit labels and scales of the row and column helper (FR-094, amendment 
 
   it('carries which scales show as data-scales: none, row, both, and none once scored (FR-115)', () => {
     const scalesAt = (helpStep: number, scored = false) => {
-      const state: MatchView = { ...running(), target, helpStep, ...(scored ? { phase: 'celebrating', ball: { number: 46, outcome: 'goal', atMs: 0 } } : {}) };
+      const base: MatchView = { ...running(), target, helpStep };
+      const state: MatchView = scored ? { ...base, phase: 'celebrating', ball: { number: 46, outcome: 'goal', atMs: 0 } } : base;
       const { unmount } = render(<MatchOverlay state={state} settings={defaultSettings()} onHelp={noop} onPause={noop} onResume={noop} />);
       const value = screen.getByTestId('match').getAttribute('data-scales');
       unmount();

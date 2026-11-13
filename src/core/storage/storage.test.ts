@@ -42,17 +42,12 @@ import {
 /** A full stored round; `over` replaces fields. */
 function storedRound(over: Partial<StoredRound> = {}): StoredRound {
   return {
-    version: 1,
+    version: 2,
     seed: 1,
     roundType: 'untilHearts',
-    challengeMinutes: null,
-    mode: 'normal',
-    wall: null,
+    play: { kind: 'normal' },
+    wait: null,
     shots: 0,
-    keeperShot: null,
-    shootout: null,
-    torwand: null,
-    family: null,
     goalsPerRound: 10,
     min: 1,
     max: 100,
@@ -67,7 +62,6 @@ function storedRound(over: Partial<StoredRound> = {}): StoredRound {
     targetStartMs: 0,
     targetMisses: 0,
     missTimes: [],
-    cupMatch: null,
     phase: 'aiming',
     ...over,
   };
@@ -308,10 +302,10 @@ describe('stored cup (mathsoccer.cup.v1, amendment 13)', () => {
   });
 
   it('a stored cup round needs its cup match, and only a cup round has one', () => {
-    const cupRound = storedRound({ roundType: 'cup', cupMatch: { level: 3, goals: 5, cup: 1, stage: 0 } });
+    const cupRound = storedRound({ roundType: 'cup', play: { kind: 'cup', match: { level: 3, goals: 5, cup: 1, stage: 0 } } });
     expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(cupRound) })).value).toEqual(cupRound);
-    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify({ ...cupRound, cupMatch: null }) })).resetReason).toBe('invalid');
-    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ cupMatch: { level: 3, goals: 5, cup: 1, stage: 0 } })) })).resetReason).toBe('invalid');
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify({ ...cupRound, play: { kind: 'normal' } }) })).resetReason).toBe('invalid');
+    expect(loadRound(memoryKeyValue({ [ROUND_KEY]: JSON.stringify(storedRound({ play: { kind: 'cup', match: { level: 3, goals: 5, cup: 1, stage: 0 } } })) })).resetReason).toBe('invalid');
   });
 });
 
@@ -403,8 +397,10 @@ describe('stored data baseline (T106)', () => {
     expect(() => applyBaseline(throwingKeyValue())).not.toThrow();
   });
 
-  it('puts every stored kind at version 1', () => {
-    for (const kind of [SETTINGS, PROGRESS, RECORDS, LOCKER_ROOM, ROUND, CUP]) expect(kind.version).toBe(1);
-    for (const value of [defaultSettings(), emptyProgress(), emptyRecords(), emptyLockerRoom(), emptyCup(), storedRound()]) expect(value.version).toBe(1);
+  it('puts every stored kind at version 1, and the running round at version 2 (refactor R2)', () => {
+    for (const kind of [SETTINGS, PROGRESS, RECORDS, LOCKER_ROOM, CUP]) expect(kind.version).toBe(1);
+    for (const value of [defaultSettings(), emptyProgress(), emptyRecords(), emptyLockerRoom(), emptyCup()]) expect(value.version).toBe(1);
+    expect(ROUND.version).toBe(2);
+    expect(storedRound().version).toBe(2);
   });
 });

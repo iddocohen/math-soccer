@@ -93,10 +93,9 @@ test('a round of 10 shots ends with "N von 10 gehalten"', async ({ page }) => {
 test('screenshot: the flashing square with the countdown ring, mid-flight', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const round = {
-    version: 1,
+    version: 2,
     seed: 5,
     roundType: 'untilHearts',
-    challengeMinutes: null,
     goalsPerRound: settings.goalsPerRound,
     min: 1,
     max: 100,
@@ -111,11 +110,9 @@ test('screenshot: the flashing square with the countdown ring, mid-flight', asyn
     targetStartMs: 28_000,
     targetMisses: 0,
     missTimes: [],
-    cupMatch: null,
-    mode: 'keeper',
-    wall: null,
+    play: { kind: 'keeper', shot: { totalMs: 8_000, leftMs: 3_000, held: false, result: null, typed: null, resultLeftMs: 0 } },
+    wait: null,
     shots: 3,
-    keeperShot: { totalMs: 8_000, leftMs: 3_000, held: false, result: null, typed: null, resultLeftMs: 0 },
     phase: 'aiming',
   };
   await seedStorage(page, { [SETTINGS_KEY]: settings, [LOCKER_ROOM_KEY]: { ...emptyLockerRoom(), modes: ['keeper'] }, [ROUND_KEY]: round });

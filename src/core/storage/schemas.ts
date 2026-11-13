@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { STARTER } from '../rewards/items';
 import { CHALLENGE_MINUTES, CUP_GOALS_MAX, CUP_GOALS_MIN, GOALS_PER_ROUND_MAX, GOALS_PER_ROUND_MIN, LEVELS } from '../settings/defaults';
 import { PATTERNS } from '../targets/patterns';
-import { MATCH_MODES } from '../match/rounds';
 import { KEEPER_SHOTS } from '../match/keeper';
 import { TORWAND_SHOTS } from '../match/torwand';
 import { GROWNUP_NAME_MAX } from '../match/family';
@@ -10,7 +9,8 @@ import { DIRECTIONS, PLAYED_MODE, ROUND_TYPES } from '../types';
 
 /**
  * Schemas of the stored kinds other than settings (data-model.md). Every kind is at version 1 since the stored data
- * baseline (T106). A change to a stored shape raises its version and adds a step in migrate.ts.
+ * baseline (T106), except the running round at version 2 (refactor R2). A change to a stored shape raises its version
+ * and adds a step in migrate.ts; the running round instead discards a round of an older version.
  */
 
 /** The mode of an attempt or best: always `keeper`, the goalkeeper game. */
@@ -200,18 +200,63 @@ export const targetSchema = z.object({
   cutout: z.object({ squares: z.array(z.number().int()), given: z.array(z.number().int()) }).optional(),
 });
 
+/** The opponent's shot at the child in goal ("Selbst ins Tor", amendment 21, FR-143). */
+const keeperShotSchema = z.object({
+  totalMs: z.number().positive(),
+  leftMs: z.number().min(0),
+  held: z.boolean(),
+  result: z.enum(['saved', 'wrong', 'late']).nullable(),
+  typed: z.number().int().nullable(),
+  resultLeftMs: z.number().min(0),
+});
+
+/** The kicks of a shootout: side 0 the child, side 1 the opponent or the grown-up (FR-147, FR-158). */
+const kicksSchema = z.tuple([z.array(z.enum(['goal', 'miss'])), z.array(z.enum(['goal', 'miss']))]);
+
+/** What only one kind of round has, tagged by `kind` (refactor R2, MatchController `Play`). */
+const playSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('normal') }),
+  /** The length of a time challenge in minutes (FR-076). */
+  z.object({ kind: z.literal('time'), minutes: z.literal(CHALLENGE_MINUTES) }),
+  /** A cup match (amendment 13): its level, the goals that win it, and its cup and stage. */
+  z.object({
+    kind: z.literal('cup'),
+    match: z.object({
+      level: z.literal(LEVELS),
+      goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX),
+      cup: z.number().int().min(1),
+      stage: z.number().int().min(0).max(CUP_MATCHES - 1),
+    }),
+  }),
+  /** "Freistoß mit Mauer": the wall in front of the current target, its first and last column and its defenders. */
+  z.object({
+    kind: z.literal('wall'),
+    wall: z.object({ from: z.number().int().min(0).max(9), to: z.number().int().min(0).max(9), defenders: z.number().int().min(3).max(5) }).nullable(),
+  }),
+  z.object({ kind: z.literal('keeper'), shot: keeperShotSchema.nullable() }),
+  z.object({ kind: z.literal('shootout'), kicks: kicksSchema, shot: keeperShotSchema.nullable() }),
+  /** "Torwandschießen" (amendment 23): the board's holes. */
+  z.object({ kind: z.literal('torwand'), holes: z.array(z.number().int()).min(1).max(3) }),
+  /** "Papa gegen Kind" (amendment 23): the kicks, and the grown-up's name and level. */
+  z.object({ kind: z.literal('family'), kicks: kicksSchema, name: z.string().min(1).max(GROWNUP_NAME_MAX), level: z.literal(LEVELS) }),
+]);
+
 /**
- * `mathsoccer.round.v1`, version 1: the running round, kept on refresh (data-model "Round"). No stored round means no
+ * `mathsoccer.round.v1`, version 2: the running round, kept on refresh (data-model "Round"). No stored round means no
  * round to continue. The round is saved between shots, so a stored phase is `aiming` or `celebrating`. The rules
- * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load.
+ * between fields (`roundRules`) make a damaged round invalid, so it is discarded on load. Version 2 (refactor R2) keeps
+ * what only one kind of round has in one tagged field, `play`, and the wait before play goes on in `wait`; a round of
+ * version 1 is discarded, without a migration step.
  */
 export const roundSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     seed: z.number().int(),
     roundType: z.enum(ROUND_TYPES),
-    /** The length of a time challenge in minutes (FR-076); null for the other round types. */
-    challengeMinutes: z.literal(CHALLENGE_MINUTES).nullable(),
+    /** What only this kind of round has, tagged by `kind` (MatchController `Play`). */
+    play: playSchema,
+    /** What the round waits for before play goes on: the square of a missed kick or shot, or the turn card. */
+    wait: z.discriminatedUnion('reason', [z.object({ reason: z.literal('afterMiss'), ms: z.number().min(0) }), z.object({ reason: z.literal('turnCard') })]).nullable(),
     /** Goals per round at the round start (FR-052). */
     goalsPerRound: z.number().int().min(GOALS_PER_ROUND_MIN).max(GOALS_PER_ROUND_MAX),
     min: z.number().int(),
@@ -231,70 +276,20 @@ export const roundSchema = z
     targetMisses: z.number().int().min(0),
     /** Play times of the shots that missed the current target, for the guess rule (T043). */
     missTimes: z.array(z.number().min(0)),
-    /** A cup match (amendment 13): its level, the goals that win it, and its cup and stage; null for the other round types. */
-    cupMatch: z
-      .object({
-        level: z.literal(LEVELS),
-        goals: z.number().int().min(CUP_GOALS_MIN).max(CUP_GOALS_MAX),
-        cup: z.number().int().min(1),
-        stage: z.number().int().min(0).max(CUP_MATCHES - 1),
-      })
-      .nullable(),
-    /** The match mode (amendment 21): the usual game or the free kick with the wall; added with a default. */
-    mode: z.enum(MATCH_MODES).default('normal'),
-    /** The wall of "Freistoß mit Mauer" in front of the current target: its first and last column and its defenders. */
-    wall: z
-      .object({ from: z.number().int().min(0).max(9), to: z.number().int().min(0).max(9), defenders: z.number().int().min(3).max(5) })
-      .nullable()
-      .default(null),
     /**
      * "Selbst ins Tor" (amendment 21, FR-143) and "Torwandschießen" (amendment 23): the shots decided so far; 0 in the
-     * other modes. Added with a default.
+     * other modes.
      */
-    shots: z.number().int().min(0).max(Math.max(KEEPER_SHOTS, TORWAND_SHOTS)).default(0),
-    /** The opponent's shot at the current target in "Selbst ins Tor"; null in the other modes. Added with a default. */
-    keeperShot: z
-      .object({
-        totalMs: z.number().positive(),
-        leftMs: z.number().min(0),
-        held: z.boolean(),
-        result: z.enum(['saved', 'wrong', 'late']).nullable(),
-        typed: z.number().int().nullable(),
-        resultLeftMs: z.number().min(0),
-      })
-      .nullable()
-      .default(null),
-    /**
-     * "Elfmeterschießen" (amendment 21 part 3, FR-147): the kicks of the child and of the opponent, and the play time
-     * left before the opponent's turn after a missed kick; null in the other modes. Added with a default.
-     */
-    shootout: z
-      .object({
-        kicks: z.tuple([z.array(z.enum(['goal', 'miss'])), z.array(z.enum(['goal', 'miss']))]),
-        waitMs: z.number().min(0),
-      })
-      .nullable()
-      .default(null),
-    /** "Torwandschießen" (amendment 23): the board's holes and the wait after a missed shot; null otherwise. */
-    torwand: z
-      .object({ holes: z.array(z.number().int()).min(1).max(3), waitMs: z.number().min(0) })
-      .nullable()
-      .default(null),
-    /** "Papa gegen Kind" (amendment 23): the grown-up's name and level, and the turn card; null otherwise. */
-    family: z
-      .object({ name: z.string().min(1).max(GROWNUP_NAME_MAX), level: z.literal(LEVELS), card: z.boolean() })
-      .nullable()
-      .default(null),
+    shots: z.number().int().min(0).max(Math.max(KEEPER_SHOTS, TORWAND_SHOTS)),
     phase: z.enum(['aiming', 'celebrating']),
   })
   .superRefine(roundRules);
 export type StoredRound = z.infer<typeof roundSchema>;
 
 /**
- * Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range, a
- * wall belongs to the wall mode, a shot at the child in goal to the keeper or the shootout mode, the kicks of a
- * shootout to the shootout and the family mode, the board's holes to the torwand mode and the grown-up to the family
- * mode.
+ * Rules between the fields of a stored round: the range goes up, an aiming round has a target, it lies in the range,
+ * the time challenge and the cup have their play, a wall goes left to right, the board's holes lie in the range, the
+ * turn card belongs to "Papa gegen Kind" and the wait after a miss to a shootout or the board.
  */
 function roundRules(
   r: {
@@ -302,29 +297,22 @@ function roundRules(
     min: number;
     max: number;
     roundType: string;
-    challengeMinutes: number | null;
-    cupMatch: unknown;
-    mode: string;
-    wall: { from: number; to: number } | null;
-    keeperShot: unknown;
-    shootout: unknown;
-    torwand: { holes: number[] } | null;
-    family: unknown;
+    play: z.infer<typeof playSchema>;
+    wait: { reason: string } | null;
     target: { number: number; queue?: Array<{ number: number }>; cutout?: { squares: number[] } } | null;
   },
   ctx: z.RefinementCtx,
 ): void {
   const issue = (message: string, path: string) => ctx.addIssue({ code: 'custom', message, path: [path] });
+  const { play } = r;
   if (r.min >= r.max) issue('min must be below max', 'max');
   if (r.phase === 'aiming' && r.target === null) issue('an aiming round needs a target', 'target');
-  if ((r.roundType === 'time') !== (r.challengeMinutes !== null)) issue('a time challenge, and only it, has minutes', 'challengeMinutes');
-  if ((r.roundType === 'cup') !== (r.cupMatch !== null)) issue('a cup match, and only it, has a cup level', 'cupMatch');
-  if (r.wall !== null && (r.mode !== 'wall' || r.wall.from > r.wall.to)) issue('a wall stands only in the wall mode, left to right', 'wall');
-  if (r.keeperShot !== null && r.mode !== 'keeper' && r.mode !== 'shootout') issue('a shot at the child in goal belongs to the keeper or the shootout mode', 'keeperShot');
-  if ((r.shootout !== null) !== (r.mode === 'shootout' || r.mode === 'family')) issue('the kicks of a shootout belong to the shootout and the family mode, and they have them', 'shootout');
-  if ((r.torwand !== null) !== (r.mode === 'torwand')) issue('the holes of the board belong to the torwand mode, and it has them', 'torwand');
-  if ((r.family !== null) !== (r.mode === 'family')) issue('the grown-up belongs to the family mode, and it has one', 'family');
-  if (r.torwand?.holes.some((n) => n < r.min || n > r.max)) issue('hole outside the range', 'torwand');
+  if ((r.roundType === 'time') !== (play.kind === 'time')) issue('a time challenge, and only it, has minutes', 'play');
+  if ((r.roundType === 'cup') !== (play.kind === 'cup')) issue('a cup match, and only it, has a cup level', 'play');
+  if (play.kind === 'wall' && play.wall !== null && play.wall.from > play.wall.to) issue('a wall goes left to right', 'play');
+  if (play.kind === 'torwand' && play.holes.some((n) => n < r.min || n > r.max)) issue('hole outside the range', 'play');
+  if (r.wait?.reason === 'turnCard' && play.kind !== 'family') issue('the turn card belongs to the family mode', 'wait');
+  if (r.wait?.reason === 'afterMiss' && play.kind !== 'shootout' && play.kind !== 'family' && play.kind !== 'torwand') issue('the wait after a miss belongs to a shootout or the board', 'wait');
   const numbers = r.target ? [r.target.number, ...(r.target.queue ?? []).map((q) => q.number), ...(r.target.cutout?.squares ?? [])] : [];
   if (numbers.some((n) => n < r.min || n > r.max)) issue('target outside the range', 'target');
 }

@@ -618,10 +618,12 @@ describe('App: review fixes', () => {
   /** A stored round with one goal, saved during the celebration of that goal. */
   function celebratingRound(over: Record<string, unknown> = {}) {
     return {
-      version: 1,
+      version: 2,
       seed: 5,
       roundType: 'goalCount',
-      challengeMinutes: null,
+      play: { kind: 'normal' },
+      wait: null,
+      shots: 0,
       goalsPerRound: 1,
       min: 1,
       max: 100,
@@ -636,7 +638,6 @@ describe('App: review fixes', () => {
       targetStartMs: 0,
       targetMisses: 0,
       missTimes: [],
-      cupMatch: null,
       phase: 'celebrating',
       ...over,
     };

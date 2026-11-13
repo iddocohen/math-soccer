@@ -113,7 +113,7 @@ export const CUP: StoredKind<Cup> = {
 export const ROUND: StoredKind<StoredRound | null> = {
   name: 'round',
   key: ROUND_KEY,
-  version: 1,
+  version: 2,
   parse: schemaParser('round', roundSchema),
   empty: () => null,
 };

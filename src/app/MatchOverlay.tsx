@@ -48,7 +48,7 @@
  */
 import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ballKind, layoutChart } from '../core/chart/layout';
-import { START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
+import { challengeMs, keeperShotOf, kicksOf, modeOf, playOf, START_HEARTS, type MatchMessage, type MatchView } from '../core/match/MatchController';
 import { nextSide, scoreCircles, shootoutRound, shootoutScore, SHOOTOUT_ROUNDS, type ShootoutKicks } from '../core/match/shootout';
 import { MODE_INFO } from '../core/match/rounds';
 import { columnLabel, rowColumnHelp, rowLabel, scalesShown } from '../core/match/help';
@@ -112,8 +112,8 @@ export function messageText(message: MatchMessage | null): string {
  * The message line: the match message, or in "Torwandschießen" the task "Triff die 47!" while the child aims at a new
  * target (amendment 23, FR-155).
  */
-export function messageLine(state: Pick<MatchView, 'message' | 'mode' | 'phase' | 'target' | 'torwand'>): string {
-  if (state.message === null && state.mode === 'torwand' && state.phase === 'aiming' && state.target !== null && state.torwand?.waitMs === 0) {
+export function messageLine(state: Pick<MatchView, 'message' | 'play' | 'phase' | 'target' | 'wait'>): string {
+  if (state.message === null && state.play.kind === 'torwand' && state.phase === 'aiming' && state.target !== null && state.wait === null) {
     return t().feedback.torwandAsk(state.target.number);
   }
   return messageText(state.message);
@@ -205,7 +205,10 @@ export const MatchOverlay = memo(function MatchOverlay({
   const lit = litLabels(state);
   const goals = goalCounter(state, settings.goalsPerRound);
   const names = shootoutNames ?? { child: text.match.you, opponent: '' };
-  const turnCard = state.family?.card === true && state.phase === 'aiming' && !state.paused;
+  const turnCard = state.wait?.reason === 'turnCard' && state.phase === 'aiming' && !state.paused;
+  const kicks = kicksOf(state);
+  const grownup = playOf(state, 'family');
+  const challenge = challengeMs(state);
   return (
     <div
       className="overlay"
@@ -229,7 +232,7 @@ export const MatchOverlay = memo(function MatchOverlay({
       data-level={state.target?.level ?? ''}
       data-hints={state.target?.hints.join(',') ?? ''}
       data-round-type={state.roundType}
-      data-cup-level={state.cupMatch?.level ?? ''}
+      data-cup-level={playOf(state, 'cup')?.match.level ?? ''}
       data-queue={state.target?.queue?.map((q) => q.number).join(',') ?? ''}
       data-cutout={state.target?.cutout?.squares.join(',') ?? ''}
       data-keeper={keeper}
@@ -248,18 +251,18 @@ export const MatchOverlay = memo(function MatchOverlay({
               {stadium}
             </span>
           )}
-          {state.shootout !== null && (
-            <ShootoutScore kicks={state.shootout.kicks} names={names} family={state.family !== null} />
+          {kicks !== null && (
+            <ShootoutScore kicks={kicks} names={names} family={grownup !== null} />
           )}
-          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && MODE_INFO[state.mode].hearts && (
+          {(state.roundType === 'untilHearts' || state.roundType === 'cup') && MODE_INFO[modeOf(state)].hearts && (
             <span className="hearts" data-testid="hearts" role="img" aria-label={text.match.hearts(state.hearts)}>
               {Array.from({ length: START_HEARTS }, (_, i) => (
                 <span key={i} className={i < state.hearts ? 'heart' : 'heart heart-gone'} aria-hidden="true" />
               ))}
             </span>
           )}
-          {state.challengeMinutes !== null ? (
-            <Countdown totalMs={state.challengeMinutes * 60_000} source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />
+          {challenge !== null ? (
+            <Countdown totalMs={challenge} source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />
           ) : (
             settings.showClock && <Clock source={clock ?? { subscribe: noSubscribe, elapsedMs: () => state.elapsedMs }} />
           )}
@@ -327,8 +330,8 @@ export const MatchOverlay = memo(function MatchOverlay({
           </p>
         </div>
       </div>
-      {turnCard && state.shootout !== null && (
-        <TurnCard kicks={state.shootout.kicks} names={names} level={state.family?.level ?? null} childLevel={state.target?.level ?? null} onStart={onStartTurn} />
+      {turnCard && kicks !== null && (
+        <TurnCard kicks={kicks} names={names} level={grownup?.level ?? null} childLevel={state.target?.level ?? null} onStart={onStartTurn} />
       )}
       {pad && <NumberPad disabled={state.paused || state.phase !== 'aiming'} onDigit={pad.onDigit} onBackspace={pad.onBackspace} onShoot={pad.onShoot} />}
     </div>
@@ -344,22 +347,25 @@ const noSubscribe = () => () => {};
  */
 function goalCounter(state: MatchView, goalsPerRound: number): string {
   const text = t().match;
-  const info = MODE_INFO[state.mode];
+  const info = MODE_INFO[modeOf(state)];
   const limit = info.shotLimit ?? 0;
   if (info.outcome === 'saves') {
-    const shot = state.keeperShot !== null && state.keeperShot.result === null ? state.shots + 1 : state.shots;
+    const flying = keeperShotOf(state);
+    const shot = flying !== null && flying.result === null ? state.shots + 1 : state.shots;
     return text.keeperCount(state.goals, Math.max(1, shot), limit);
   }
-  if (state.shootout !== null) {
-    const round = shootoutRound(state.shootout.kicks);
+  const kicks = kicksOf(state);
+  if (kicks !== null) {
+    const round = shootoutRound(kicks);
     return info.kicks === 'grownup' ? text.familyRound(round, SHOOTOUT_ROUNDS) : text.shootoutRound(round, SHOOTOUT_ROUNDS);
   }
-  if (state.torwand !== null) {
-    const shot = state.phase === 'roundOver' || state.torwand.waitMs > 0 || state.phase === 'celebrating' ? state.shots : state.shots + 1;
+  if (state.play.kind === 'torwand') {
+    const shot = state.phase === 'roundOver' || state.wait !== null || state.phase === 'celebrating' ? state.shots : state.shots + 1;
     return text.torwandCount(state.goals, clamp(shot, 1, limit), limit);
   }
   if (state.roundType === 'goalCount') return text.goalsOf(state.goals, goalsPerRound);
-  return state.cupMatch !== null ? text.goalsOf(state.goals, state.cupMatch.goals) : text.goals(state.goals);
+  const cup = playOf(state, 'cup');
+  return cup !== null ? text.goalsOf(state.goals, cup.match.goals) : text.goals(state.goals);
 }
 
 /**

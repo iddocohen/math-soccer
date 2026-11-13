@@ -11,7 +11,7 @@ import { defaultSettings, LEVELS, type Level } from '../settings/defaults';
 import type { Settings } from '../settings/schema';
 import { roundSchema, type StoredRound } from '../storage/schemas';
 import type { AttemptRecord } from '../storage/schemas';
-import { MatchController, onlyTimeChanged, type RoundStore } from './MatchController';
+import { keeperShotOf, MatchController, onlyTimeChanged, type RoundStore } from './MatchController';
 import type { Digit } from './entry';
 import {
   flightMsOf,
@@ -122,10 +122,10 @@ describe('flight time per "Schussgeschwindigkeit" (FR-144)', () => {
 
   it('the round flies its first shot slowly and the next ones at the parent\'s speed', () => {
     const c = keeperRound(() => ({ ...defaultSettings(), keeperSpeed: 'fast' }));
-    expect(c.getState().keeperShot).toMatchObject({ totalMs: 10_000, leftMs: 10_000, result: null });
+    expect(keeperShotOf(c.getState())).toMatchObject({ totalMs: 10_000, leftMs: 10_000, result: null });
     shoot(c, c.getState().target!.number);
     nextShot(c);
-    expect(c.getState().keeperShot).toMatchObject({ totalMs: 5_000, leftMs: 5_000, result: null });
+    expect(keeperShotOf(c.getState())).toMatchObject({ totalMs: 5_000, leftMs: 5_000, result: null });
   });
 });
 
@@ -134,7 +134,7 @@ describe('the child in goal (FR-143)', () => {
     expect(START_KIND_INFO.keeper.mode).toBe('keeper');
     const c = keeperRound();
     const s = c.getState();
-    expect(s).toMatchObject({ mode: 'keeper', phase: 'aiming', shots: 0, goals: 0, ball: null, wall: null });
+    expect(s).toMatchObject({ play: { kind: 'keeper' }, phase: 'aiming', shots: 0, goals: 0, ball: null });
     expect(s.target).not.toBeNull();
   });
 
@@ -143,12 +143,12 @@ describe('the child in goal (FR-143)', () => {
     const first = c.getState().target!.number;
     shoot(c, first);
     expect(c.getState()).toMatchObject({ shots: 1, goals: 1, starsThisRound: STARS.save, shown: null, message: { kind: 'saved' } });
-    expect(c.getState().keeperShot).toMatchObject({ result: 'saved', typed: first });
+    expect(keeperShotOf(c.getState())).toMatchObject({ result: 'saved', typed: first });
     // No number is typed between two shots.
     type(c, 5);
     expect(c.getState().entry).toBe('');
     nextShot(c);
-    expect(c.getState().keeperShot).toMatchObject({ result: null, typed: null });
+    expect(keeperShotOf(c.getState())).toMatchObject({ result: null, typed: null });
     expect(c.getState().target!.number).not.toBe(first);
     expect(c.getState().message).toBeNull();
   });
@@ -160,7 +160,7 @@ describe('the child in goal (FR-143)', () => {
     shoot(c, wrong);
     expect(c.getState()).toMatchObject({ shots: 1, goals: 0, starsThisRound: 0, message: { kind: 'conceded', number: target } });
     expect(c.getState().shown?.number).toBe(target);
-    expect(c.getState().keeperShot).toMatchObject({ result: 'wrong', typed: wrong });
+    expect(keeperShotOf(c.getState())).toMatchObject({ result: 'wrong', typed: wrong });
     expect(shotResult(target, wrong)).toBe('wrong');
   });
 
@@ -169,11 +169,11 @@ describe('the child in goal (FR-143)', () => {
     const target = c.getState().target!.number;
     type(c, 4);
     c.tick(9_999);
-    expect(c.getState().keeperShot).toMatchObject({ result: null, leftMs: 1 });
+    expect(keeperShotOf(c.getState())).toMatchObject({ result: null, leftMs: 1 });
     expect(c.getState().entry).toBe('4');
     c.tick(1);
     expect(c.getState()).toMatchObject({ shots: 1, goals: 0, entry: '', message: { kind: 'late', number: target } });
-    expect(c.getState().keeperShot).toMatchObject({ result: 'late', typed: null });
+    expect(keeperShotOf(c.getState())).toMatchObject({ result: 'late', typed: null });
     expect(c.getState().shown?.number).toBe(target);
   });
 
@@ -186,7 +186,7 @@ describe('the child in goal (FR-143)', () => {
     expect(c.getState().entry).toBe('101');
     c.typeKey('enter');
     expect(c.getState()).toMatchObject({ shots: 0, message: { kind: 'outOfRange', min: 1, max: 100 } });
-    expect(c.getState().keeperShot?.result).toBeNull();
+    expect(keeperShotOf(c.getState())?.result).toBeNull();
   });
 
   it('a round has 10 shots and ends with the saves; each save earns 1 star', () => {
@@ -198,7 +198,7 @@ describe('the child in goal (FR-143)', () => {
       expect(c.getState().shots).toBe(i + 1);
       nextShot(c);
     }
-    expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: 10, goals: 5, starsThisRound: 5 * STARS.save, keeperShot: null, shown: null });
+    expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: 10, goals: 5, starsThisRound: 5 * STARS.save, play: { kind: 'keeper', shot: null }, shown: null });
   });
 
   it('settings saved while the last shot\'s result shows wait for it: the round still ends after 10 shots', () => {
@@ -208,10 +208,10 @@ describe('the child in goal (FR-143)', () => {
       nextShot(c);
     }
     shoot(c, c.getState().target!.number);
-    expect(c.getState().keeperShot?.result).toBe('saved');
+    expect(keeperShotOf(c.getState())?.result).toBe('saved');
     c.applySettings({ ...defaultSettings(), hintDisplay: 'onRequest' });
     // The decided shot still shows; the new settings do not throw in an 11th shot.
-    expect(c.getState().keeperShot?.result).toBe('saved');
+    expect(keeperShotOf(c.getState())?.result).toBe('saved');
     nextShot(c);
     expect(c.getState()).toMatchObject({ phase: 'roundOver', shots: KEEPER_SHOTS, goals: KEEPER_SHOTS });
   });
@@ -235,7 +235,7 @@ describe('the child in goal (FR-143)', () => {
     const c = keeperRound();
     const before = c.getState();
     c.tick(250);
-    expect(c.getState().keeperShot?.leftMs).toBe(9_750);
+    expect(keeperShotOf(c.getState())?.leftMs).toBe(9_750);
     expect(onlyTimeChanged(before, c.getState())).toBe(true);
   });
 });
@@ -246,18 +246,18 @@ describe('help holds the flight (FR-145)', () => {
     c.tick(2_000);
     c.typeKey('help');
     expect(c.getState()).toMatchObject({ helpStep: 1 });
-    expect(c.getState().keeperShot).toMatchObject({ held: true, leftMs: 8_000 });
+    expect(keeperShotOf(c.getState())).toMatchObject({ held: true, leftMs: 8_000 });
     c.tick(60_000);
-    expect(c.getState().keeperShot).toMatchObject({ held: true, leftMs: 8_000, result: null });
+    expect(keeperShotOf(c.getState())).toMatchObject({ held: true, leftMs: 8_000, result: null });
     // H again raises the help and keeps holding.
     c.typeKey('help');
     expect(c.getState()).toMatchObject({ helpStep: 2 });
     // The next digit lets the ball fly on.
     type(c, 3);
-    expect(c.getState().keeperShot?.held).toBe(false);
+    expect(keeperShotOf(c.getState())?.held).toBe(false);
     expect(c.getState().entry).toBe('3');
     c.tick(1_000);
-    expect(c.getState().keeperShot?.leftMs).toBe(7_000);
+    expect(keeperShotOf(c.getState())?.leftMs).toBe(7_000);
   });
 
   it('the help chart of step 3 holds the flight too; Enter closes it and the ball flies on', () => {
@@ -268,9 +268,9 @@ describe('help holds the flight (FR-145)', () => {
     expect(c.getState()).toMatchObject({ helpStep: 3, helpChartOpen: true });
     c.typeKey('enter');
     expect(c.getState()).toMatchObject({ helpChartOpen: false, shots: 0 });
-    expect(c.getState().keeperShot?.held).toBe(false);
+    expect(keeperShotOf(c.getState())?.held).toBe(false);
     c.tick(500);
-    expect(c.getState().keeperShot?.leftMs).toBe(9_500);
+    expect(keeperShotOf(c.getState())?.leftMs).toBe(9_500);
   });
 
   it('a save on the answer of step 4 counts with "Punkt nach voller Hilfe", and earns its star either way', () => {
@@ -289,18 +289,18 @@ describe('stored keeper rounds', () => {
     const store = memoryStore();
     const c = keeperRound(defaultSettings, { store });
     c.tick(1_000);
-    expect(store.round).toMatchObject({ mode: 'keeper', shots: 0 });
+    expect(store.round).toMatchObject({ play: { kind: 'keeper' }, shots: 0 });
     expect(roundSchema.safeParse(store.round).success).toBe(true);
     const again = new MatchController({ settings: defaultSettings, store });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ mode: 'keeper', target: c.getState().target });
-    expect(again.getState().keeperShot?.leftMs).toBe(9_000);
+    expect(again.getState()).toMatchObject({ play: { kind: 'keeper' }, target: c.getState().target });
+    expect(keeperShotOf(again.getState())?.leftMs).toBe(9_000);
   });
 
-  it('a refresh drops a keeper round the parent turned off; a shot outside the keeper mode is invalid', () => {
+  it('a refresh drops a keeper round the parent turned off; a keeper round without its shot is invalid', () => {
     const store = memoryStore();
     keeperRound(defaultSettings, { store });
-    expect(roundSchema.safeParse({ ...store.round, mode: 'normal' }).success).toBe(false);
+    expect(roundSchema.safeParse({ ...store.round, play: { kind: 'keeper' } }).success).toBe(false);
     const off = () => ({ ...defaultSettings(), modesAllowed: { wall: true, keeper: false, shootout: true, torwand: true, family: true } });
     expect(new MatchController({ settings: off, store }).restore()).toBe(false);
     expect(store.round).toBeNull();

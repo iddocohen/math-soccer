@@ -36,7 +36,7 @@
  *   (FR-135, FR-138). The backdrop is painted once per combination and swapped when the look changes; the snow or the
  *   rain falls behind the chart (WeatherView). `onExtras` hears them too (`data-weather`, `data-floodlight`,
  *   `data-stands` for tests).
- * - "Freistoß mit Mauer" (amendment 21, FR-142): WallView draws the wall of the current target (`s.wall`) and shades
+ * - "Freistoß mit Mauer" (amendment 21, FR-142): WallView draws the wall of the current target (`play.wall`) and shades
  *   the squares behind it. On every shot the defenders jump together. A shot at a number behind the wall flies to the
  *   wall instead of the square; the keeper does not dive, and the "ohhh" plays as after a caught ball. The square of the typed number lights up
  *   from the controller's shown square, as after any miss.
@@ -52,7 +52,7 @@
  *   turn puts the ball back at the kick spot and the keeper in the middle. A won shootout brings the short trophy
  *   moment: confetti and fireworks (FinalShow), the cup lift, a cheer.
  * - "Torwandschießen" (amendment 23, FR-155, FR-156): TorwandView covers the goal with the light board and its holes
- *   (`s.torwand.holes`), and the keeper is hidden. The target square has no outline (`plain`). A goal flies through
+ *   (`play.holes`), and the keeper is hidden. The target square has no outline (`plain`). A goal flies through
  *   its hole into the net; a decoy hole takes the ball into the net too, with the "ohhh"; any other number bounces
  *   off the board with a thud and the "ohhh".
  * - "Papa gegen Kind" (amendment 23, FR-158 to FR-160): the turns play as the child's kicks of the shootout, against
@@ -68,7 +68,7 @@ import Phaser from 'phaser';
 import { ballKind, cellRect, center, layoutChart, type ChartLayout } from '../core/chart/layout';
 import { chantSeconds } from '../core/cup/chant';
 import type { CupTeam, Quirk } from '../core/cup/teams';
-import { cupMatchWon, onlyTimeChanged, turnOf, type MatchController, type MatchEvent, type MatchView } from '../core/match/MatchController';
+import { cupMatchWon, keeperShotOf, kicksOf, modeOf, onlyTimeChanged, playOf, turnOf, type MatchController, type MatchEvent, type MatchView } from '../core/match/MatchController';
 import { MODE_INFO, type MatchMode } from '../core/match/rounds';
 import { isCutoutFill, type Rect } from '../core/types';
 import { wallBlocks } from '../core/match/wall';
@@ -374,26 +374,27 @@ export class MatchScene extends Phaser.Scene {
       this.lookKey = '';
       this.kickCount = -1;
       if (s.phase !== 'roundOver') this.options.sounds?.whistle?.();
-    } else if (happened('roundEnded') && (s.roundType === 'cup' || s.shootout !== null)) {
+    } else if (happened('roundEnded') && (s.roundType === 'cup' || kicksOf(s) !== null)) {
       // The final whistle of a cup match or a shootout (FR-150).
       this.options.sounds?.whistle?.();
     }
-    if (s.shootout !== null) this.newKick(s);
+    if (kicksOf(s) !== null) this.newKick(s);
     // The waiting keeper leaves the target, hint and waiting shape squares visible (FR-064).
     if (s.target) {
       this.keeper.keepClear(squaresToKeepClear(s.target).map((n) => cellRect(layout, CHART_RECT, n)));
     }
     this.refreshLook(layout);
-    this.wall.setWall(layout, s.wall, this.currentLook().shirtColor);
+    this.wall.setWall(layout, playOf(s, 'wall')?.wall ?? null, this.currentLook().shirtColor);
     // The board of "Torwandschießen" and no keeper (FR-155).
-    this.torwand.setHoles(layout, s.torwand?.holes ?? null);
-    this.keeper.setHidden(s.torwand !== null);
+    const board = playOf(s, 'torwand');
+    this.torwand.setHoles(layout, board?.holes ?? null);
+    this.keeper.setHidden(board !== null);
 
     const hintsShown = hintsVisible(targetHintDisplay(this.options.settings(), s.target), s.helpStep);
     const hintFrom = s.helpStep >= HINT_STEP ? (helpHint(layout, s.target)?.from ?? null) : null;
     // A scored target loses its cell panel at once (FR-097, parent feedback).
     const solved = s.ball?.outcome === 'goal';
-    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved, plain: s.torwand !== null });
+    this.goal.update({ layout, target: s.target, hintsVisible: hintsShown, helpStep: s.helpStep, shown: s.shown?.number ?? null, hintFrom, solved, plain: board !== null });
     this.helper.update(layout, s.target, s.helpStep, this.options.settings().rowColumnHelper, solved);
 
     this.setPaused(s.paused);
@@ -402,12 +403,13 @@ export class MatchScene extends Phaser.Scene {
 
     if (s.phase === 'roundOver' && this.cupMatch?.final && cupMatchWon(s) && !this.finalShow.running) this.cupWon();
     // The child's won shootout, and in "Papa gegen Kind" either winner (FR-160), get the trophy moment.
-    if (s.phase === 'roundOver' && s.shootout !== null && !this.finalShow.running) {
-      const winner = shootoutWinner(s.shootout.kicks);
-      if (winner === 0 || (winner === 1 && s.family !== null)) this.shootoutWon();
+    const kicks = kicksOf(s);
+    if (s.phase === 'roundOver' && kicks !== null && !this.finalShow.running) {
+      const winner = shootoutWinner(kicks);
+      if (winner === 0 || (winner === 1 && s.play.kind === 'family')) this.shootoutWon();
     }
 
-    if (opponentShootsIn(s.mode)) this.drawShot(s, layout, happened('keeperShotDecided'));
+    if (opponentShootsIn(modeOf(s))) this.drawShot(s, layout, happened('keeperShotDecided'));
     else this.shot.hide();
     if (s.phase === 'ballInFlight' && s.ball && (fresh || happened('shot'))) this.kick(s.ball.number);
     // With the next target the ball in the net waits at the kick spot again.
@@ -423,7 +425,7 @@ export class MatchScene extends Phaser.Scene {
    * time left in `followShot`.
    */
   private drawShot(s: MatchView, layout: ChartLayout, decided: boolean): void {
-    const shot = s.keeperShot;
+    const shot = keeperShotOf(s);
     if (shot === null || s.target === null) {
       this.shot.hide();
       return;
@@ -496,8 +498,8 @@ export class MatchScene extends Phaser.Scene {
   /** Every frame: the rolling ball and the countdown ring of a shot in flight follow its time left (FR-144). */
   private followShot(delta: number): void {
     const s = this.controller.getState();
-    const shot = s.keeperShot;
-    if (!opponentShootsIn(s.mode) || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
+    const shot = keeperShotOf(s);
+    if (!opponentShootsIn(modeOf(s)) || shot === null || shot.result !== null || s.target === null || this.shotCount !== s.targetCount) return;
     const goal = 1 - shot.leftMs / shot.totalMs;
     // The controller's time moves in steps of a tick; the drawing eases toward it.
     this.shotK += (goal - this.shotK) * Math.min(1, delta / 250);
@@ -599,14 +601,15 @@ export class MatchScene extends Phaser.Scene {
    * (amendment 21). On the child's turn of the shootout the keeper wears the opponent team's colors.
    */
   private applyLook(look: Look, s: MatchView): void {
-    const info = MODE_INFO[s.mode];
+    const info = MODE_INFO[modeOf(s)];
     const shootout = s.started && info.kicks === 'opponent';
     // On the opponent's turn of the shootout his shot exists; it stays while its result shows.
-    const opponentShoots = s.started && (info.childKeeps || (shootout && s.keeperShot !== null));
+    const opponentShoots = s.started && (info.childKeeps || (shootout && keeperShotOf(s) !== null));
     const team = opponentShoots || shootout ? keeperOpponent(s.seed) : null;
     const opponent = opponentShoots ? team : null;
     // "Papa gegen Kind": the grown-up kicks in his own shirt with his name.
-    const grownup = s.started && s.family !== null && turnOf(s) === 'grownup' ? s.family.name : null;
+    const family = playOf(s, 'family');
+    const grownup = s.started && family !== null && turnOf(s) === 'grownup' ? family.name : null;
     const key = `${lookKey(look)}|${team?.id ?? ''}|${opponentShoots}|${grownup ?? ''}`;
     if (key === this.lookKey) return;
     this.lookKey = key;
@@ -626,12 +629,12 @@ export class MatchScene extends Phaser.Scene {
     this.player.kick();
     const layout = this.layoutOf(s);
     // The same rule as the controller's: a number behind the wall hits the wall (FR-142).
-    const blocked = wallBlocks(layout, s.wall, n);
+    const blocked = wallBlocks(layout, playOf(s, 'wall')?.wall ?? null, n);
     const square = blocked ? this.wall.hitPoint(layout, n) : cellRect(layout, CHART_RECT, n);
     // On a square of a cutout that is not its last one the keeper waits aside (FR-126); a ball the wall stops never
     // reaches him. In a shootout every kick is a keeper shot, also on a cutout's first square (the controller scores it).
-    const fill = isCutoutFill(s.target) && s.shootout === null;
-    this.keeperInPlay = !fill && !blocked && s.torwand === null;
+    const fill = isCutoutFill(s.target) && kicksOf(s) === null;
+    this.keeperInPlay = !fill && !blocked && s.play.kind !== 'torwand';
     // The defenders jump on every shot, highest when the ball reaches them (FR-142).
     this.wall.jump(blocked);
     // The same rule as the controller's: the target number scores, any other number is caught.
@@ -673,7 +676,7 @@ export class MatchScene extends Phaser.Scene {
       this.mascot.coverEyes();
       this.stands.ohh();
       this.options.sounds?.ohh();
-    } else if (s.ball?.outcome === 'miss' && s.torwand !== null) {
+    } else if (s.ball?.outcome === 'miss' && s.play.kind === 'torwand') {
       // The ball bounces off the board, rests a moment where it hit and fades (FR-156).
       this.ball.caught(HOLD_MS);
       this.options.sounds?.wallHit?.();

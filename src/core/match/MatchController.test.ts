@@ -8,6 +8,7 @@ import {
   cupMatchWon,
   MatchController,
   matchInvariantErrors,
+  playOf,
   remainingMs,
   SHOWN_MS,
   START_HEARTS,
@@ -685,24 +686,32 @@ describe('applySettings: saved settings reach the running round (amendment 01, F
 
 describe('state rules checked in development builds (review H4, partial)', () => {
   /** A copy of a running round's state that a test may change. */
-  function aiming(): MatchState {
-    return structuredClone(makeController().getState()) as MatchState;
+  function aiming(): Extract<MatchState, { phase: 'aiming' }> {
+    return structuredClone(makeController().getState()) as Extract<MatchState, { phase: 'aiming' }>;
   }
 
   it('a running round has no broken rule', () => {
     expect(matchInvariantErrors(aiming())).toEqual([]);
   });
 
-  it('a ball without an outcome exists exactly while it flies', () => {
-    expect(matchInvariantErrors({ ...aiming(), phase: 'ballInFlight', ball: null })).toHaveLength(1);
-    expect(matchInvariantErrors({ ...aiming(), ball: { number: 4, outcome: null, atMs: 0 } })).toHaveLength(1);
-    expect(matchInvariantErrors({ ...aiming(), phase: 'ballInFlight', ball: { number: 4, outcome: null, atMs: 0 } })).toEqual([]);
-    expect(matchInvariantErrors({ ...aiming(), ball: { number: 4, outcome: 'miss', atMs: 0 } })).toEqual([]);
+  it('the phase rules are held by the types: a ball without an outcome only in flight, a goal under the celebration, no shown square after the round', () => {
+    // @ts-expect-error a flying round has a ball
+    const noBall: MatchState = { ...aiming(), phase: 'ballInFlight', ball: null };
+    // @ts-expect-error an aiming round has no ball in flight
+    const flyingWhileAiming: MatchState = { ...aiming(), phase: 'aiming', ball: { number: 4, outcome: null, atMs: 0 } };
+    // @ts-expect-error the celebration follows a goal
+    const celebratedMiss: MatchState = { ...aiming(), phase: 'celebrating', ball: { number: 4, outcome: 'miss', atMs: 0 } };
+    // @ts-expect-error no square shows after the round
+    const shownAfterEnd: MatchState = { ...aiming(), phase: 'roundOver', ball: null, shown: { number: 4, remainingMs: 10 } };
+    expect([noBall, flyingWhileAiming, celebratedMiss, shownAfterEnd]).toHaveLength(4);
   });
 
-  it('celebrating needs a goal, and no square shows after the round ended', () => {
-    expect(matchInvariantErrors({ ...aiming(), phase: 'celebrating', ball: { number: 4, outcome: 'miss', atMs: 0 } })).toHaveLength(1);
-    expect(matchInvariantErrors({ ...aiming(), phase: 'roundOver', shown: { number: 4, remainingMs: 10 } })).toHaveLength(1);
+  it('the child shoots no ball in the keeper mode or while the opponent shoots', () => {
+    const ball = { number: 4, outcome: 'miss' as const, atMs: 0 };
+    const shot = { totalMs: 10_000, leftMs: 10_000, held: false, result: null, typed: null, resultLeftMs: 0 };
+    expect(matchInvariantErrors({ ...aiming(), play: { kind: 'keeper', shot: null }, ball })).toHaveLength(1);
+    expect(matchInvariantErrors({ ...aiming(), play: { kind: 'shootout', kicks: [[], []], shot }, ball })).toHaveLength(1);
+    expect(matchInvariantErrors({ ...aiming(), play: { kind: 'shootout', kicks: [[], []], shot: null }, ball })).toEqual([]);
   });
 
   it('losing the last heart ends the round without a shown square', () => {
@@ -775,11 +784,11 @@ describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
 
   it('starts a time round with the challenge minutes and the countdown at the full time', () => {
     const { c } = challenge();
-    expect(c.getState()).toMatchObject({ roundType: 'time', challengeMinutes: 1, hearts: START_HEARTS });
+    expect(c.getState()).toMatchObject({ roundType: 'time', play: { kind: 'time', minutes: 1 }, hearts: START_HEARTS });
     expect(remainingMs(c.getState())).toBe(60_000);
     // A normal round has no countdown.
     const normal = fixed();
-    expect(normal.getState().challengeMinutes).toBeNull();
+    expect(playOf(normal.getState(), 'time')).toBeNull();
     expect(remainingMs(normal.getState())).toBeNull();
   });
 
@@ -846,10 +855,10 @@ describe('time challenge (amendment 07, FR-075 to FR-080)', () => {
     const store = memoryStore();
     const { c } = challenge({}, store);
     c.tick(20_000);
-    expect(store.round).toMatchObject({ roundType: 'time', challengeMinutes: 1, elapsedMs: 20_000 });
+    expect(store.round).toMatchObject({ roundType: 'time', play: { kind: 'time', minutes: 1 }, elapsedMs: 20_000 });
     const again = new MatchController({ settings: () => ({ ...defaultSettings(), timeChallenge: { allowed: true, minutes: 5 } }), store });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ roundType: 'time', challengeMinutes: 1 });
+    expect(again.getState()).toMatchObject({ roundType: 'time', play: { kind: 'time', minutes: 1 } });
     expect(remainingMs(again.getState())).toBe(40_000);
     again.tick(40_000);
     expect(again.getState().phase).toBe('roundOver');
@@ -966,7 +975,7 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
   it('starts a cup round with hearts, the match goals and no countdown', () => {
     const { c } = setup({ answer: 46 });
     c.startCup({ level: 3, goals: 3, cup: 1, stage: 0 });
-    expect(c.getState()).toMatchObject({ started: true, roundType: 'cup', cupMatch: { level: 3, goals: 3, cup: 1, stage: 0 }, hearts: 3, challengeMinutes: null });
+    expect(c.getState()).toMatchObject({ started: true, roundType: 'cup', play: { kind: 'cup', match: { level: 3, goals: 3, cup: 1, stage: 0 } }, hearts: 3 });
   });
 
   it('every target plays the match level, not the child level, and no X shape with two empty squares', () => {
@@ -1019,10 +1028,10 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
     c.startCup({ level: 4, goals: 6, cup: 1, stage: 0 });
     shootAt(c, 46);
     c.celebrationDone();
-    expect(store.round).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6, cup: 1, stage: 0 }, goals: 1 });
+    expect(store.round).toMatchObject({ roundType: 'cup', play: { kind: 'cup', match: { level: 4, goals: 6, cup: 1, stage: 0 } }, goals: 1 });
     const again = new MatchController({ settings: defaultSettings, store, nextTarget: () => target(46) });
     expect(again.restore()).toBe(true);
-    expect(again.getState()).toMatchObject({ roundType: 'cup', cupMatch: { level: 4, goals: 6, cup: 1, stage: 0 }, goals: 1, hearts: 3 });
+    expect(again.getState()).toMatchObject({ roundType: 'cup', play: { kind: 'cup', match: { level: 4, goals: 6, cup: 1, stage: 0 } }, goals: 1, hearts: 3 });
     // The round settings keep a round type of "Spielen"; the cup match lives in the state.
     expect(again.getRoundSettings().roundType).toBe('untilHearts');
   });
@@ -1037,14 +1046,14 @@ describe('cup match (amendment 13, FR-108, FR-109)', () => {
     c.abandon();
     expect(phases).not.toContain('roundOver');
     expect(store.round).toBeNull();
-    expect(c.getState()).toMatchObject({ started: false, roundType: 'untilHearts', cupMatch: null });
+    expect(c.getState()).toMatchObject({ started: false, roundType: 'untilHearts', play: { kind: 'normal' } });
   });
 
   it('a normal round after a cup match is no cup match', () => {
     const { c } = setup({ answer: 46 });
     c.startCup({ level: 2, goals: 3, cup: 1, stage: 0 });
     c.start();
-    expect(c.getState()).toMatchObject({ roundType: 'untilHearts', cupMatch: null });
+    expect(c.getState()).toMatchObject({ roundType: 'untilHearts', play: { kind: 'normal' } });
   });
 });
 
